@@ -230,13 +230,20 @@ public sealed class FfmpegAudioSourceTests
     }
 
     [Fact]
-    public void Factory_accepts_core_extensions_only()
+    public void Factory_accepts_its_extensions_and_stream_urls()
     {
         var factory = new FfmpegSourceFactory();
 
         Assert.True(factory.CanOpen("x.FLAC"));
         Assert.True(factory.CanOpen("a/b/c.wv"));
-        Assert.False(factory.CanOpen("x.ogg")); // FM-02, P4
+        foreach (var extension in new[] { ".ogg", ".oga", ".opus", ".mp4", ".alac", ".wma", ".asf", ".mpc", ".tta", ".shn" })
+        {
+            Assert.True(factory.CanOpen("x" + extension), extension);
+        }
+        Assert.True(factory.CanOpen("http://radio.example/stream"));
+        Assert.True(factory.CanOpen("HTTPS://radio.example/live.mp3"));
         Assert.False(factory.CanOpen("x.txt"));
+        Assert.False(factory.CanOpen("x.mod")); // FM-07: libopenmpt plugin
+        Assert.False(factory.CanOpen("x.mid")); // FM-08: MIDI plugin
     }
 }

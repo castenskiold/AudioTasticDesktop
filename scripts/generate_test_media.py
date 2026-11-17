@@ -30,12 +30,12 @@ FORMATS = {
     "flac": ("flac", ["-c:a", "flac", "-sample_fmt", "s16"]),
     "mp3": ("mp3", ["-c:a", "libmp3lame", "-b:a", "192k"]),
     "aac": ("m4a", ["-c:a", "aac", "-b:a", "192k"]),
-    "alac": ("m4a", ["-c:a", "alac"]),
+    "alac": ("m4a", ["-c:a", "alac", "-sample_fmt", "s16p"]),
     "vorbis": ("ogg", ["-c:a", "libvorbis", "-q:a", "5"]),
     "opus": ("opus", ["-c:a", "libopus", "-b:a", "128k"]),
     "wavpack": ("wv", ["-c:a", "wavpack", "-sample_fmt", "s16p"]),
     "wma": ("wma", ["-c:a", "wmav2", "-b:a", "192k"]),
-    "tta": ("tta", ["-c:a", "tta"]),
+    "tta": ("tta", ["-c:a", "tta", "-sample_fmt", "s16"]),
 }
 
 # name -> (lavfi source, duration seconds)

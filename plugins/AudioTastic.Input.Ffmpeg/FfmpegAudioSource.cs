@@ -100,6 +100,10 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
     public static FfmpegAudioSource Open(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
+        if (AsfDrm.IsProtected(path))
+        {
+            throw new AudioSourceException("This file is DRM-protected (Windows Media DRM) and cannot be played.");
+        }
         return new FfmpegAudioSource(path);
     }
 

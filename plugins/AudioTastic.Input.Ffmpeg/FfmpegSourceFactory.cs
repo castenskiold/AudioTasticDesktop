@@ -3,20 +3,35 @@ using AudioTastic.Sdk.Audio;
 namespace AudioTastic.Input.Ffmpeg;
 
 /// <summary>
-/// FM-01: the default input plugin. Registered directly by the app until the plugin loader arrives (PG-01, P4).
-/// Extensions grow as later format features (FM-02 ... FM-10) are verified.
+/// FM-01 … FM-06, FM-10: the default decoder. Opens every file extension FFmpeg handles for us, and http(s) stream URLs.
+/// Other input plugins with a higher manifest priority win for the same extension.
 /// </summary>
 public sealed class FfmpegSourceFactory : IAudioSourceFactory
 {
-    private static readonly string[] CoreExtensions =
-        [".wav", ".flac", ".mp3", ".aiff", ".aif", ".aifc", ".ape", ".aac", ".m4a", ".wv"];
+    private static readonly string[] FileExtensions =
+    [
+        // FM-01 core formats
+        ".wav", ".flac", ".mp3", ".aiff", ".aif", ".aifc", ".ape", ".aac", ".m4a", ".wv",
+        // FM-02 Ogg Vorbis and Opus
+        ".ogg", ".oga", ".opus",
+        // FM-03 ALAC / AAC in MP4
+        ".mp4", ".m4b", ".alac",
+        // FM-04 WMA
+        ".wma", ".asf",
+        // FM-06 Musepack, TTA, Shorten (OptimFROG is its own plugin)
+        ".mpc", ".mp+", ".mpp", ".tta", ".shn",
+    ];
 
     public string Name => "FFmpeg";
 
-    public IReadOnlyCollection<string> Extensions => CoreExtensions;
+    public IReadOnlyCollection<string> Extensions => FileExtensions;
 
     public bool CanOpen(string path) =>
-        CoreExtensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+        IsStreamUrl(path) || FileExtensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     public IAudioSource Open(string path) => FfmpegAudioSource.Open(path);
+
+    /// <summary>FM-10: internet radio and other HTTP streams.</summary>
+    public static bool IsStreamUrl(string path) =>
+        path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 }
