@@ -1,4 +1,5 @@
 using AudioTastic.Core.Audio;
+using AudioTastic.Data.Settings;
 using AudioTastic.Sdk.Audio;
 
 namespace AudioTastic.Core.Playback;
@@ -72,6 +73,12 @@ public interface IPlayerController
     /// <summary>CO-05: silences output without changing <see cref="Volume"/>.</summary>
     bool IsMuted { get; set; }
 
+    /// <summary>CO-03: shuffle on/off (saved).</summary>
+    bool Shuffle { get; set; }
+
+    /// <summary>CO-04: repeat mode (saved).</summary>
+    RepeatMode Repeat { get; set; }
+
     /// <summary>Name of the device audio is going to, or null when no output is open.</summary>
     string? OutputDeviceName { get; }
 
@@ -79,6 +86,9 @@ public interface IPlayerController
     event EventHandler<TrackChangedEventArgs>? TrackChanged;
     event EventHandler<PlaybackPositionEventArgs>? PositionChanged;
     event EventHandler<PlaybackErrorEventArgs>? PlaybackError;
+
+    /// <summary>Raised when <see cref="Shuffle"/> or <see cref="Repeat"/> changes.</summary>
+    event EventHandler<EventArgs>? PlayModeChanged;
 
     /// <summary>Replaces the track list with <paramref name="paths"/> and plays the first (Open, L key).</summary>
     Task OpenAsync(IEnumerable<string> paths, bool play = true);

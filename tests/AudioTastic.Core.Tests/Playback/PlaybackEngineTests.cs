@@ -232,4 +232,53 @@ public sealed class PlaybackEngineTests : IDisposable
             Assert.Equal(SyntheticSource.ValueAt(f, 0), audio[offset + (2 * f)]);
         }
     }
+
+    [Fact]
+    public async Task Repeat_track_replays_the_track_at_its_end()
+    {
+        _engine.Repeat = RepeatMode.Track;
+        await Wait.UntilAsync(() => _engine.Repeat == RepeatMode.Track);
+
+        await _engine.OpenAsync([Track("loop", seconds: 0.2), Track("other", seconds: 0.2)]);
+        await Wait.UntilAsync(() => _factory.Opened.Count >= 3);
+
+        Assert.All(_factory.Opened, s => Assert.Equal(44_100 * 0.2, s.LengthFrames!.Value, 0));
+        Assert.Equal(0, _engine.CurrentIndex);
+        Assert.Equal(RepeatMode.Track, new SettingsStore(_paths).Current.Playback.Repeat);
+    }
+
+    [Fact]
+    public async Task Repeat_playlist_wraps_to_the_first_track()
+    {
+        _engine.Repeat = RepeatMode.Playlist;
+        var indexes = new List<int>();
+        _engine.TrackChanged += (_, e) => { lock (indexes) { indexes.Add(e.Index); } };
+
+        await _engine.OpenAsync([Track("a", seconds: 0.2), Track("b", seconds: 0.2)]);
+        await Wait.UntilAsync(() => { lock (indexes) { return indexes.Count >= 3; } });
+
+        lock (indexes)
+        {
+            Assert.Equal([0, 1, 0], indexes.Take(3));
+        }
+    }
+
+    [Fact]
+    public async Task Shuffle_is_saved_and_next_follows_the_shuffled_order()
+    {
+        _engine.Shuffle = true;
+        await Wait.UntilAsync(() => _engine.Shuffle);
+        var tracks = Enumerable.Range(0, 8).Select(i => Track($"s{i}", seconds: 30)).ToArray();
+
+        await _engine.OpenAsync(tracks);
+        var seen = new HashSet<int> { _engine.CurrentIndex };
+        for (var i = 0; i < 7; i++)
+        {
+            await _engine.NextAsync();
+            seen.Add(_engine.CurrentIndex);
+        }
+
+        Assert.Equal(8, seen.Count); // every track once before any repeats
+        Assert.True(new SettingsStore(_paths).Current.Playback.Shuffle);
+    }
 }

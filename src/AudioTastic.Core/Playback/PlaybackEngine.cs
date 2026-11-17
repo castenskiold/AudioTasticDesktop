@@ -33,6 +33,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Timer _monitor;
     private readonly Timer _saveTimer;
+    private readonly PlayOrder _playOrder = new();
 
     private string[] _tracks = [];
     private int _index = -1;
@@ -57,6 +58,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
         _graph = new MixerGraph(new AudioFormat(48_000, EngineChannels));
         _volume = Math.Clamp(settings.Current.Playback.Volume, 0, 100);
+        _playOrder.SetShuffle(settings.Current.Playback.Shuffle, -1);
+        _playOrder.Repeat = settings.Current.Playback.Repeat;
         _muted = settings.Current.Playback.Muted;
         ApplyGain();
         _graph.Master.SnapToTarget();
@@ -122,6 +125,37 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public event EventHandler<TrackChangedEventArgs>? TrackChanged;
     public event EventHandler<PlaybackPositionEventArgs>? PositionChanged;
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackError;
+    public event EventHandler<EventArgs>? PlayModeChanged;
+
+    /// <summary>CO-03: shuffle; saved across restarts.</summary>
+    public bool Shuffle
+    {
+        get => _playOrder.Shuffle;
+        set => _ = RunAsync(() =>
+        {
+            if (value != _playOrder.Shuffle)
+            {
+                _playOrder.SetShuffle(value, _index);
+                SavePlayMode();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>CO-04: repeat mode; saved across restarts.</summary>
+    public RepeatMode Repeat
+    {
+        get => _playOrder.Repeat;
+        set => _ = RunAsync(() =>
+        {
+            if (value != _playOrder.Repeat)
+            {
+                _playOrder.Repeat = value;
+                SavePlayMode();
+            }
+            return Task.CompletedTask;
+        });
+    }
 
     public Task OpenAsync(IEnumerable<string> paths, bool play = true)
     {
@@ -131,6 +165,11 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             _tracks = list;
             _index = list.Length > 0 ? 0 : -1;
+            _playOrder.Reset(list.Length, _index);
+            if (_playOrder.Shuffle && list.Length > 0)
+            {
+                _index = _playOrder.Order[0]; // CO-03: shuffle starts anywhere in the list
+            }
             if (play && _index >= 0)
             {
                 await PlayIndexCoreAsync(_index).ConfigureAwait(false);
@@ -186,21 +225,21 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public Task PreviousAsync() => RunAsync(async () =>
     {
         var active = _state is PlaybackState.Playing or PlaybackState.Paused;
-        if (active && (Position > RestartThreshold || _index <= 0))
+        if (active && (Position > RestartThreshold || _playOrder.Previous(_index) is null))
         {
             await SeekCoreAsync(TimeSpan.Zero).ConfigureAwait(false);
         }
-        else if (_index > 0)
+        else if (_playOrder.Previous(_index) is int previous)
         {
-            await GoToAsync(_index - 1, active).ConfigureAwait(false);
+            await GoToAsync(previous, active).ConfigureAwait(false);
         }
     });
 
     public Task NextAsync() => RunAsync(async () =>
     {
-        if (_index + 1 < _tracks.Length)
+        if (_playOrder.Next(_index, trackEnded: false) is int next)
         {
-            await GoToAsync(_index + 1, _state is PlaybackState.Playing or PlaybackState.Paused).ConfigureAwait(false);
+            await GoToAsync(next, _state is PlaybackState.Playing or PlaybackState.Paused).ConfigureAwait(false);
         }
     });
 
@@ -259,7 +298,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>Plays the track at <paramref name="index"/>; unplayable files are reported and skipped.</summary>
     private async Task PlayIndexCoreAsync(int index)
     {
-        for (var i = index; i < _tracks.Length; i++)
+        // Unplayable files are skipped in play order (CO-03), trying each track at most once.
+        int? next = index;
+        for (var attempt = 0; next is int i && attempt < _tracks.Length; attempt++, next = _playOrder.Next(i, trackEnded: false))
         {
             var path = _tracks[i];
             SetState(PlaybackState.Buffering);
@@ -461,9 +502,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 {
                     ReportError(_track.Path, fault);
                 }
-                if (_index + 1 < _tracks.Length)
+                if (_playOrder.Next(_index, trackEnded: true) is int next)
                 {
-                    await PlayIndexCoreAsync(_index + 1).ConfigureAwait(false);
+                    await PlayIndexCoreAsync(next).ConfigureAwait(false);
                 }
                 else
                 {
@@ -547,6 +588,17 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             _saveTimer.Change(SaveDelay, Timeout.InfiniteTimeSpan);
         }
+    }
+
+    private void SavePlayMode()
+    {
+        var (shuffle, repeat) = (_playOrder.Shuffle, _playOrder.Repeat);
+        _settings.Update(SettingsGroup.Playback, s =>
+        {
+            s.Playback.Shuffle = shuffle;
+            s.Playback.Repeat = repeat;
+        });
+        Raise(PlayModeChanged, EventArgs.Empty);
     }
 
     private void SavePlaybackState()

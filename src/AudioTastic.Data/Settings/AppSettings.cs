@@ -45,6 +45,12 @@ public sealed class PlaybackSettings
 
     /// <summary>CO-05: mute keeps <see cref="Volume"/> unchanged.</summary>
     public bool Muted { get; set; }
+
+    /// <summary>CO-03: shuffle on/off (playback state).</summary>
+    public bool Shuffle { get; set; }
+
+    /// <summary>CO-04: repeat mode (playback state).</summary>
+    public RepeatMode Repeat { get; set; }
 }
 
 public sealed class OutputSettings
@@ -90,6 +96,14 @@ public sealed class GeneralSettings
 {
     /// <summary>TL-03: minimum level written to the log files.</summary>
     public LogLevelSetting LogLevel { get; set; } = LogLevelSetting.Information;
+}
+
+/// <summary>CO-04: repeat modes, cycled by the REP button (Off → Playlist → Track).</summary>
+public enum RepeatMode
+{
+    Off,
+    Playlist,
+    Track,
 }
 
 /// <summary>Log levels offered in Settings › General.</summary>
