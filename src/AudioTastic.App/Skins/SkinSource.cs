@@ -99,6 +99,9 @@ public sealed class EmbeddedSkinSource : ISkinSource
 
     public string Location => "built-in default skin";
 
+    /// <summary>Every file of the built-in skin (relative paths).</summary>
+    public IEnumerable<string> Files => _names.Keys;
+
     public bool Exists(string path) => _names.ContainsKey(ZipSkinSource.Normalize(path));
 
     public Stream Open(string path) =>

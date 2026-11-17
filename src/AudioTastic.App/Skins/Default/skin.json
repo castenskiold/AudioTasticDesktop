@@ -18,7 +18,9 @@
     "time": { "family": "Inter", "files": ["fonts/Inter-Light.ttf"], "weight": "light", "size": 22 },
     "body": { "family": "Inter", "files": ["fonts/Inter-Regular.ttf"], "weight": "regular", "size": 8 },
     "medium": { "family": "Inter", "files": ["fonts/Inter-Medium.ttf"], "weight": "medium", "size": 8 },
-    "badge": { "family": "Inter", "files": ["fonts/Inter-SemiBold.ttf"], "weight": "semibold", "size": 5.5 }
+    "badge": { "family": "Inter", "files": ["fonts/Inter-SemiBold.ttf"], "weight": "semibold", "size": 5.5 },
+    "heading": { "family": "Inter", "files": ["fonts/Inter-Bold.ttf"], "weight": "bold", "size": 8.5 },
+    "timeSmall": { "family": "Inter", "files": ["fonts/Inter-Light.ttf"], "weight": "light", "size": 8 }
   },
   "windows": {
     "main": {
@@ -95,27 +97,43 @@
     },
     "mini": {
       "width": 330,
-      "height": 24,
+      "height": 56,
       "background": "@panel",
       "border": "@text",
       "borderWidth": 1,
-      "cornerRadius": 12,
+      "cornerRadius": 10,
       "elements": [
-        { "type": "dragArea", "x": 0, "y": 0, "width": 330, "height": 24 },
-        { "type": "button", "bind": "menu", "x": 6, "y": 5, "width": 14, "height": 14, "image": "images/logo.png", "tooltip": "Main menu" },
-        { "type": "button", "bind": "previous", "x": 24, "y": 6, "width": 12, "height": 12, "image": "images/previous.svg",
+        { "type": "dragArea", "x": 0, "y": 0, "width": 330, "height": 56 },
+        { "type": "button", "bind": "menu", "x": 10, "y": 7, "width": 12, "height": 12, "image": "images/logo.png", "tooltip": "Main menu" },
+        { "type": "marquee", "x": 28, "y": 6, "width": 270, "height": 14, "font": "heading", "color": "@text", "speed": 25 },
+        { "type": "button", "bind": "expand", "x": 308, "y": 7, "width": 12, "height": 12, "image": "images/expand.svg",
+          "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Full player (Ctrl+W, or double-click)" },
+
+        { "type": "time", "x": 6, "y": 32, "width": 28, "height": 14, "font": "timeSmall", "color": "@text", "align": "right" },
+        { "type": "slider", "bind": "seek", "x": 38, "y": 33, "width": 94, "height": 12,
+          "trackColor": "@dim", "fillColor": "@text", "thumbColor": "@text", "thumbSize": 6, "trackThickness": 1.2, "tooltip": "Seek" },
+        { "type": "time", "bind": "duration", "x": 136, "y": 32, "width": 28, "height": 14, "font": "timeSmall", "color": "@muted" },
+
+        { "type": "button", "bind": "previous", "x": 166, "y": 33, "width": 12, "height": 12, "image": "images/previous.svg",
           "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Previous (Z)" },
-        { "type": "button", "bind": "playPause", "x": 37, "y": 6, "width": 12, "height": 12, "image": "images/playpause.svg",
-          "colors": { "normal": "@text", "hover": "@text" }, "tooltip": "Play / pause" },
-        { "type": "button", "bind": "next", "x": 50, "y": 6, "width": 12, "height": 12, "image": "images/next.svg",
+        { "type": "button", "bind": "playPause", "x": 182, "y": 29, "width": 20, "height": 20, "image": "images/play.svg",
+          "images": { "active": "images/pause.svg" }, "padding": 4.5, "cornerRadius": 10, "strokeWidth": 1,
+          "strokes": { "normal": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@text", "pressed": "@bg" }, "tooltip": "Play / pause (X / C)" },
+        { "type": "button", "bind": "stop", "x": 206, "y": 33, "width": 12, "height": 12, "image": "images/stop.svg",
+          "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Stop (V)" },
+        { "type": "button", "bind": "next", "x": 222, "y": 33, "width": 12, "height": 12, "image": "images/next.svg",
           "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Next (B)" },
-        { "type": "marquee", "x": 68, "y": 6, "width": 150, "height": 12, "font": "body", "color": "@text", "speed": 25 },
-        { "type": "time", "x": 220, "y": 5, "width": 38, "height": 14, "font": "medium", "fontSize": 8, "color": "@text", "align": "right" },
-        { "type": "slider", "bind": "volume", "x": 264, "y": 6, "width": 42, "height": 12,
-          "trackColor": "@dim", "fillColor": "@text", "thumbColor": "@text", "thumbSize": 4, "trackThickness": 1, "tooltip": "Volume" },
-        { "type": "button", "bind": "expand", "x": 310, "y": 6, "width": 12, "height": 12, "image": "images/expand.svg",
-          "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Full player (Ctrl+W)" }
+
+        { "type": "toggle", "bind": "shuffle", "x": 242, "y": 34, "width": 22, "height": 10, "text": "SHF", "font": "badge",
+          "cornerRadius": 5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@muted", "active": "@text", "disabled": "@line" },
+          "fills": { "active": "@text" }, "colors": { "normal": "@muted", "hover": "@text", "active": "@bg", "disabled": "@dim" }, "tooltip": "Shuffle (S)" },
+        { "type": "toggle", "bind": "playlist", "x": 267, "y": 34, "width": 17, "height": 10, "text": "PL", "font": "badge",
+          "cornerRadius": 5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@muted", "active": "@text", "disabled": "@line" },
+          "fills": { "active": "@text" }, "colors": { "normal": "@muted", "hover": "@text", "active": "@bg", "disabled": "@dim" }, "tooltip": "Playlist (Alt+E)" },
+        { "type": "toggle", "bind": "mute", "x": 292, "y": 32, "width": 14, "height": 14, "image": "images/speaker.svg",
+          "images": { "active": "images/speaker-muted.svg" }, "colors": { "normal": "@muted", "hover": "@text", "active": "@muted" },
+          "tooltip": "Mute (mouse wheel: volume)" }
       ]
-    }
-  }
+    }  }
 }

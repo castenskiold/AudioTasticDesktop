@@ -25,8 +25,14 @@ public static partial class SkinLoader
     public static readonly IReadOnlyDictionary<string, string[]> Binds = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["button"] = ["previous", "play", "pause", "playPause", "stop", "next", "open", "menu", "minimize", "close", "miniPlayer", "expand"],
-        ["toggle"] = ["shuffle", "repeat", "equalizer", "playlist", "crossfade", "cast"],
+        ["toggle"] = ["shuffle", "repeat", "mute", "equalizer", "playlist", "crossfade", "cast"],
         ["slider"] = ["volume", "seek"],
+    };
+
+    /// <summary>Element types whose <c>bind</c> is optional, with the allowed values.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> OptionalBinds = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        ["time"] = ["duration"],
     };
 
     private static readonly Lazy<JsonSchema> Schema = new(() =>
@@ -137,6 +143,13 @@ public static partial class SkinLoader
                     if (e.Bind is null || !allowed.Contains(e.Bind, StringComparer.Ordinal))
                     {
                         errors.Add($"{where}: bind must be one of {string.Join(", ", allowed)}");
+                    }
+                }
+                else if (OptionalBinds.TryGetValue(e.Type, out var optional))
+                {
+                    if (e.Bind is not null && !optional.Contains(e.Bind, StringComparer.Ordinal))
+                    {
+                        errors.Add($"{where}: bind must be empty or one of {string.Join(", ", optional)}");
                     }
                 }
                 else if (e.Bind is not null)

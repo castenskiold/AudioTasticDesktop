@@ -42,10 +42,7 @@ public sealed class SkinTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "skin.json"), json.ToJsonString());
         if (includeImages)
         {
-            foreach (var file in new[] { "images/logo.png", "images/logo@2x.png", "images/circle.svg", "images/circle-filled.svg",
-                         "images/previous.svg", "images/play.svg", "images/pause.svg", "images/playpause.svg", "images/stop.svg",
-                         "images/next.svg", "images/open.svg", "images/expand.svg", "fonts/Inter-SemiBold.ttf", "fonts/Inter-Light.ttf",
-                         "fonts/Inter-Regular.ttf", "fonts/Inter-Medium.ttf" })
+            foreach (var file in builtIn.Files.Where(f => f != "skin.json"))
             {
                 var target = Path.Combine(folder, file);
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);

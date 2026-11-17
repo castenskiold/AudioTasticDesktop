@@ -14,8 +14,8 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && AppHost.Services is { } services)
         {
-            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
-            desktop.MainWindow = services.GetRequiredService<MainWindow>();
+            // The shell creates the skinned main window and mini player (UI-01, UI-05).
+            services.GetRequiredService<Ui.PlayerShell>().Start(desktop);
         }
         base.OnFrameworkInitializationCompleted();
     }

@@ -61,8 +61,9 @@ internal static class Program
                 .AddSingleton<IAudioOutput>(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
                 .AddSingleton<PlaybackEngine>()
                 .AddSingleton<IPlayerController>(sp => sp.GetRequiredService<PlaybackEngine>())
-                .AddTransient<AudioDebugWindow>()
-                .AddTransient<MainWindow>()
+                // P2 player UI: skins (UI-03) and the shell that owns the skinned windows.
+                .AddSingleton<AudioTastic.App.Skins.SkinManager>()
+                .AddSingleton<AudioTastic.App.Ui.PlayerShell>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
             AppHost.Services = services;

@@ -52,7 +52,7 @@
   <ItemGroup>
     <EmbeddedResource Include="$(RepoRoot)docs\skins\skin.schema.json" LogicalName="AudioTastic.Skins.skin.schema.json" />
     <EmbeddedResource Include="Skins\Default\**\*" LogicalName="AudioTastic.Skins.Default/%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="$(RepoRoot)docs\pdf-src\fonts\Inter-Light.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Regular.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Medium.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-SemiBold.ttf;$(RepoRoot)docs\pdf-src\fonts\LICENSE-Inter.txt"
+    <EmbeddedResource Include="$(RepoRoot)docs\pdf-src\fonts\Inter-Light.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Regular.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Medium.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-SemiBold.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Bold.ttf;$(RepoRoot)docs\pdf-src\fonts\LICENSE-Inter.txt"
                       LogicalName="AudioTastic.Skins.Default/fonts/%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(RepoRoot)assets\branding\png\audiotastic-32.png" LogicalName="AudioTastic.Skins.Default/images/logo.png" />
     <EmbeddedResource Include="$(RepoRoot)assets\branding\png\audiotastic-64.png" LogicalName="AudioTastic.Skins.Default/images/logo@2x.png" />

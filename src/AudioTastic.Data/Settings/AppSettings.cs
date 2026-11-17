@@ -88,7 +88,10 @@ public sealed class InterfaceSettings
     /// <summary>UI-03: skin id ("default", or a file/folder name in the skins folder).</summary>
     public string Skin { get; set; } = "default";
 
-    /// <summary>UI-08: Winamp-style double size for the main window and mini player.</summary>
+    /// <summary>UI-08: player window size in percent of the skin's layout size (Anders: default 150 %, 17 Nov 2026).</summary>
+    public int PlayerScale { get; set; } = 150;
+
+    /// <summary>UI-08: Winamp-style double size for the main window and mini player (doubles <see cref="PlayerScale"/>).</summary>
     public bool DoubleSize { get; set; }
 
     /// <summary>UI-05: keep the main window above other windows.</summary>

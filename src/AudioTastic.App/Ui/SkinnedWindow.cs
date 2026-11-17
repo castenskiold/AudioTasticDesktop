@@ -1,0 +1,102 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using AudioTastic.App.Skins;
+
+namespace AudioTastic.App.Ui;
+
+/// <summary>
+/// UI-01: a borderless player window whose whole content comes from the skin (main window or mini player).
+/// Keys go through <see cref="KeyMap"/>, right-click opens the main menu, the mouse wheel changes the volume,
+/// and files dropped on it are played.
+/// </summary>
+#pragma warning disable CA1001 // The skin view is disposed in OnClosed (windows are not IDisposable).
+public sealed class SkinnedWindow : Window
+#pragma warning restore CA1001
+{
+    private readonly ISkinHost _host;
+    private SkinView? _view;
+
+    public SkinnedWindow(string skinWindowName, ISkinHost host)
+    {
+        SkinWindowName = skinWindowName;
+        _host = host;
+        Title = "AudioTastic";
+        Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://AudioTastic/Assets/audiotastic.ico")));
+        WindowDecorations = Avalonia.Controls.WindowDecorations.None;
+        CanResize = false;
+        SizeToContent = SizeToContent.Manual;
+        Background = Brushes.Transparent;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        AddHandler(ContextRequestedEvent, OnContextRequested);
+        Avalonia.Automation.AutomationProperties.SetName(this, skinWindowName == "mini" ? "AudioTastic mini player" : "AudioTastic");
+    }
+
+    /// <summary>"main" or "mini".</summary>
+    public string SkinWindowName { get; }
+
+    /// <summary>Rebuilds the content from <paramref name="skin"/> at <paramref name="scale"/> (2 = double size, UI-08).</summary>
+    public void Build(Skin skin, SkinWindowDefinition definition, double scale)
+    {
+        _view?.Dispose();
+        _view = new SkinView(skin, definition, _host, scale);
+        Content = scale == 1
+            ? _view
+            : new LayoutTransformControl { LayoutTransform = new ScaleTransform(scale, scale), Child = _view };
+        Width = definition.Width * scale;
+        Height = definition.Height * scale;
+    }
+
+    /// <summary>Refreshes toggles that depend on the shell (window toggles, settings).</summary>
+    public void Refresh() => _view?.UpdateAll();
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!e.Handled && KeyMap.ActionFor(e.Key, e.KeyModifiers) is { } action)
+        {
+            e.Handled = true;
+            _host.Execute(action, this);
+        }
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        if (e.Delta.Y != 0)
+        {
+            _host.Player.Volume += e.Delta.Y > 0 ? 2 : -2; // CO-05: mouse wheel over the main window
+            e.Handled = true;
+        }
+    }
+
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        // Right-click anywhere opens the main menu, unless an element (volume → device menu) handled it first.
+        if (!e.Handled)
+        {
+            e.Handled = true;
+            _host.Execute("menu", this);
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _view?.Dispose();
+        base.OnClosed(e);
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        var files = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray();
+        if (files is { Length: > 0 })
+        {
+            _ = _host.Player.Player.OpenAsync(files);
+        }
+    }
+}
