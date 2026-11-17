@@ -29,9 +29,10 @@
       <_PluginOutput Include="$(OutDir)**\*"
                      Exclude="$(OutDir)AudioTastic.Sdk.*;$(OutDir)Microsoft.Extensions.Logging.Abstractions.*;$(OutDir)Microsoft.Extensions.DependencyInjection.Abstractions.*;$(OutDir)runtimes\**" />
     </ItemGroup>
-    <RemoveDir Directories="$(PluginStagingRoot)$(MSBuildProjectName)" />
-    <Copy SourceFiles="@(_PluginOutput)" DestinationFiles="@(_PluginOutput->'$(PluginStagingRoot)$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)')" />
-    <!-- PG-04: the same folder zipped as an installable package. -->
+    <Copy SourceFiles="@(_PluginOutput)" DestinationFiles="@(_PluginOutput->'$(PluginStagingRoot)$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <!-- PG-04: with <PackAtPlugin>true</PackAtPlugin> (the samples) the staged folder is also zipped as an installable package. -->
+  <Target Name="PackAudioTasticPlugin" AfterTargets="StageAudioTasticPlugin" Condition="'$(IsAudioTasticPlugin)' == 'true' And '$(PackAtPlugin)' == 'true'">
     <MakeDir Directories="$(RepoRoot)artifacts\atplugins\$(Configuration)" />
     <ZipDirectory SourceDirectory="$(PluginStagingRoot)$(MSBuildProjectName)" DestinationFile="$(RepoRoot)artifacts\atplugins\$(Configuration)\$(MSBuildProjectName).atplugin" Overwrite="true" />
   </Target>

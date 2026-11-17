@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-08: MIDI input plugin. MeltySynth (MIT) renders .mid files through a SoundFont; GeneralUser GS is bundled. -->
+  <PropertyGroup>
+    <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MeltySynth" />
+    <!-- Avalonia is shared with the player (settings page): compile against it, never ship it. -->
+    <PackageReference Include="Avalonia" ExcludeAssets="runtime;build;buildTransitive" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioTastic.Input.Midi.Tests" />
+  </ItemGroup>
+  <!-- The bundled SoundFont (python native/fetch_soundfont.py; git-ignored). Without it, users pick their own .sf2. -->
+  <ItemGroup Condition="Exists('$(RepoRoot)native\downloads\soundfont\GeneralUser-GS.sf2')">
+    <None Include="$(RepoRoot)native\downloads\soundfont\GeneralUser-GS.sf2" Link="soundfont\GeneralUser-GS.sf2" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(RepoRoot)native\downloads\soundfont\LICENSE.txt" Link="soundfont\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>
