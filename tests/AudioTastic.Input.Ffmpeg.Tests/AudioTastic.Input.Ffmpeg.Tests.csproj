@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-01 decoder tests. Need the FFmpeg libraries (native/fetch_ffmpeg.py) and the generated test media
+       (scripts/generate_test_media.py); tests are skipped, not failed, when either is missing. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <CopyNativeLibraries>true</CopyNativeLibraries>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
+    <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

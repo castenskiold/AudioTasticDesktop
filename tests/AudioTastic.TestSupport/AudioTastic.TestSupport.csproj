@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared test helpers: test media lookup, reference WAV reader, signal comparison. Not a test project itself. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.assert" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+</Project>

@@ -21,17 +21,19 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 # name -> (extension, ffmpeg encoder arguments). Requires an FFmpeg with libmp3lame, libvorbis and libopus.
+# Lossless encoders are pinned to 16-bit so their decoded output is bit-identical to the wav16 file (FM-01 tests);
+# otherwise FFmpeg keeps float sources (sweep, clicks) at 24-bit or float.
 FORMATS = {
     "wav16": ("wav", ["-c:a", "pcm_s16le"]),
     "wav24": ("wav", ["-c:a", "pcm_s24le"]),
     "aiff": ("aiff", ["-c:a", "pcm_s16be"]),
-    "flac": ("flac", ["-c:a", "flac"]),
+    "flac": ("flac", ["-c:a", "flac", "-sample_fmt", "s16"]),
     "mp3": ("mp3", ["-c:a", "libmp3lame", "-b:a", "192k"]),
     "aac": ("m4a", ["-c:a", "aac", "-b:a", "192k"]),
     "alac": ("m4a", ["-c:a", "alac"]),
     "vorbis": ("ogg", ["-c:a", "libvorbis", "-q:a", "5"]),
     "opus": ("opus", ["-c:a", "libopus", "-b:a", "128k"]),
-    "wavpack": ("wv", ["-c:a", "wavpack"]),
+    "wavpack": ("wv", ["-c:a", "wavpack", "-sample_fmt", "s16p"]),
     "wma": ("wma", ["-c:a", "wmav2", "-b:a", "192k"]),
     "tta": ("tta", ["-c:a", "tta"]),
 }
