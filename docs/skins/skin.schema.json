@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://audiotastic.app/schemas/skin-1.json",
+  "title": "AudioTastic skin (skin.json), format 1",
+  "description": "UI-03: describes the look of the player windows. See docs/skins/skin-format.md.",
+  "type": "object",
+  "required": ["format", "name", "windows"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "enum": [1], "description": "Skin format version. This schema describes format 1." },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "author": { "type": "string", "maxLength": 120 },
+    "version": { "type": "string", "maxLength": 40 },
+    "description": { "type": "string", "maxLength": 500 },
+    "preview": { "$ref": "#/definitions/path", "description": "Optional preview image shown in Settings › Interface › Skin." },
+    "colors": {
+      "type": "object",
+      "description": "Named colours. Anywhere a colour is expected you can write '#RRGGBB', '#AARRGGBB' or '@name'.",
+      "additionalProperties": { "$ref": "#/definitions/hexColor" }
+    },
+    "fonts": {
+      "type": "object",
+      "description": "Named fonts. Elements refer to them by name.",
+      "additionalProperties": { "$ref": "#/definitions/font" }
+    },
+    "windows": {
+      "type": "object",
+      "required": ["main"],
+      "additionalProperties": false,
+      "properties": {
+        "main": { "$ref": "#/definitions/window" },
+        "mini": { "$ref": "#/definitions/window" }
+      }
+    }
+  },
+  "definitions": {
+    "path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_\\-./]+\\.(svg|png)$",
+      "description": "Relative path inside the skin package (forward slashes). PNG files may have an '@2x' sibling (play.png → play@2x.png)."
+    },
+    "hexColor": { "type": "string", "pattern": "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$" },
+    "color": { "type": "string", "pattern": "^(#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|@[A-Za-z][A-Za-z0-9_]*|transparent)$" },
+    "font": {
+      "type": "object",
+      "required": ["family"],
+      "additionalProperties": false,
+      "properties": {
+        "family": { "type": "string", "minLength": 1, "description": "Family name inside the font files, or an installed system font." },
+        "files": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9_\\-./]+\\.(ttf|otf)$" }, "description": "Font files in the package." },
+        "weight": { "enum": ["light", "regular", "medium", "semibold", "bold"] },
+        "size": { "type": "number", "minimum": 3, "maximum": 96 }
+      }
+    },
+    "stateColors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "normal": { "$ref": "#/definitions/color" },
+        "hover": { "$ref": "#/definitions/color" },
+        "pressed": { "$ref": "#/definitions/color" },
+        "active": { "$ref": "#/definitions/color" },
+        "alternate": { "$ref": "#/definitions/color" },
+        "disabled": { "$ref": "#/definitions/color" }
+      }
+    },
+    "stateImages": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "normal": { "$ref": "#/definitions/path" },
+        "hover": { "$ref": "#/definitions/path" },
+        "pressed": { "$ref": "#/definitions/path" },
+        "active": { "$ref": "#/definitions/path" },
+        "alternate": { "$ref": "#/definitions/path" },
+        "disabled": { "$ref": "#/definitions/path" }
+      }
+    },
+    "window": {
+      "type": "object",
+      "required": ["width", "height", "elements"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 16, "maximum": 4000 },
+        "height": { "type": "number", "minimum": 8, "maximum": 4000 },
+        "background": { "$ref": "#/definitions/color" },
+        "border": { "$ref": "#/definitions/color" },
+        "borderWidth": { "type": "number", "minimum": 0, "maximum": 20 },
+        "cornerRadius": { "type": "number", "minimum": 0, "maximum": 100 },
+        "elements": { "type": "array", "items": { "$ref": "#/definitions/element" } }
+      }
+    },
+    "element": {
+      "type": "object",
+      "required": ["type", "x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["rect", "image", "text", "button", "toggle", "slider", "time", "marquee", "indicators", "dragArea", "art", "visualisation"]
+        },
+        "bind": { "type": "string", "description": "What the element does or shows; allowed values depend on the type (see skin-format.md)." },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "tooltip": { "type": "string" },
+        "text": { "type": "string", "description": "Static text for 'text' elements." },
+        "fill": { "$ref": "#/definitions/color" },
+        "stroke": { "$ref": "#/definitions/color" },
+        "strokeWidth": { "type": "number", "minimum": 0 },
+        "cornerRadius": { "type": "number", "minimum": 0 },
+        "image": { "$ref": "#/definitions/path" },
+        "images": { "$ref": "#/definitions/stateImages" },
+        "padding": { "type": "number", "minimum": 0, "description": "Inset of the image inside the element." },
+        "color": { "$ref": "#/definitions/color" },
+        "colors": { "$ref": "#/definitions/stateColors", "description": "Per-state colour: text colour, and 'currentColor' in SVG images." },
+        "fills": { "$ref": "#/definitions/stateColors", "description": "Per-state background fill of buttons and toggles." },
+        "strokes": { "$ref": "#/definitions/stateColors", "description": "Per-state outline of buttons and toggles." },
+        "font": { "type": "string", "description": "Name of a font in 'fonts'." },
+        "fontSize": { "type": "number", "minimum": 3, "maximum": 96 },
+        "letterSpacing": { "type": "number" },
+        "align": { "enum": ["left", "center", "right"] },
+        "trackColor": { "$ref": "#/definitions/color" },
+        "fillColor": { "$ref": "#/definitions/color" },
+        "thumbColor": { "$ref": "#/definitions/color" },
+        "thumbSize": { "type": "number", "minimum": 0 },
+        "trackThickness": { "type": "number", "minimum": 0 },
+        "speed": { "type": "number", "minimum": 0, "description": "Marquee scroll speed in pixels per second." },
+        "spacing": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

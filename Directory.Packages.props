@@ -10,6 +10,9 @@
     <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <!-- Skins (UI-03): SVG rendering (MIT) and skin.json schema validation (MIT; not JsonSchema.Net, whose binaries carry a maintenance-fee EULA) -->
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.17" />
+    <PackageVersion Include="NJsonSchema" Version="11.6.2" />
     <!-- Hosting and logging abstractions (MIT) -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />

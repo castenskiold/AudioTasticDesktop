@@ -78,6 +78,44 @@ public sealed class InterfaceSettings
 {
     /// <summary>Saved main window position; null means "centre on the primary screen".</summary>
     public WindowPlacement? MainWindow { get; set; }
+
+    /// <summary>UI-05: saved mini player position.</summary>
+    public WindowPlacement? MiniPlayerWindow { get; set; }
+
+    /// <summary>UI-05: the mini player was showing when the app closed.</summary>
+    public bool MiniPlayerActive { get; set; }
+
+    /// <summary>UI-03: skin id ("default", or a file/folder name in the skins folder).</summary>
+    public string Skin { get; set; } = "default";
+
+    /// <summary>UI-08: Winamp-style double size for the main window and mini player.</summary>
+    public bool DoubleSize { get; set; }
+
+    /// <summary>UI-05: keep the main window above other windows.</summary>
+    public bool AlwaysOnTop { get; set; }
+
+    /// <summary>UI-05: keep the mini player above other windows.</summary>
+    public bool MiniPlayerAlwaysOnTop { get; set; } = true;
+
+    /// <summary>UI-06: scroll the title when it does not fit.</summary>
+    public bool ScrollTitle { get; set; } = true;
+
+    /// <summary>UI-06: scroll speed in pixels per second; 0 = the skin's speed.</summary>
+    public int ScrollSpeed { get; set; }
+
+    /// <summary>CO-06: time display shows remaining instead of elapsed time.</summary>
+    public bool ShowRemainingTime { get; set; }
+
+    /// <summary>UI-09: theme of dialogs and the settings window.</summary>
+    public DialogTheme DialogTheme { get; set; } = DialogTheme.System;
+}
+
+/// <summary>UI-09: dialog theme choice.</summary>
+public enum DialogTheme
+{
+    System,
+    Dark,
+    Light,
 }
 
 public sealed class SystemIntegrationSettings

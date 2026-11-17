@@ -20,6 +20,8 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Svg.Controls.Skia.Avalonia" />
+    <PackageReference Include="NJsonSchema" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
@@ -43,6 +45,19 @@
   <ItemGroup>
     <AvaloniaResource Include="$(RepoRoot)assets\branding\audiotastic-logo-transparent.png" Link="Assets\logo.png" />
     <AvaloniaResource Include="$(RepoRoot)assets\branding\audiotastic.ico" Link="Assets\audiotastic.ico" />
+  </ItemGroup>
+
+  <!-- UI-03: skin.json schema (validated at load) and the built-in default skin (UI-02), embedded as
+       "AudioTastic.Skins.Default/<path>". Inter (OFL) and the logo are linked from where they already live. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(RepoRoot)docs\skins\skin.schema.json" LogicalName="AudioTastic.Skins.skin.schema.json" />
+    <EmbeddedResource Include="Skins\Default\**\*" LogicalName="AudioTastic.Skins.Default/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(RepoRoot)docs\pdf-src\fonts\Inter-Light.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Regular.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-Medium.ttf;$(RepoRoot)docs\pdf-src\fonts\Inter-SemiBold.ttf;$(RepoRoot)docs\pdf-src\fonts\LICENSE-Inter.txt"
+                      LogicalName="AudioTastic.Skins.Default/fonts/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(RepoRoot)assets\branding\png\audiotastic-32.png" LogicalName="AudioTastic.Skins.Default/images/logo.png" />
+    <EmbeddedResource Include="$(RepoRoot)assets\branding\png\audiotastic-64.png" LogicalName="AudioTastic.Skins.Default/images/logo@2x.png" />
+    <!-- UI-04: About dialog lists the third-party notices. -->
+    <EmbeddedResource Include="$(RepoRoot)THIRD-PARTY-NOTICES.md" LogicalName="AudioTastic.ThirdPartyNotices.md" />
   </ItemGroup>
 
   <!-- Native libraries (FFmpeg, miniaudio, ...) are copied by Directory.Build.targets. -->
