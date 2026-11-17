@@ -300,7 +300,7 @@ story.append(T.table([
      "Open file… · Open folder… · Open URL… · Play CD · Playback (Shuffle, Repeat, Speed…, A-B repeat, Stop after current) · Sleep timer… · Cast to… · Visualisation · Windows (Equalizer, Playlist, Art & Lyrics, Mini player) · Skins · Options (Double size, Always on top) · Settings… · About AudioTastic · Exit"),
     ("Playlist context menu", "Right-click an entry in PW4",
      "Play · Play next (queue) · Stop after this track · File info… · Edit tags… · Look up online… · Convert… · Rip… (CD tracks) · Reset resume position · Show in folder · Remove · Crop"),
-    ("Tab context menu", "Right-click a tab in PW2", "Rename · Duplicate · Save as… · Close"),
+    ("Tab context menu", "Right-click a tab in PW2", "Rename · Duplicate · Save as… · Move left · Move right · Close"),
     ("Tray menu", "Tray / menu bar icon", "Play/Pause · Stop · Previous · Next · Sleep timer… · Show/Hide AudioTastic · Exit"),
     ("Device picker", "CAST button in MW10", "This computer · discovered Chromecast, DLNA and AirPlay devices · Refresh"),
 ], head=("Menu", "Opened from", "Items"), widths=(30, 40, 100), status_col=-1))
@@ -341,12 +341,12 @@ story.append(T.table([
     ("AudioTastic.Sdk", "Public plugin contracts (NuGet). No dependency on Core or App."),
     ("AudioTastic.Plugins.Host", "Plugin discovery, manifest validation, one AssemblyLoadContext per plugin, fault handling."),
     ("AudioTastic.Analysis", "AnalysisService queue; waveform, loudness and BPM/beat/break analysers."),
-    ("AudioTastic.Metadata", "TagService, ArtService, LyricsService, OnlineLookupService."),
+    ("AudioTastic.Metadata", "TagService (TagLibSharp, FFmpeg fallback, cached), TagLoader (background tag reading), ArtService, LyricsService, OnlineLookupService."),
     ("AudioTastic.Casting", "CastService, Chromecast/DLNA/AirPlay targets, discovery, StreamServer, Transcoder, remote control API."),
     ("AudioTastic.Data", "SettingsStore (JSON), CacheStore (SQLite), AppPaths (normal / portable)."),
     ("AudioTastic.Platform (+ .Windows / .MacOS / .Linux)", "Interfaces and per-OS implementations: media controls, hotkeys, taskbar, shell integration, notifications, CD drive, ASIO."),
     ("AudioTastic.NativeBridge", "32-bit helper process for native Winamp plugins (Windows only)."),
-    ("native/ (C++, CMake)", "VST3 host shim and ASIO shim, built per platform."),
+    ("native/ (C/C++, CMake)", "miniaudio with a small flat C shim used by the .NET output code; SoundTouch; later libopenmpt, the VST3 host shim and the ASIO shim, built per platform. FFmpeg is fetched as LGPL builds."),
     ("plugins/", "Built-in plugins written against the SDK: FFmpeg decoder, libopenmpt, MIDI, visualisations, DSP effects, cast targets."),
 ], head=("Project", "Responsibility"), widths=(52, 118)))
 story += T.h2("3.1 Audio pipeline")
@@ -356,8 +356,8 @@ story.append(Pipeline())
 story += T.h2("3.2 Stored data")
 story.append(T.table([
     ("settings.json", "All settings (SettingsStore), with schema version for migrations."),
-    ("playlists/", "One M3U8 + JSON state file per playlist tab."),
-    ("cache.db (SQLite)", "Waveform peaks, loudness, BPM/beat/break data, durations, resume positions, auto-EQ file rules, scrobble queue. Keyed by path + size + modified time."),
+    ("playlists/", "One M3U8 file per playlist tab (titles in #EXTINF, CUE ranges in an #AT-RANGE line) plus playlists.json (tab order, names, active tab, scroll position)."),
+    ("cache.db (SQLite)", "Waveform peaks, loudness, BPM/beat/break data, durations, resume positions, auto-EQ file rules, scrobble queue, tags read for the playlist. Keyed by path + size + modified time."),
     ("presets/, skins/, plugins/", "EQ presets, installed skins (.atskin), installed plugins."),
     ("logs/, crash/", "Serilog rolling logs and crash reports."),
 ], head=("Location (data folder)", "Contents"), widths=(52, 118)))
@@ -369,7 +369,7 @@ if D.OPEN_POINTS:
     story.append(Spacer(1, 6))
     story.append(T.table(D.OPEN_POINTS, head=("Point", "Details and options")))
 else:
-    story.append(P("There are no open points at the moment. Earlier points have been resolved (e.g. OptimFROG uses the closed-source freeware SDK under the licence-policy exception).", B))
+    story.append(P("There are no open points at the moment. Points resolved so far: OptimFROG uses the closed-source freeware SDK under the licence-policy exception, and its libraries may be bundled (FM-06); the bundled MIDI SoundFont is GeneralUser GS (FM-08); Avalonia 12; FFmpeg.AutoGen bindings; miniaudio through an own C shim; NJsonSchema for skin validation; the player is shown at 150 % by default and the mini player has two rows (UI-05, UI-08).", B))
 
 # ---------------------------------------------------------------- feature index
 story.append(PageBreak())
@@ -418,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.4  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.4")
+        "Version 1.5  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.5")
 print("built")

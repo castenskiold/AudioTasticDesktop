@@ -43,9 +43,20 @@ class Roadmap(Flowable):
                 lines.append(cur)
                 for k, ln in enumerate(lines[:3]):
                     c.drawCentredString(x, y - 22 - k * 8, ln)
-                c.setFillColor(MUTED); c.setFont("InSB", 5.5); c.drawCentredString(x, y + 16, p["size"])
+                status = PD.PROGRESS.get(p["id"], {}).get("status", "")
+                label = ("DONE" if status.startswith("Done") else status.upper()) if status else ""
+                c.setFont("InSB", 5.5)
+                if label:
+                    # "M  ·  DONE" above the node: size in grey, status in white (no room below for three-line names)
+                    head = p["size"] + "  ·  "
+                    total = c.stringWidth(head + label, "InSB", 5.5)
+                    x0 = x - total / 2
+                    c.setFillColor(MUTED); c.drawString(x0, y + 16, head)
+                    c.setFillColor(WHITE); c.drawString(x0 + c.stringWidth(head, "InSB", 5.5), y + 16, label)
+                else:
+                    c.setFillColor(MUTED); c.drawCentredString(x, y + 16, p["size"])
         c.setFillColor(MUTED); c.setFont("In", 6.3)
-        c.drawString(0, 2, "Filled nodes: the two highest-risk phases (audio core and DJ-style crossfading).  Letters above nodes: relative size.")
+        c.drawString(0, 2, "Filled nodes: the two highest-risk phases (audio core and DJ-style crossfading).  Letters above nodes: relative size.  DONE: built and verified on Windows.")
 
 # ---------------------------------------------------------------- 1
 story += T.h1("1. About this plan")
@@ -55,6 +66,7 @@ story.append(Spacer(1, 8))
 story.append(T.table([
     ("Ordering principles", "Infrastructure first; the risky audio core early; shared building blocks (two-deck mixer, skin engine, plugin SDK, analysis queue) before the features that use them; native C++ work late and isolated; every phase leaves a working, releasable app."),
     ("Phases", f"{len(PD.PHASES)} phases, P0–P{len(PD.PHASES)-1}. Each phase lists its features, extra tasks, prerequisites, deliverables, exit criteria and risks. A phase is closed only when its exit criteria pass on Windows, macOS and Linux."),
+    ("Progress", "Built and verified on Windows first; the macOS/Linux checks and CI follow once the GitHub repository exists (decided 17 November 2026). Section 3 shows each phase's status and outcome."),
     ("Split features", "A few features are built in two parts in different phases (e.g. PB-04 shared mode in P1, exclusive mode and ASIO in P6). The part is named in the task text; appendix A shows every feature's phase."),
     ("Sizes", "Relative effort only: S (small), M (medium), L (large), XL (extra large). No calendar dates are set; the order matters, not the duration."),
     ("Flexibility", "Phases P9–P13 depend only loosely on each other and can be reordered if priorities change; P0–P8 should be built in order."),
@@ -68,19 +80,34 @@ story.append(T.table([(p["id"], p["name"], p["goal"], p["size"]) for p in PD.PHA
                      head=("Phase", "Name", "Goal", "Size"), widths=(15, 34, 106, 15), status_col=-1))
 
 # ---------------------------------------------------------------- 3
-story += T.h1("3. External prerequisites")
+story += T.h1("3. Progress")
+story.append(P("Status of each phase. <b>Done on Windows</b> means built, tested and checked by Anders on Windows; the items under <i>Still open</i> wait for macOS/Linux runs, CI or later phases."))
+story.append(Spacer(1, 6))
+prog = []
+for p in PD.PHASES:
+    st = PD.PROGRESS.get(p["id"])
+    if not st:
+        continue
+    details = "<br/>".join("— " + o for o in st["outcome"])
+    if st["open"]:
+        details += ("<br/>" if details else "") + "<font color='#8E8E93'>Still open: " + " ".join(st["open"]) + "</font>"
+    prog.append((p["id"], (st["status"] + (f"<br/><font color='#8E8E93'>{st['date']}</font>" if st["date"] else "")), details or "—"))
+story.append(T.table(prog, head=("Phase", "Status", "Outcome"), widths=(15, 30, 125)))
+
+# ---------------------------------------------------------------- 4
+story += T.h1("4. External prerequisites")
 story.append(P("Accounts, licences, hardware and files to arrange outside the code, with the phase that first needs them. Start the slow ones (Apple Developer enrolment, ASIO licence) a phase early."))
 story.append(Spacer(1, 6))
 ext = []
 for p in PD.PHASES:
     for e in p["prereq_ext"]:
-        ext.append((p["id"], e))
-story.append(T.table(ext, head=("Phase", "Prerequisite"), widths=(14, 156)))
+        ext.append((p["id"], e, PD.PREREQ_STATUS.get(e, "—")))
+story.append(T.table(ext, head=("Phase", "Prerequisite", "Status"), widths=(17, 89, 64)))
 
-# ---------------------------------------------------------------- 4
-story += T.h1("4. Testing strategy")
+# ---------------------------------------------------------------- 5
+story += T.h1("5. Testing strategy")
 story.append(T.table(PD.TESTING, head=("Type", "Approach")))
-story += T.h2("4.1 Definition of done (every feature)")
+story += T.h2("5.1 Definition of done (every feature)")
 story += bullets(PD.DOD)
 
 # ---------------------------------------------------------------- phases
@@ -88,8 +115,11 @@ LW = 30 * mm
 def phase_block(p, n):
     out = [PageBreak()]
     out += T.h1(f"{n}. Phase {p['id']} — {p['name']}")
+    st = PD.PROGRESS.get(p["id"], {})
+    status = st.get("status", "Planned")
     out.append(Paragraph(f"<font name='InSB' size='7' color='#8E8E93'>SIZE</font>&nbsp;&nbsp;<font name='InM' color='#F2F2F2'>{SIZE_TXT[p['size']]}</font>"
-                         f"&nbsp;&nbsp;&nbsp;&nbsp;<font name='InSB' size='7' color='#8E8E93'>NEEDS</font>&nbsp;&nbsp;<font name='InM' color='#F2F2F2'>{', '.join(p['prereq_int']) or 'nothing'}</font>", B))
+                         f"&nbsp;&nbsp;&nbsp;&nbsp;<font name='InSB' size='7' color='#8E8E93'>NEEDS</font>&nbsp;&nbsp;<font name='InM' color='#F2F2F2'>{', '.join(p['prereq_int']) or 'nothing'}</font>"
+                         f"&nbsp;&nbsp;&nbsp;&nbsp;<font name='InSB' size='7' color='#8E8E93'>STATUS</font>&nbsp;&nbsp;<font name='InM' color='#F2F2F2'>{status}{(' (' + st['date'] + ')') if st.get('date') else ''}</font>", B))
     out.append(Spacer(1, 6))
     out.append(T.callout(p["goal"], "Goal"))
     out.append(Spacer(1, 6))
@@ -109,9 +139,14 @@ def phase_block(p, n):
     rows.append(("Risks", "<br/>".join(p["risks"])))
     out += T.h2("Prerequisites, deliverables and exit")
     out.append(T.table(rows, widths=(32, 138)))
+    if st.get("outcome"):
+        out += T.h2("Outcome")
+        out += bullets(st["outcome"])
+        if st.get("open"):
+            out += bullets(["<font color='#8E8E93'>Still open: " + " ".join(st["open"]) + "</font>"])
     return out
 
-for n, p in enumerate(PD.PHASES, start=5):
+for n, p in enumerate(PD.PHASES, start=6):
     story += phase_block(p, n)
 
 # ---------------------------------------------------------------- appendix
@@ -141,5 +176,5 @@ story.append(idx)
 
 T.build("AudioTastic_Implementation_Plan.pdf", "Implementation Plan",
         "Build order, prerequisites and exit criteria for every feature",
-        "Version 1.1  ·  17 November 2026  ·  Based on Feature Specification v1.3", story, short_title="Implementation Plan  ·  v1.1")
+        "Version 1.2  ·  17 November 2026  ·  Based on Feature Specification v1.5", story, short_title="Implementation Plan  ·  v1.2")
 print("built")

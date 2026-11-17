@@ -97,7 +97,7 @@ sections2=[
 ("Default skin","Slim, sleek, dark and contemporary. Keeps Winamp's compact, uncluttered layout and avoids a bloated UI. Ships as the default skin/theme. The design is based on the AudioTastic logo (see section 8.1)."),
 ("Skins / themes","Custom skins/themes that change the look of all player windows, in AudioTastic's own skin format. Classic Winamp .wsz skins are not supported."),
 ("App icon","The AudioTastic logo is the application icon on all platforms (.ico on Windows, .icns on macOS, PNG set on Linux), and is used in the taskbar/dock, tray, file associations and About dialog."),
-("Mini player","Windowshade mode collapses the player to a minimal 'mini' player (not just a thin title bar). Includes 'always on top' option."),
+("Mini player","Windowshade mode collapses the player to a compact two-row mini player, never just a title bar: title on top; time, seek bar, transport, shuffle, playlist and mute below. Includes 'always on top' option."),
 ("Scrolling title","Marquee track title with bitrate, kHz and stereo/mono indicators."),
 ("Visualisations","Spectrum analyser and oscilloscope in the main window. Plugin interface for full-screen visualisations."),
 ("High-DPI and scaling","Crisp rendering on 4K screens. Double-size mode as in Winamp."),
@@ -169,7 +169,7 @@ gs=[
 ("Crossfading","Mode (Intro/Outro or Beat matching) and all settings in section 5."),
 ("Metadata","Album art on/off, online lookup on/off (and which services), lyrics on/off."),
 ("Casting and network","Chromecast, DLNA/UPnP, AirPlay, streaming server (port, transcoding), discovery, remote control, scrobbling accounts, Discord Rich Presence."),
-("Interface","Skin/theme, mini player, always on top, double size, visualisation, notifications, dark/light mode."),
+("Interface","Skin/theme, player size (default 150 %), mini player, always on top, double size, scrolling title, visualisation, notifications, dark/light mode."),
 ("System integration","Global hotkeys, tray behaviour, file associations, context menu."),
 ("Equalizer and DSP","EQ presets, auto EQ rules, DSP chain order, VST plugins, room correction."),
 ("Plugins","Plugin manager (links to each plugin's own settings page)."),
@@ -183,20 +183,20 @@ lic=[
 ("Allowed","Permissive licences: MIT, BSD, Apache 2.0, zlib, MS-PL, public domain / MIT-0."),
 ("Allowed with care","LGPL, provided the library is <b>dynamically linked</b> (separate DLL/.so/.dylib) and can be replaced by the user. Applies to FFmpeg (LGPL build only, no --enable-gpl), SoundTouch and TagLibSharp."),
 ("Allowed as exception","Closed-source freeware, <b>only when no suitable open-source library exists</b>, provided it needs no licence key and the end user never has to pay for it. Check the redistribution terms; if bundling is not allowed, download it on first use. Example: OptimFROG SDK."),
-("Not allowed","Paid or commercial-only licences, licence keys, or anything the end user would have to pay for (e.g. BASS/ManagedBass, which is only free for non-commercial use)."),
-("Ask first","GPL and AGPL (e.g. aubio, libcdio, cdparanoia, Rubber Band), since they would force the whole app to be GPL."),
+("Not allowed","Paid or commercial-only licences, licence keys, or anything the end user would have to pay for (e.g. BASS/ManagedBass, which is only free for non-commercial use). Also 'open source, but the binaries carry a fee' terms such as the Open Source Maintenance Fee of JsonSchema.Net v8+: check the licence file, not just the package's licence label."),
+("Ask first","GPL and AGPL (e.g. aubio, libcdio, cdparanoia, Rubber Band), since they would force the whole app to be GPL. Also custom, non-standard licences (e.g. the GeneralUser GS SoundFont, approved)."),
 ]
 tech=[
-("UI","<b>Avalonia</b> (MIT). Custom-drawn controls for skins, waveform and visualisations; built-in tray icon support."),
+("UI","<b>Avalonia 12</b> (MIT). Custom-drawn controls for skins, waveform and visualisations; built-in tray icon support. SVG skins via Svg.Controls.Skia.Avalonia (MIT); skin validation via NJsonSchema (MIT)."),
 ("Decoding","<b>FFmpeg</b> (LGPL build) via the FFmpeg.AutoGen bindings (MIT). Covers WAV, FLAC, MP3, AIFF, APE, AAC, WV, Vorbis, Opus, ALAC, WMA, DSD (to PCM), Musepack, TTA, Shorten, streams. Also encoding for conversion and cast transcoding."),
 ("Output","<b>miniaudio</b> (public domain / MIT-0) via own P/Invoke bindings over a small C shim: WASAPI (shared/exclusive), CoreAudio, ALSA/PulseAudio/PipeWire. ASIO via the Steinberg ASIO SDK (free; now also available under GPLv3) {WO}."),
-("Tracker / MIDI","libopenmpt (BSD); MeltySynth (MIT) with SoundFont files."),
+("Tracker / MIDI","libopenmpt (BSD); MeltySynth (MIT) with the bundled GeneralUser GS SoundFont (permissive licence); users can choose their own SF2."),
 ("Time-stretch","SoundTouch (LGPL, dynamically linked) for tempo change with pitch kept."),
 ("BPM, beats, breaks","Own C# implementation (onset detection, tempo estimation, energy-based break detection). Avoids aubio (GPL)."),
 ("Loudness / resampling","libebur128 (MIT) or own R128 code; FFmpeg swresample or libsoxr (LGPL) for resampling."),
 ("DSP / FFT","NWaves (MIT) or own code for EQ, filters, compressor and convolution; FftSharp (MIT) for spectrum/oscilloscope."),
 ("VST3","VST3 SDK (MIT since version 3.8, October 2025) through a small native C++ host shim."),
-("Tags","TagLibSharp (LGPL)."),
+("Tags","TagLibSharp (LGPL, separate DLL); FFmpeg metadata as fallback."),
 ("Chromecast","SharpCaster (open source) or own Cast v2 client."),
 ("DLNA / UPnP / mDNS","Own SSDP + AVTransport SOAP code; Makaretu.Dns.Multicast (MIT) for mDNS."),
 ("AirPlay","No mature free .NET sender library; own RAOP (AirPlay 1) implementation needed."),
@@ -213,7 +213,7 @@ story+=[PageBreak(),*HH1("15. Technology stack and licence policy"),
  table([(a,b.replace("{WO}",WO)) for a,b in tech],head=("Area","Library / approach"))]
 
 res=[
-("UI framework","Avalonia (cross-platform, MIT). WPF dropped because it is Windows-only."),
+("UI framework","Avalonia 12 (cross-platform, MIT); moved from 11.3 before the skin engine was built. WPF dropped because it is Windows-only."),
 ("Audio engine","FFmpeg (decoding) + miniaudio (output). BASS/ManagedBass dropped because it is not free for commercial use; NAudio dropped because its output is Windows-only."),
 ("VST","VST3 only. No VST2 (the VST2 SDK is no longer available)."),
 ("AirPlay","Original AirPlay (AirPlay 1 / RAOP) to begin with. AirPlay 2 later, if at all. No test device is available."),
@@ -221,7 +221,10 @@ res=[
 res+=[
 ("Skin format","AudioTastic's own skin format only. No import of classic Winamp .wsz skins."),
 ("Closed-source freeware","Allowed only when no open-source library exists, with no licence key and no cost to the end user."),
-("OptimFROG","Supported through the closed-source freeware OptimFROG SDK, as a separate input plugin."),
+("OptimFROG","Supported through the closed-source freeware OptimFROG SDK, as a separate input plugin. Its licence allows bundling the unmodified libraries; builds exist for x64 only (Windows, Linux, macOS)."),
+("MIDI SoundFont","GeneralUser GS v2.0.3 is bundled (permissive licence, 32 MB); FluidR3_GM (MIT, 148 MB) was considered."),
+("Bindings and libraries","FFmpeg through FFmpeg.AutoGen; miniaudio through an own small C shim; tests with xunit v3."),
+("Player look","Shown at 150 % of the skin's layout size by default (adjustable 100–200 %); two-row mini player."),
 ("Logo / visual identity","The supplied mushroom-cloud planet logo is the app icon and the base for the default skin."),
 ]
 later=[
@@ -237,4 +240,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.6  ·  17 November 2026", story, short_title="Required Features  ·  v1.6")
+ "Version 1.7  ·  17 November 2026", story, short_title="Required Features  ·  v1.7")

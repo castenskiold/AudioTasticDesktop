@@ -31,7 +31,7 @@ S("Core playback", "The basic player functions every other feature builds on.", 
  "<b>Components:</b> PlayOrder service (CO-03). Works with crossfading (repeat track crossfades into itself only if crossfade is on).", None),
 ("CO-05", "Volume and mute",
  "Sets output volume from 0–100 % on a perceptual (logarithmic) curve. Mute silences output without losing the volume level. Volume is applied after the DSP chain, before output; in exclusive / bit-perfect mode it is applied as digital gain (with a warning icon that bit-perfect is lost when not at 100 %).",
- "MW9: horizontal volume slider; mouse wheel over the main window changes volume; click the speaker icon to mute. Keyboard Up/Down. Mini player has a compact slider.",
+ "MW9: horizontal volume slider; mouse wheel over the main window changes volume; click the speaker icon to mute. Keyboard Up/Down. The mini player has a speaker icon (click mutes; mouse wheel changes the volume).",
  "<b>Components:</b> GainStage in the mixer graph (Core). Volume of cast devices is controlled through the cast protocol instead (CN-01/02/03).", None),
 ("CO-06", "Time display",
  "Shows the playback position as m:ss (h:mm:ss for tracks over an hour). Clicking it toggles between elapsed time and remaining time (shown with a leading minus sign). For streams without a length it always shows elapsed time. Blinks while paused.",
@@ -67,7 +67,7 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
  "As FM-01.",
  "<b>Libraries:</b> FFmpeg musepack7/musepack8, tta and shorten decoders. "
  "<b>OptimFROG:</b> FFmpeg has no OptimFROG decoder, so OptimFROG uses the closed-source freeware OptimFROG SDK (native library per platform, called via P/Invoke), allowed under the licence-policy exception (no open-source option, no licence key, free for the end user). "
- "Built as a separate input plugin (OptimFrogSource) so the rest of the app has no dependency on it. Check the SDK's redistribution terms: bundle the library if allowed, otherwise download it on first use with the user's consent. Platforms without an SDK build simply do not list the format.", None),
+ "Built as a separate input plugin (OptimFrogSource) so the rest of the app has no dependency on it. <b>Redistribution (checked 17 Nov 2026):</b> the OptimFROG licence allows bundling the unmodified binary libraries under their original names (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib) with software that uses them via the SDK, for free and commercial software, without notification; the library is bundled with its license.html. Version 5.100 / SDK 1.600 has builds for Windows x64, Linux x64 and macOS x64 only, so ARM64 builds of AudioTastic do not list the format. Packages are verified against published SHA-1 checksums.", None),
 ("FM-07", "Tracker modules (MOD, XM, IT, S3M)",
  "Plays tracker music, including the module's own title. Loops are played once, then the track ends (so the playlist continues).",
  "As FM-01. MW5 shows the module type and channel count instead of bitrate.",
@@ -76,7 +76,7 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
 ("FM-08", "MIDI",
  "Plays .mid/.midi files through a SoundFont (SF2) synthesizer. A General MIDI SoundFont is bundled; the user can choose another.",
  "As FM-01. Settings page for the SoundFont file.",
- "<b>Libraries:</b> MeltySynth (MIT, pure C#). Bundled SoundFont must have a licence that allows redistribution (to be verified when chosen). "
+ "<b>Libraries:</b> MeltySynth (MIT, pure C#). <b>Bundled SoundFont:</b> GeneralUser GS v2.0.3 by S. Christian Collins (32 MB; custom permissive licence: free use in software projects, private or commercial, no attribution required; its LICENSE.txt is shipped). Chosen over FluidR3_GM (MIT, but 148 MB). "
  "<b>Components:</b> MidiSource input plugin rendering at the output sample rate.", "Settings › Playback: MIDI SoundFont file."),
 ("FM-09", "CUE sheets",
  "A single-file album rip with a .cue sheet (or a CUESHEET tag embedded in FLAC/APE/WV) appears as separate tracks with their own titles, performers and track numbers. Seeking, time display and the waveform work per virtual track. Gapless between virtual tracks is automatic (same file).",
@@ -193,7 +193,7 @@ S("Playlists", "Everything shown in the playlist window (PW).", [
  "<b>Persistence:</b> each tab saved as M3U8 plus a JSON state file in the data folder. Tags read lazily via MD-01.", None),
 ("PL-02", "Multiple playlists (tabs)",
  "Several playlists open as tabs. Each tab has its own entries, scroll position and selection. Tabs can be added, renamed (double-click), reordered and closed. Playing a track makes its tab the 'playing' tab; Next/Previous follow the playing tab even when another tab is shown.",
- "PW2: tab strip at the top of the playlist window with a + button. Right-click a tab: Rename, Duplicate, Save as…, Close.",
+ "PW2: tab strip at the top of the playlist window with a + button. Right-click a tab: Rename, Duplicate, Save as…, Move left, Move right, Close. The playing tab is marked ▸.",
  "<b>Components:</b> PlaylistService holds a list of playlists and the playing playlist id.", None),
 ("PL-03", "Playlist formats",
  "Imports and exports M3U, M3U8 (#EXTM3U/#EXTINF), PLS, XSPF, WPL and CUE. Relative paths are resolved against the playlist file's folder; on export the user can choose relative or absolute paths. Unknown or unreadable entries are kept and shown as missing.",
@@ -248,7 +248,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 ("UI-01", "Classic window layout and snapping",
  "Main window, playlist editor, equalizer and Art & Lyrics are separate, borderless windows. Dragging one near another (within 10 px) or near a screen edge snaps it into place; docked windows move together when the main window is dragged. Playlist and Art & Lyrics windows can be resized; main and equalizer windows have fixed sizes (scaled by UI-08). Each window can be shown or hidden; positions are saved.",
  "Toggle with MW10 buttons EQ and PL, and main menu › Windows. Keyboard Alt+G (equalizer), Alt+E (playlist), Alt+L (Art & Lyrics).",
- "<b>Components:</b> WindowSnapManager (own code, works on window bounds); Avalonia windows with SystemDecorations=None and custom title bars. "
+ "<b>Components:</b> WindowSnapManager (own code, works on window bounds; it moves the windows itself so it can snap during the drag); Avalonia windows with WindowDecorations=None and custom title bars. The playlist and other docked windows are owned by the main window, so they come to the front and minimise together with it. "
  "<b>Platform note:</b> on Linux, window positioning works under X11/XWayland; native Wayland does not allow apps to position windows, so Avalonia's X11 backend is used.", None),
 ("UI-02", "Default skin",
  "The built-in look: slim, compact and dark, based on the AudioTastic logo. Monochrome (near-black background, white lines and text, greys for inactive elements), thin outlines with rounded ends, no gradients or bevels. Controls are outline shapes that fill white when pressed or active. The logo sits in the main window title bar.",
@@ -258,7 +258,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 ("UI-03", "Skin engine and skin format",
  "Loads skins that change the look of all player windows. AudioTastic's own format: a .atskin file (zip) containing skin.json (name, author, version, colours, fonts, element positions and sizes per window, and which image draws each element and state), plus SVG or PNG images (PNG @1x and @2x). Skins can be switched while playing. Classic Winamp .wsz skins are not supported.",
  "Settings › Interface › Skin: list with preview thumbnails, Install skin…, Open skins folder. Main menu › Skins for quick switching.",
- "<b>Components:</b> SkinEngine (parse and validate skin.json with System.Text.Json and a JSON schema; elements bound to custom Avalonia controls); SVG rendering via Svg.Controls.Skia.Avalonia (MIT). "
+ "<b>Components:</b> SkinEngine (parse skin.json with System.Text.Json and validate it with NJsonSchema (MIT) against the schema; elements bound to custom Avalonia controls; resizable windows such as the playlist anchor each element to window edges); SVG rendering via Svg.Controls.Skia.Avalonia (MIT). "
  "<b>Deliverables:</b> skin format documentation and JSON schema in /docs, so others can make skins. Invalid skins fall back to the default skin with an error message.", "Settings › Interface: skin."),
 ("UI-04", "App icon and branding",
  "The AudioTastic logo is the application icon on all platforms and appears in the taskbar/dock, tray, file-type icons, About dialog and title bar.",

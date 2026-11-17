@@ -28,3 +28,4 @@ python docs/pdf-src/plan.py
 - **Feature content** lives in `spec_data.py`. Each feature is a tuple: `(id, name, what it does, UI location, to build, settings)`.
 - **Requirements changes:** update `required.py`, `spec_data.py` and `CLAUDE.md` together.
 - **Version numbers:** raise the version in the `T.build(...)` call of each document you change.
+- **Progress:** when a phase is finished (or its status changes), update `PROGRESS` in `plan_data.py` (status, date, outcome, still open) and `PREREQ_STATUS` for external prerequisites. The plan shows them in the roadmap, section 3 and on each phase page.

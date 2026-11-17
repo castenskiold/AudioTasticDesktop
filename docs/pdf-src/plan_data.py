@@ -53,10 +53,10 @@ dict(id="P2", name="Player shell and default skin", size="L",
   ("CO-03", "Shuffle (PlayOrder service, Fisher–Yates order per playlist)."),
   ("CO-04", "Repeat off / playlist / track."),
   ("UI-06", "MarqueeText scrolling title and IndicatorBar (format indicators; badges are added by later features)."),
-  ("UI-08", "High-DPI verification and double-size mode."),
+  ("UI-08", "High-DPI verification, player size (default 150 %) and double-size mode."),
   ("UI-09", "FluentTheme for dialogs following the OS light/dark setting."),
   ("UI-10", "Part 2: settings window with the ten groups; pages are filled in as features arrive."),
-  ("UI-05", "Mini player window and windowshade toggle (Ctrl+W, title-bar double-click)."),
+  ("UI-05", "Mini player window (two rows: title; time, seek, transport, shuffle, playlist, mute) and windowshade toggle (Ctrl+W, title-bar double-click)."),
  ],
  tasks=["Main menu (logo click / right-click) with the items from the UI map; items are enabled as features land.",
         "Keyboard shortcut handling (Winamp defaults) in one KeyBindings service.",
@@ -72,7 +72,7 @@ dict(id="P3", name="Playlists", size="M",
  features=[
   ("MD-01", "Part 1: TagService reading tags with TagLibSharp (FFmpeg metadata fallback), loaded lazily for playlist display. Editing comes in P9."),
   ("PL-01", "PlaylistService, virtualised PlaylistView, multi-select, crop, move, undo/redo, auto-save as M3U8 + JSON; ADD/REM/SEL/LIST buttons."),
-  ("PL-02", "Playlist tabs with rename, duplicate, reorder, close; playing-tab logic."),
+  ("PL-02", "Playlist tabs with rename, duplicate, reorder (tab menu), close; playing-tab logic."),
   ("PL-03", "M3U, M3U8, PLS, XSPF, WPL, CUE import/export with relative/absolute paths."),
   ("PL-04", "Drag and drop from the OS and within/between tabs; drop on main window plays."),
   ("PL-05", "J search field with accent/case-insensitive filtering; Enter plays, Shift+Enter queues (queue arrives in P6)."),
@@ -98,9 +98,9 @@ dict(id="P4", name="Plugin system and remaining formats", size="L",
   ("FM-02", "Ogg Vorbis and Opus (FFmpeg plugin)."),
   ("FM-03", "ALAC and M4A (FFmpeg plugin)."),
   ("FM-04", "WMA family (FFmpeg plugin); DRM error message."),
-  ("FM-06", "Musepack, TTA, Shorten (FFmpeg plugin) and OptimFROG as a separate OptimFrogSource plugin using the closed-source freeware SDK (bundle or download-on-first-use depending on its redistribution terms)."),
+  ("FM-06", "Musepack, TTA, Shorten (FFmpeg plugin) and OptimFROG as a separate OptimFrogSource plugin using the closed-source freeware SDK, bundled (its licence allows it; x64 builds only)."),
   ("FM-07", "Tracker modules via libopenmpt plugin."),
-  ("FM-08", "MIDI via MeltySynth plugin with bundled GM SoundFont (redistributable licence) and user-selectable SF2."),
+  ("FM-08", "MIDI via MeltySynth plugin with the bundled GeneralUser GS SoundFont and a user-selectable SF2."),
   ("FM-10", "Internet radio: StreamSource with buffering, reconnect, ICY metadata; Open URL dialog; stream entries in playlists."),
  ],
  tasks=["Write the plugin author guide in /docs.", "Sample plugins: one input, one DSP, one visualisation, one general."],
@@ -278,11 +278,11 @@ dict(id="P14", name="Release hardening", size="M",
 ]
 
 TESTING = [
-("Unit tests", "xUnit for Core, Data, Metadata, Analysis, Casting protocol code. Parsers (CUE, playlists, EQF, LRC, skin.json) get fixture-based tests."),
-("Golden audio tests", "Decode every file in the test media set and compare with reference sample checksums; gapless pairs must join sample-exactly; EQ and crossfade output compared with offline reference renders."),
-("UI tests", "Avalonia.Headless for view models and controls (time display toggle, playlist editing, settings binding)."),
+("Unit tests", "xunit v3 (Microsoft.Testing.Platform) for Core, Data, Metadata, Analysis, Casting protocol code and app logic. Parsers (CUE, playlists, EQF, LRC, skin.json) get fixture-based tests. Tests that need native libraries or generated media are reported as skipped, never as passed, when those are missing."),
+("Golden audio tests", "Decode every file in the test media set and compare with an independent reference reader (lossless formats bit-exact); gapless pairs and CUE tracks must join sample-exactly; EQ and crossfade output compared with offline reference renders."),
+("UI tests", "UI logic (time and title text, snapping maths, key map, skin loading and validation, playlist editing) is unit-tested without a window; visual behaviour and feel are checked by Anders against a checklist after each UI step. Avalonia.Headless can be added for control-level tests."),
 ("CI", "GitHub Actions matrix on Windows, macOS and Linux for every push: build, tests, publish artifacts."),
-("Manual checklists", "One checklist per phase, derived from the exit criteria, run on all three OSes before a phase is closed."),
+("Manual checklists", "One checklist per phase, derived from the exit criteria. Run on Windows when the phase is built; macOS and Linux runs follow once the GitHub repository and CI exist."),
 ("Soak tests", "Long playback runs (1 h in P1, 24 h in P14) watching for dropouts, memory growth and handle leaks."),
 ]
 
@@ -297,3 +297,40 @@ DOD = [
 "Commit messages and branch names include the feature ID (e.g. XF-02).",
 "CLAUDE.md and the document sources updated if behaviour or scope changed.",
 ]
+
+
+# ----------------------------------------------------------------------------------------------------
+# Progress. Phases are built and verified on Windows first; macOS/Linux checks and CI follow once the
+# GitHub repository exists (Anders's decision, 17 November 2026).
+PROGRESS = {
+    "P0": dict(status="Done on Windows", date="17 Nov 2026",
+               outcome=["Solution, settings, cache, logging, crash reports and portable mode verified; packages updated to current stable versions (fixed a SQLite security advisory).",
+                        "Native pipeline: FFmpeg 8.1 LGPL fetched; miniaudio and SoundTouch 2.4.1 built with CMake on Windows."],
+               open=["macOS/Linux runs and CI (needs the GitHub repository)."]),
+    "P1": dict(status="Done on Windows", date="17 Nov 2026",
+               outcome=["FFmpeg decoder plugin: lossless output bit-exact, exact MP3/AAC gapless lengths, sample-exact seeking.",
+                        "Two-deck mixer graph with lock-free ring buffers (no allocations on the audio thread, tested); miniaudio output through an own C shim.",
+                        "1-hour soak test at a 20 ms buffer: no dropouts, memory and handles flat."],
+               open=["APE test fixture; iTunes-encoded AAC (iTunSMPB) test; macOS/Linux."]),
+    "P2": dict(status="Done on Windows", date="17 Nov 2026",
+               outcome=["Avalonia 12; skin engine (.atskin, JSON schema, live switching) and the default skin; settings window; About dialog; main menu; Winamp keys.",
+                        "Anders's feedback applied: player 50 % bigger by default, two-row mini player (not a title bar), click-to-position sliders.",
+                        "A second skin installed and switched live while playing."],
+               open=["macOS/Linux (borderless windows and snapping)."]),
+    "P3": dict(status="Done on Windows", date="17 Nov 2026",
+               outcome=["Playlist window docked to the main window, with tabs, six playlist formats (round-trip tested), drag and drop, search, sorting and durations.",
+                        "CUE sheets (also embedded) play as separate, sample-exact tracks; tags read in the background with TagLibSharp.",
+                        "100,000-entry playlist loads in about 1.4 s and scrolls smoothly; group docking verified."],
+               open=["Shift+Enter queue in search (needs PB-09, P6); macOS/Linux."]),
+    "P4": dict(status="Next", date="", outcome=[], open=[]),
+}
+
+# Status of external prerequisites (text as in each phase's prereq_ext).
+PREREQ_STATUS = {
+    "Inter font files (SIL OFL)": "Done: Inter is embedded in the default skin.",
+    "OptimFROG SDK downloaded and its redistribution terms checked": "Done: bundling allowed; x64 packages downloaded and verified.",
+    "Freely redistributable General MIDI SoundFont chosen": "Done: GeneralUser GS v2.0.3 chosen and downloaded.",
+    "GitHub repository and Actions enabled": "Pending: Anders adds the remote later.",
+    ".NET SDK (current LTS) on all build machines": "Done on Windows (.NET SDK 10.0.300).",
+    "macOS machine or runner for osx builds": "Pending (CI runner once the repository exists).",
+}
