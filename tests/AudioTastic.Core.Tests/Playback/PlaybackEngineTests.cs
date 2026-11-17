@@ -1,0 +1,235 @@
+using AudioTastic.Core.Playback;
+using AudioTastic.Core.Tests.Audio;
+using AudioTastic.Data;
+using AudioTastic.Data.Settings;
+using AudioTastic.Sdk.Audio;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace AudioTastic.Core.Tests.Playback;
+
+/// <summary>CO-02 transport state machine, CO-05 volume, CO-06 position, PB-04 device fallback.</summary>
+public sealed class PlaybackEngineTests : IDisposable
+{
+    private readonly SyntheticFactory _factory = new();
+    private readonly FakeAudioOutput _output = new();
+    private readonly AppPaths _paths = TempPaths();
+    private readonly SettingsStore _settings;
+    private readonly PlaybackEngine _engine;
+
+    public PlaybackEngineTests()
+    {
+        _settings = new SettingsStore(_paths);
+        _engine = new PlaybackEngine([_factory], _output, _settings, NullLogger<PlaybackEngine>.Instance);
+    }
+
+    public void Dispose()
+    {
+        _engine.Dispose();
+        _output.Dispose();
+    }
+
+    private static AppPaths TempPaths()
+    {
+        var dir = Directory.CreateTempSubdirectory("audiotastic-engine-").FullName;
+        return AppPaths.Resolve(new AppPathsContext(AppPathsContext.CurrentOs, dir, dir, null, null, [AppPaths.PortableSwitch])).EnsureCreated();
+    }
+
+    private static string Track(string name, int rate = 44_100, double seconds = 1, int channels = 2) =>
+        TempFiles.Touch(SyntheticFactory.PathFor(name, rate, seconds, channels));
+
+    [Fact]
+    public async Task Open_plays_the_first_track_at_its_sample_rate()
+    {
+        TrackChangedEventArgs? changed = null;
+        _engine.TrackChanged += (_, e) => changed = e;
+
+        await _engine.OpenAsync([Track("one", 48_000), Track("two")]);
+
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+        Assert.Equal(0, _engine.CurrentIndex);
+        Assert.Equal("one", _engine.CurrentTrack!.Title);
+        Assert.Equal(TimeSpan.FromSeconds(1), _engine.Duration);
+        Assert.Equal(new AudioFormat(48_000, 2), _output.Format);
+        Assert.True(_output.IsRunning);
+        Assert.Equal(0, changed!.Index);
+    }
+
+    [Fact]
+    public async Task Track_end_advances_to_the_next_track_and_stops_after_the_last()
+    {
+        var states = new List<PlaybackState>();
+        _engine.StateChanged += (_, e) => { lock (states) { states.Add(e.State); } };
+
+        await _engine.OpenAsync([Track("a", seconds: 0.2), Track("b", seconds: 0.2)]);
+        await Wait.UntilAsync(() => _engine.CurrentIndex == 1);
+        await Wait.UntilAsync(() => _engine.State == PlaybackState.Stopped);
+
+        Assert.Equal(2, _factory.Opened.Count);
+        Assert.All(_factory.Opened, s => Assert.True(s.Disposed));
+        Assert.Equal(TimeSpan.Zero, _engine.Position);
+    }
+
+    [Fact]
+    public async Task Pause_toggles_and_holds_the_position()
+    {
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        await Wait.UntilAsync(() => _engine.Position > TimeSpan.FromMilliseconds(50));
+
+        await _engine.PauseAsync();
+        var held = _engine.Position;
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PlaybackState.Paused, _engine.State);
+        Assert.Equal(held, _engine.Position);
+
+        await _engine.PauseAsync();
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+        await Wait.UntilAsync(() => _engine.Position > held);
+    }
+
+    [Fact]
+    public async Task Seek_lands_on_the_exact_frame()
+    {
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        await _engine.PauseAsync();
+
+        await _engine.SeekAsync(TimeSpan.FromSeconds(12.345));
+
+        Assert.Equal((long)Math.Round(12.345 * 44_100), _engine.Graph.DeckA.PositionFrames);
+    }
+
+    [Fact]
+    public async Task Previous_restarts_after_three_seconds_otherwise_goes_back()
+    {
+        await _engine.OpenAsync([Track("first", seconds: 30), Track("second", seconds: 30)]);
+        await _engine.NextAsync();
+        Assert.Equal(1, _engine.CurrentIndex);
+
+        await _engine.SeekAsync(TimeSpan.FromSeconds(10));
+        await _engine.PreviousAsync();
+        Assert.Equal(1, _engine.CurrentIndex);
+        Assert.True(_engine.Position < TimeSpan.FromSeconds(3));
+
+        await _engine.PreviousAsync();
+        Assert.Equal(0, _engine.CurrentIndex);
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+    }
+
+    [Fact]
+    public async Task Stop_resets_to_the_start_and_play_starts_again()
+    {
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        await _engine.SeekAsync(TimeSpan.FromSeconds(5));
+
+        await _engine.StopAsync();
+        Assert.Equal(PlaybackState.Stopped, _engine.State);
+        Assert.Equal(TimeSpan.Zero, _engine.Position);
+        Assert.False(_output.IsRunning);
+
+        await _engine.PlayAsync();
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+        Assert.True(_engine.Position < TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task A_new_sample_rate_reopens_the_output()
+    {
+        await _engine.OpenAsync([Track("cd", 44_100, 30), Track("hires", 96_000, 30)]);
+
+        await _engine.NextAsync();
+
+        Assert.Equal(new AudioFormat(96_000, 2), _output.Format);
+        Assert.Equal([44_100, 96_000], _output.Opens.Select(o => o.Format.SampleRate));
+    }
+
+    [Fact]
+    public async Task Unplayable_files_are_reported_and_skipped()
+    {
+        var errors = new List<string>();
+        _engine.PlaybackError += (_, e) => errors.Add(Path.GetFileName(e.Path));
+
+        await _engine.OpenAsync([Track("bad"), Path.Combine(TempFiles.Folder, "missing.syn"), Track("good", seconds: 30)]);
+
+        Assert.Equal(2, _engine.CurrentIndex);
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+        Assert.Equal(2, errors.Count);
+    }
+
+    [Fact]
+    public async Task Nothing_playable_ends_stopped()
+    {
+        await _engine.OpenAsync([Track("bad")]);
+
+        Assert.Equal(PlaybackState.Stopped, _engine.State);
+    }
+
+    [Fact]
+    public async Task Volume_and_mute_set_the_master_gain_and_are_saved()
+    {
+        _engine.Volume = 50;
+        Assert.Equal(0.125f, _engine.Graph.Master.TargetGain, 6);
+        _engine.IsMuted = true;
+        Assert.Equal(0f, _engine.Graph.Master.TargetGain);
+        _engine.IsMuted = false;
+        await Wait.UntilAsync(() => new SettingsStore(_paths).Current.Playback.Volume == 50);
+
+        Assert.False(new SettingsStore(_paths).Current.Playback.Muted);
+    }
+
+    [Fact]
+    public async Task Position_events_arrive_at_about_10_hz()
+    {
+        var count = 0;
+        _engine.PositionChanged += (_, _) => Interlocked.Increment(ref count);
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+
+        await Task.Delay(550, TestContext.Current.CancellationToken);
+
+        Assert.InRange(count, 3, 8);
+    }
+
+    [Fact]
+    public async Task Chosen_device_is_used_and_lost_device_falls_back_to_default()
+    {
+        await _engine.SetOutputDeviceAsync("Headphones");
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        Assert.Equal("Headphones", _output.Opens[^1].Device);
+
+        _output.Lose();
+        await Wait.UntilAsync(() => _output.Opens.Count == 2 && _output.IsRunning);
+
+        Assert.Null(_output.Opens[^1].Device); // default device
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+        Assert.Equal("Headphones", _settings.Current.Output.DeviceName); // the choice is kept for next time
+    }
+
+    [Fact]
+    public async Task Missing_saved_device_falls_back_to_default()
+    {
+        _settings.Update(SettingsGroup.Output, s => s.Output.DeviceName = "Gone");
+
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+
+        Assert.Null(_output.Opens[^1].Device);
+        Assert.Equal(PlaybackState.Playing, _engine.State);
+    }
+
+    [Fact]
+    public async Task Output_carries_the_source_audio_unchanged()
+    {
+        _engine.Volume = 100;
+        _engine.Graph.Master.SnapToTarget(); // skip the 10 ms volume ramp for an exact comparison
+        _output.Capture = true;
+        await _engine.OpenAsync([Track("check", seconds: 0.5)]);
+        await Wait.UntilAsync(() => _engine.State == PlaybackState.Stopped);
+
+        var audio = _output.Captured;
+        var start = Array.FindIndex(audio, s => s != 0f);
+        // The first non-zero sample is frame 0 or 1 of the synthetic signal (frame 0 / channel 0 may be exactly zero).
+        var offset = SyntheticSource.ValueAt(0, 0) == 0f ? start - 1 : start;
+        for (var f = 0; f < 22_050; f += 97)
+        {
+            Assert.Equal(SyntheticSource.ValueAt(f, 0), audio[offset + (2 * f)]);
+        }
+    }
+}

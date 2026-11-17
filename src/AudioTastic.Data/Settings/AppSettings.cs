@@ -40,10 +40,20 @@ public enum SettingsGroup
 
 public sealed class PlaybackSettings
 {
+    /// <summary>CO-05: master volume 0–100 (perceptual curve). Saved playback state, not a settings page item.</summary>
+    public int Volume { get; set; } = 80;
+
+    /// <summary>CO-05: mute keeps <see cref="Volume"/> unchanged.</summary>
+    public bool Muted { get; set; }
 }
 
 public sealed class OutputSettings
 {
+    /// <summary>PB-04: playback device name; null = system default (follows default-device changes).</summary>
+    public string? DeviceName { get; set; }
+
+    /// <summary>PB-04: total output buffer in milliseconds (P1 exit criterion: no dropouts at 20 ms).</summary>
+    public int BufferMilliseconds { get; set; } = 20;
 }
 
 public sealed class CrossfadingSettings
