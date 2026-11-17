@@ -44,15 +44,8 @@
     <AvaloniaResource Include="$(RepoRoot)assets\branding\audiotastic.ico" Link="Assets\audiotastic.ico" />
   </ItemGroup>
 
-  <!-- Native libraries produced by native/ scripts (FFmpeg, miniaudio, ...) are copied when present.
-       Publishing for one runtime identifier copies that RID's libraries next to the executable;
-       a plain build (F5) copies every RID into runtimes/<rid>/native for the native library resolver added in P1. -->
-  <ItemGroup Condition="'$(RuntimeIdentifier)' != '' And Exists('$(RepoRoot)native\out\$(RuntimeIdentifier)\native')">
-    <None Include="$(RepoRoot)native\out\$(RuntimeIdentifier)\native\*" Link="%(Filename)%(Extension)"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == '' And Exists('$(RepoRoot)native\out')">
-    <None Include="$(RepoRoot)native\out\**\native\*" Link="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
-          CopyToOutputDirectory="PreserveNewest" Visible="false" />
-  </ItemGroup>
+  <!-- Native libraries (FFmpeg, miniaudio, ...) are copied by Directory.Build.targets. -->
+  <PropertyGroup>
+    <CopyNativeLibraries>true</CopyNativeLibraries>
+  </PropertyGroup>
 </Project>

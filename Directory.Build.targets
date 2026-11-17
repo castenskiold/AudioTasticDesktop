@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Native libraries produced by the native/ scripts (FFmpeg, miniaudio, SoundTouch, ...) are copied into
+    projects that set <CopyNativeLibraries>true</CopyNativeLibraries> (the app and tests that need real audio).
+    Publishing for one runtime identifier copies that RID's libraries next to the executable;
+    a plain build (F5, dotnet test) copies every RID into runtimes/<rid>/native.
+    AudioTastic.Sdk.Interop.NativeLibraries probes both places at run time.
+  -->
+  <ItemGroup Condition="'$(CopyNativeLibraries)' == 'true' And '$(RuntimeIdentifier)' != '' And Exists('$(RepoRoot)native\out\$(RuntimeIdentifier)\native')">
+    <None Include="$(RepoRoot)native\out\$(RuntimeIdentifier)\native\*" Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(CopyNativeLibraries)' == 'true' And '$(RuntimeIdentifier)' == '' And Exists('$(RepoRoot)native\out')">
+    <None Include="$(RepoRoot)native\out\**\native\*" Link="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>
