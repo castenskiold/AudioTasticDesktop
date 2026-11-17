@@ -18,6 +18,7 @@ When you add a package or native library, add it here in the same pull request.
 | Svg.Controls.Skia.Avalonia (with Svg.Skia, Svg.Model, Svg.Custom) | MIT | SVG skin images (UI-03) | P2 |
 | NJsonSchema (with NJsonSchema.Annotations, Namotion.Reflection, Newtonsoft.Json) | MIT | skin.json schema validation (UI-03) | P2 |
 | TagLibSharp | LGPL-2.1 (separate, replaceable DLL) | Tag reading (MD-01) | P3 |
+| MeltySynth | MIT (includes code from C# Synth and TinySoundFont/SFZero, also MIT) | MIDI synthesizer in the MIDI plugin (FM-08) | P4 |
 
 ## .NET packages (development only, not shipped)
 
@@ -33,6 +34,13 @@ When you add a package or native library, add it here in the same pull request.
 | FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build | LGPL-2.1-or-later | Decoding (from P1), encoding (P11, P13) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
 | SoundTouch, SoundTouchDLL | LGPL-2.1 | Time-stretch | P0 pipeline / P6 use |
+| libopenmpt 0.8.10 | BSD-3-Clause (parts BSL-1.0) | Tracker modules in the libopenmpt plugin (FM-07) | P4 |
+| openmpt-mpg123 (mpg123, shipped with libopenmpt on Windows) | LGPL-2.1 (separate, replaceable DLL) | MP3-compressed samples inside modules | P4 |
+| openmpt-ogg, openmpt-vorbis (libogg, libvorbis, shipped with libopenmpt on Windows) | BSD-3-Clause | Vorbis-compressed samples inside modules | P4 |
+| openmpt-zlib (zlib, shipped with libopenmpt on Windows) | zlib | Compressed module formats | P4 |
+| OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (licence-policy exception: no open-source decoder exists, no licence key, free for the end user). The licence allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. | OptimFROG plugin (FM-06), x64 only | P4 |
+
+The licence texts of libopenmpt and its helper libraries are shipped next to them in the plugin folder (`plugins/AudioTastic.Input.OpenMpt/runtimes/<rid>/native/libopenmpt-*.txt`).
 
 ## Fonts and assets
 
@@ -40,3 +48,4 @@ When you add a package or native library, add it here in the same pull request.
 |---|---|---|
 | Inter (`docs/pdf-src/fonts`) | SIL Open Font License 1.1 | Project PDF documents; default skin font from P2 |
 | AudioTastic logo (`assets/branding`) | Owned by the AudioTastic project | App icon, branding |
+| GeneralUser GS v2.0.3 SoundFont by S. Christian Collins (`GeneralUser-GS.sf2`) | GeneralUser GS License v2.0 (custom, permissive: free use in software projects, private or commercial, no attribution required; approved by Anders, 17 Nov 2026). Shipped with its `LICENSE.txt` in `plugins/AudioTastic.Input.Midi/soundfont/`. | Bundled General MIDI SoundFont for the MIDI plugin (FM-08) |

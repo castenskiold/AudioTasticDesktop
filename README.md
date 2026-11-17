@@ -30,9 +30,21 @@ Useful switches:
 - `--crash-test`: throw an exception after start-up, to check crash reporting (TL-03). The next start offers the report.
 - Any other argument is a file, folder or playlist to add to the active playlist and play (the full command line, SI-08, comes in P10).
 
-The player has a skinned main window, mini player (Ctrl+W) and playlist window (Alt+E), docked together. Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played. Winamp keys work (Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings). Skins are documented in docs/skins/skin-format.md.
+**Windows and controls:**
+- The player has a skinned main window, mini player (Ctrl+W) and playlist window (Alt+E), docked together.
+- Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played.
+- Internet radio: Ctrl+L (Open URL) takes stream URLs and `.m3u`/`.pls` links.
+- Winamp keys work: Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings.
 
-The tests need the native libraries and the generated test media; without them the decoder and output tests are reported as skipped.
+**Formats** (all played through plugins):
+- FFmpeg: WAV, FLAC, MP3, AIFF, APE, AAC/M4A, WavPack, Ogg Vorbis, Opus, ALAC, WMA, Musepack, TTA, Shorten, http streams;
+- MIDI with a bundled SoundFont;
+- tracker modules (MOD, XM, IT, S3M, ...);
+- OptimFROG (x64).
+
+**Plugins** are managed in Settings › Plugins. Skins are documented in `docs/skins/skin-format.md`; plugins in `docs/plugins/plugin-guide.md`.
+
+The tests need the native libraries, the plugin assets and the generated test media; without them the decoder and output tests are reported as skipped. `python scripts/check_plugin_template.py` checks that a plugin made from the `dotnet new` template and built only from the SDK package loads, runs and unloads.
 
 ## Publish (self-contained)
 
@@ -44,7 +56,7 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 
 ## Native libraries and test media
 
-- **Native libraries:** see `native/README.md` (FFmpeg LGPL builds, miniaudio, SoundTouch).
+- **Native libraries:** see `native/README.md` (FFmpeg LGPL builds, miniaudio, SoundTouch; for plugins libopenmpt, OptimFROG and the GeneralUser GS SoundFont).
 - **Test media:** run `python scripts/generate_test_media.py` (add `--ffmpeg <path>` when ffmpeg is not on PATH; the Windows FFmpeg download in `native/downloads` contains one). It writes to `tests/media/generated/`, which is ignored by git.
 - **Soak test (P1 exit criterion):** `dotnet run -c Release --project tools/AudioTastic.SoakTest -- --minutes 60 --buffer 20` plays a long file silently through the real output and reports underruns, slow audio callbacks, memory and handles.
 
@@ -54,11 +66,14 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 |---|---|
 | `src/` | Application and library projects (see CLAUDE.md, section 8) |
 | `tests/` | xUnit v3 test projects and shared test helpers (`AudioTastic.TestSupport`) |
-| `plugins/` | Built-in plugins written against the SDK (`AudioTastic.Input.Ffmpeg` from P1) |
+| `plugins/` | Built-in plugins written against the SDK: FFmpeg, MIDI, libopenmpt and OptimFROG input plugins; copied to `plugins/` next to the app |
+| `samples/` | Sample plugins (input, DSP, visualisation, UI panel/general), built to `artifacts/atplugins/` |
+| `templates/` | `dotnet new audiotastic-plugin` template |
 | `tools/` | Developer tools (soak test) |
 | `native/` | Scripts that fetch or build the native libraries |
-| `scripts/` | Developer scripts (test media) |
+| `scripts/` | Developer scripts (test media, sample skin, plugin template check) |
 | `assets/branding/` | Logo and app icons |
+| `docs/skins/`, `docs/plugins/` | Skin format and schema; plugin author guide |
 | `docs/pdf-src/` | Sources of the PDF documents |
 | `.vscode/` | VS Code tasks, launch configurations and recommended extensions |
 | `.github/workflows/` | CI workflow (build/test on 3 OSes, publish 6 RIDs, native libraries) |
