@@ -24,13 +24,13 @@ public sealed class TagService
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly CacheStore? _cache;
-    private readonly IReadOnlyList<IAudioSourceFactory> _factories;
+    private readonly IEnumerable<IAudioSourceFactory> _factories;
     private readonly ILogger<TagService> _logger;
 
     public TagService(CacheStore? cache, IEnumerable<IAudioSourceFactory> factories, ILogger<TagService> logger)
     {
         _cache = cache;
-        _factories = [.. factories];
+        _factories = factories; // PG-01: live view of the enabled input plugins
         _logger = logger;
     }
 

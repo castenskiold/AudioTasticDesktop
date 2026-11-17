@@ -10,6 +10,46 @@
     <None Include="$(RepoRoot)native\out\$(RuntimeIdentifier)\native\*" Link="%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
+  <!--
+    PG-01 built-in plugins.
+    A plugin project sets <IsAudioTasticPlugin>true</IsAudioTasticPlugin>: its plugin.json is copied to the output and,
+    after each build, the output (minus the SDK assemblies the host shares) is staged in
+    artifacts/plugins/<Configuration>/<project>/.
+    The app lists plugins as <BuiltInPlugin Include="...csproj" />: they are built first (not referenced) and their
+    staged folders are copied to plugins/<project>/ next to the executable, on build and on publish.
+  -->
+  <PropertyGroup>
+    <PluginStagingRoot>$(RepoRoot)artifacts\plugins\$(Configuration)\</PluginStagingRoot>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsAudioTasticPlugin)' == 'true'">
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="StageAudioTasticPlugin" AfterTargets="Build" Condition="'$(IsAudioTasticPlugin)' == 'true'">
+    <ItemGroup>
+      <_PluginOutput Include="$(OutDir)**\*"
+                     Exclude="$(OutDir)AudioTastic.Sdk.*;$(OutDir)Microsoft.Extensions.Logging.Abstractions.*;$(OutDir)Microsoft.Extensions.DependencyInjection.Abstractions.*;$(OutDir)runtimes\**" />
+    </ItemGroup>
+    <RemoveDir Directories="$(PluginStagingRoot)$(MSBuildProjectName)" />
+    <Copy SourceFiles="@(_PluginOutput)" DestinationFiles="@(_PluginOutput->'$(PluginStagingRoot)$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <ItemGroup Condition="'@(BuiltInPlugin)' != ''">
+    <ProjectReference Include="@(BuiltInPlugin)" ReferenceOutputAssembly="false" Private="false" SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
+  </ItemGroup>
+  <Target Name="_CollectBuiltInPluginFiles">
+    <ItemGroup>
+      <_BuiltInPluginFile Include="$(PluginStagingRoot)%(BuiltInPlugin.Filename)\**\*">
+        <PluginName>%(BuiltInPlugin.Filename)</PluginName>
+      </_BuiltInPluginFile>
+    </ItemGroup>
+  </Target>
+  <Target Name="CopyBuiltInPlugins" AfterTargets="Build" DependsOnTargets="_CollectBuiltInPluginFiles" Condition="'@(BuiltInPlugin)' != ''">
+    <Copy SourceFiles="@(_BuiltInPluginFile)" DestinationFiles="@(_BuiltInPluginFile->'$(OutDir)plugins\%(PluginName)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishBuiltInPlugins" AfterTargets="Publish" DependsOnTargets="_CollectBuiltInPluginFiles" Condition="'@(BuiltInPlugin)' != ''">
+    <Copy SourceFiles="@(_BuiltInPluginFile)" DestinationFiles="@(_BuiltInPluginFile->'$(PublishDir)plugins\%(PluginName)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
   <ItemGroup Condition="'$(CopyNativeLibraries)' == 'true' And '$(RuntimeIdentifier)' == '' And Exists('$(RepoRoot)native\out')">
     <None Include="$(RepoRoot)native\out\**\native\*" Link="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" Visible="false" />

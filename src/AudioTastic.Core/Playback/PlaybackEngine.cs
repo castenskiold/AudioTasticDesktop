@@ -26,7 +26,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private static readonly TimeSpan RestartThreshold = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(500);
 
-    private readonly IReadOnlyList<IAudioSourceFactory> _factories;
+    private readonly IEnumerable<IAudioSourceFactory> _factories;
     private readonly IAudioOutput _output;
     private readonly SettingsStore _settings;
     private readonly ILogger<PlaybackEngine> _logger;
@@ -56,7 +56,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         ILogger<PlaybackEngine> logger)
     {
         ArgumentNullException.ThrowIfNull(factories);
-        _factories = [.. factories];
+        _factories = factories; // PG-01: may be a live view of the enabled input plugins; enumerated per open
         _output = output ?? throw new ArgumentNullException(nameof(output));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

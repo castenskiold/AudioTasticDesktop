@@ -71,6 +71,21 @@ public sealed class PluginHost : IDisposable
     /// <summary>Playlist formats offered by enabled input plugins.</summary>
     public IReadOnlyList<IPlaylistFormat> PlaylistFormats => Volatile.Read(ref _playlistFormats);
 
+    /// <summary>
+    /// A live view of <see cref="SourceFactories"/> for services created once (engine, tag reader): every
+    /// enumeration sees the plugins enabled at that moment.
+    /// </summary>
+    public IEnumerable<IAudioSourceFactory> LiveSourceFactories => new LiveView<IAudioSourceFactory>(() => SourceFactories);
+
+    /// <summary>A live view of <see cref="PlaylistFormats"/>.</summary>
+    public IEnumerable<IPlaylistFormat> LivePlaylistFormats => new LiveView<IPlaylistFormat>(() => PlaylistFormats);
+
+    private sealed class LiveView<T>(Func<IReadOnlyList<T>> current) : IEnumerable<T>
+    {
+        public IEnumerator<T> GetEnumerator() => current().GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     /// <summary>A plugin was loaded, enabled, disabled, installed or removed.</summary>
     public event EventHandler? PluginsChanged;
 
@@ -444,7 +459,10 @@ public sealed class PluginHost : IDisposable
 
     private void Rebuild()
     {
-        var enabled = Plugins.Where(p => p.Status == PluginStatus.Enabled).ToArray();
+        var enabled = Plugins.Where(p => p.Status == PluginStatus.Enabled)
+            .OrderByDescending(p => p.Manifest.Priority)
+            .ThenBy(p => p.IsBuiltIn)
+            .ToArray();
         var factories = new List<IAudioSourceFactory>();
         var formats = new List<IPlaylistFormat>();
         foreach (var record in enabled)

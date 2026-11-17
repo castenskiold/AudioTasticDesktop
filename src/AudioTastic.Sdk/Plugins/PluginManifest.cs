@@ -63,6 +63,12 @@ public sealed partial class PluginManifest
 
     public List<PluginType> Types { get; set; } = [];
 
+    /// <summary>
+    /// Decoder order when several input plugins can open a file: higher first (default 0). The built-in FFmpeg
+    /// decoder uses -100, so a specialised decoder for the same extension wins.
+    /// </summary>
+    public int Priority { get; set; }
+
     /// <summary>Problems that make the manifest unusable; empty when valid.</summary>
     public IReadOnlyList<string> Validate()
     {

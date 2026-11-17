@@ -6,7 +6,8 @@ using AudioTastic.Core.Playback;
 using AudioTastic.Data;
 using AudioTastic.Data.Cache;
 using AudioTastic.Data.Settings;
-using AudioTastic.Input.Ffmpeg;
+using AudioTastic.App.Plugins;
+using AudioTastic.Plugins.Host;
 using AudioTastic.Sdk.Audio;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -56,15 +57,18 @@ internal static class Program
                 .AddSingleton(settings)
                 .AddSingleton(cache)
                 .AddSingleton(PlatformServicesFactory.Create())
-                // P1 audio core. Input plugins are registered directly until the plugin loader (PG-01, P4).
-                .AddSingleton<IAudioSourceFactory, FfmpegSourceFactory>()
+                // P4 plugins (PG-01/03/05): decoders come from enabled input plugins, read live by every consumer.
+                .AddSingleton(sp => new PluginHost(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<ILoggerFactory>()))
+                .AddSingleton<IEnumerable<IAudioSourceFactory>>(sp => sp.GetRequiredService<PluginHost>().LiveSourceFactories)
+                .AddSingleton(sp => new PlayerApi(sp.GetRequiredService<PlaybackEngine>(), sp.GetRequiredService<AudioTastic.Core.Playlists.PlaylistService>(),
+                    sp.GetRequiredService<AudioTastic.Metadata.TagService>(), () => sp.GetRequiredService<AudioTastic.App.Ui.Playlist.PlaylistController>()))
                 .AddSingleton<IAudioOutput>(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
                 .AddSingleton<PlaybackEngine>()
                 .AddSingleton<IPlayerController>(sp => sp.GetRequiredService<PlaybackEngine>())
                 // P2 player UI: skins (UI-03) and the shell that owns the skinned windows.
                 .AddSingleton<AudioTastic.App.Skins.SkinManager>()
                 // P3 playlists (PL-01..07, FM-09) and tags (MD-01).
-                .AddSingleton(sp => { var s = new AudioTastic.Core.Playlists.PlaylistService(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<ILogger<AudioTastic.Core.Playlists.PlaylistService>>()); s.Load(); return s; })
+                .AddSingleton(sp => { var s = new AudioTastic.Core.Playlists.PlaylistService(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<ILogger<AudioTastic.Core.Playlists.PlaylistService>>(), sp.GetRequiredService<PluginHost>().LivePlaylistFormats); s.Load(); return s; })
                 .AddSingleton<AudioTastic.Metadata.TagService>()
                 .AddSingleton<AudioTastic.Metadata.TagLoader>()
                 .AddSingleton<AudioTastic.App.Ui.Playlist.PlaylistController>()
@@ -72,6 +76,11 @@ internal static class Program
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
             AppHost.Services = services;
+
+            // PG-01: plugins are loaded before the UI so that start-up files can use every decoder.
+            var plugins = services.GetRequiredService<PluginHost>();
+            plugins.AttachPlayer(services.GetRequiredService<PlayerApi>());
+            plugins.LoadAll();
 
             var exitCode = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             log.LogInformation("AudioTastic exited with code {Code}", exitCode);

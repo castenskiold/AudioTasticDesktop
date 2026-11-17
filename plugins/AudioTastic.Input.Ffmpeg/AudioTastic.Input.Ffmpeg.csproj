@@ -2,6 +2,9 @@
   <!-- FM-01: FFmpeg input plugin (default decoder). References only the SDK, like any third-party plugin. -->
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
+    <!-- A plugin folder must contain its own dependencies (FFmpeg.AutoGen). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FFmpeg.AutoGen" />

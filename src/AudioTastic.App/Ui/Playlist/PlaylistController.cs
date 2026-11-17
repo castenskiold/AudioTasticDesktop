@@ -24,7 +24,7 @@ public sealed class PlaylistController : IDisposable
     private readonly TagService _tags;
     private readonly IPlatformServices _platform;
     private readonly ILogger<PlaylistController> _logger;
-    private readonly IReadOnlyList<IAudioSourceFactory> _factories;
+    private readonly IEnumerable<IAudioSourceFactory> _factories;
     private Core.Playlists.Playlist _attached;
     private string _search = string.Empty;
     private IReadOnlyList<PlaylistEntry> _visible = [];
@@ -39,7 +39,7 @@ public sealed class PlaylistController : IDisposable
         _tags = tags;
         _platform = platform;
         _logger = logger;
-        _factories = [.. factories];
+        _factories = factories; // PG-01: live view of the enabled input plugins
         _attached = service.Active;
         _attached.Changed += OnActiveChanged;
         service.ActiveChanged += (_, _) => Reattach();

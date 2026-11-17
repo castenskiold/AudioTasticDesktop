@@ -37,8 +37,12 @@
     <ProjectReference Include="..\AudioTastic.Analysis\AudioTastic.Analysis.csproj" />
     <ProjectReference Include="..\AudioTastic.Metadata\AudioTastic.Metadata.csproj" />
     <ProjectReference Include="..\AudioTastic.Casting\AudioTastic.Casting.csproj" />
-    <!-- Built-in input plugin, referenced directly until the plugin loader (PG-01, P4). -->
-    <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
+  </ItemGroup>
+
+  <!-- PG-01: built-in plugins are built but not referenced; they are copied to plugins/<name>/ and loaded by the
+       plugin host like third-party plugins (rules in Directory.Build.targets). -->
+  <ItemGroup>
+    <BuiltInPlugin Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
   </ItemGroup>
 
   <!-- Branding assets live once in /assets/branding and are linked in (UI-04). -->

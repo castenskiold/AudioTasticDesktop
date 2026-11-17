@@ -1,0 +1,12 @@
+{
+  "id": "audiotastic.input.ffmpeg",
+  "name": "FFmpeg decoder",
+  "version": "0.4.0",
+  "author": "AudioTastic",
+  "description": "Plays most audio formats and internet radio through FFmpeg (LGPL build).",
+  "license": "MIT (plugin); FFmpeg is LGPL-2.1+",
+  "sdkVersion": "0.4.0",
+  "entryAssembly": "AudioTastic.Input.Ffmpeg.dll",
+  "types": ["input"],
+  "priority": -100
+}

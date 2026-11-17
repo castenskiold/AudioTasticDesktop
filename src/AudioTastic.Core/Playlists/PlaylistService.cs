@@ -30,12 +30,15 @@ public sealed class PlaylistService : IDisposable
     {
         _paths = paths;
         _logger = logger;
-        Formats = formats?.ToArray() ?? PlaylistFormats.BuiltIn;
+        _pluginFormats = formats ?? [];
         _saveTimer = new Timer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _active = Track(new Playlist("Main"));
     }
 
-    public IReadOnlyList<IPlaylistFormat> Formats { get; }
+    /// <summary>The built-in formats followed by those of enabled input plugins (PG-01; read live).</summary>
+    public IReadOnlyList<IPlaylistFormat> Formats => [.. PlaylistFormats.BuiltIn, .. _pluginFormats];
+
+    private readonly IEnumerable<IPlaylistFormat> _pluginFormats;
     public IReadOnlyList<Playlist> Playlists => _playlists;
 
     /// <summary>The tab shown in the playlist window.</summary>
