@@ -28,9 +28,9 @@ Useful switches:
 
 - `--portable`: keep all data in a `Data` folder next to the executable (TL-05). Creating an empty file named `portable` next to the executable does the same.
 - `--crash-test`: throw an exception after start-up, to check crash reporting (TL-03). The next start offers the report.
-- Any other argument is a file to play (P1; the full command line, SI-08, comes in P10).
+- Any other argument is a file, folder or playlist to add to the active playlist and play (the full command line, SI-08, comes in P10).
 
-Until the skinned player arrives in P2, a temporary **audio debug window** opens next to the main window: open or drop files, transport (Winamp keys Z/X/C/V/B, L to open, Up/Down for volume), seek, volume, mute and output device.
+The player has a skinned main window, mini player (Ctrl+W) and playlist window (Alt+E), docked together. Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played. Winamp keys work (Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings). Skins are documented in docs/skins/skin-format.md.
 
 The tests need the native libraries and the generated test media; without them the decoder and output tests are reported as skipped.
 
