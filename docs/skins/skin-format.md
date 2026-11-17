@@ -52,10 +52,21 @@ Add `"$schema": "https://audiotastic.app/schemas/skin-1.json"` (or a relative pa
 | `fonts` | Named fonts: `family` (the family name inside the files, or an installed system font), `files`, `weight` (`light` … `bold`) and default `size`. |
 | `windows.main` | The main window. Required. |
 | `windows.mini` | The mini player (UI-05). If it is missing, the default skin's mini player is used. |
+| `windows.playlist` | The playlist window (PL-01, regions PW1–PW6). Resizable. If it is missing, the default skin's is used. |
 
 ### Windows
 
 Each window has `width` and `height` in layout units. The player draws them at the player size from Settings › Interface (default 150 %), and double size (UI-08) doubles that. Use SVG so the skin stays sharp at every size. It also has an optional `background`, `border`, `borderWidth` and `cornerRadius`, and a list of `elements`. Elements are drawn in order, so later elements appear on top.
+
+### Resizable windows and anchors
+
+A window with `"resizable": true` (the playlist) can be resized by the user, down to `minWidth` × `minHeight`. Its `width` and `height` are the design size. Each element's `anchor` says which window edges it keeps its distance to when the window is larger or smaller than that:
+
+- `left top` (default): stays where it is.
+- `right top`: moves with the right edge (a close button).
+- `left right top`: stretches horizontally (title bar, tabs, search).
+- `left right top bottom`: stretches both ways (the track list).
+- `left bottom` / `right bottom`: moves with the bottom edge (bottom bar buttons, info, resize grip).
 
 ### Elements
 
@@ -66,7 +77,7 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `rect` | — | A rectangle: `fill`, `stroke`, `strokeWidth`, `cornerRadius`. Decoration and panels. |
 | `image` | — | A picture: `image`, and `color` for `currentColor` in SVG. |
 | `text` | — | Static `text` with `font`, `fontSize`, `color`, `align`, `letterSpacing`. |
-| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand` | A push button. `playPause` is in the `active` state while playing, so `images.active` can show a pause icon. |
+| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand`; in the playlist window also `hide` (close the playlist), `plAdd`, `plRemove`, `plSelect`, `plSort`, `plList` (PW5 menus) | A push button. `playPause` is in the `active` state while playing, so `images.active` can show a pause icon. |
 | `toggle` | `shuffle`, `repeat`, `mute`, `equalizer`, `playlist`, `crossfade`, `cast` | An on/off button. `repeat` uses the `alternate` state for repeat-track. Toggles for features not built yet are drawn `disabled`. |
 | `slider` | `volume`, `seek` | A horizontal slider: `trackColor`, `fillColor`, `thumbColor`, `thumbSize`, `trackThickness`. |
 | `time` | none, or `duration` | Without bind: elapsed/remaining time (CO-06); click to toggle; it blinks while paused. With `duration`: the track length. `font`, `fontSize`, `color`, `align`. |
@@ -75,6 +86,11 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `dragArea` | — | Dragging moves the window, together with the windows docked to it. Double-click toggles the mini player. |
 | `art` | — | Album art thumbnail (MW2). Shows the logo until album art (MD-02) arrives. |
 | `visualisation` | — | Area reserved for the spectrum and oscilloscope (UI-07, phase P7). |
+| `playlistTabs` | — | Playlist tabs (PW2) as pills. Takes `font`, `spacing`, and per-state `strokes`/`fills`/`colors` (`active` = the tab shown). |
+| `playlistSearch` | — | Search field (PW3). Takes `font`, `fontSize`, `color`, `stroke`, `fill`, `cornerRadius`; `text` is the placeholder. |
+| `playlistList` | — | Track list (PW4). `font`, `fontSize` and `rowHeight` set the text and rows. `color` is for rows, `mutedColor` for numbers, durations and the scroll bar, `playingColor` for the playing row and its bar, `selectionColor` for selected rows. |
+| `playlistInfo` | — | Selection / total duration (PW6). Takes `font`, `fontSize`, `color`, `align`. |
+| `resizeGrip` | — | Drag to resize a resizable window. |
 
 ### States (buttons and toggles)
 
