@@ -1,8 +1,13 @@
 using Avalonia;
+using AudioTastic.Core.Audio;
+using AudioTastic.Core.Audio.Output;
 using AudioTastic.Core.Diagnostics;
+using AudioTastic.Core.Playback;
 using AudioTastic.Data;
 using AudioTastic.Data.Cache;
 using AudioTastic.Data.Settings;
+using AudioTastic.Input.Ffmpeg;
+using AudioTastic.Sdk.Audio;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -51,6 +56,12 @@ internal static class Program
                 .AddSingleton(settings)
                 .AddSingleton(cache)
                 .AddSingleton(PlatformServicesFactory.Create())
+                // P1 audio core. Input plugins are registered directly until the plugin loader (PG-01, P4).
+                .AddSingleton<IAudioSourceFactory, FfmpegSourceFactory>()
+                .AddSingleton<IAudioOutput>(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
+                .AddSingleton<PlaybackEngine>()
+                .AddSingleton<IPlayerController>(sp => sp.GetRequiredService<PlaybackEngine>())
+                .AddTransient<AudioDebugWindow>()
                 .AddTransient<MainWindow>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 

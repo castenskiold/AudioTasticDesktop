@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private readonly IPlatformServices? _platform;
     private readonly StartupOptions? _options;
     private readonly ILogger<MainWindow>? _logger;
+    private readonly AudioDebugWindow? _audioDebug;
 
     /// <summary>Used by the XAML previewer only.</summary>
     public MainWindow()
@@ -30,7 +31,7 @@ public sealed partial class MainWindow : Window
     }
 
     public MainWindow(AppPaths paths, SettingsStore settings, CrashReporter crashReporter,
-        IPlatformServices platform, StartupOptions options, ILogger<MainWindow> logger)
+        IPlatformServices platform, StartupOptions options, ILogger<MainWindow> logger, AudioDebugWindow audioDebug)
     {
         ArgumentNullException.ThrowIfNull(paths);
         _settings = settings;
@@ -38,9 +39,10 @@ public sealed partial class MainWindow : Window
         _platform = platform;
         _options = options;
         _logger = logger;
+        _audioDebug = audioDebug;
         InitializeComponent();
 
-        StatusText.Text = $"Phase P0 · {platform.Name} · {(paths.IsPortable ? "portable · " : string.Empty)}{paths.Root}";
+        StatusText.Text = $"Phase P1 · {platform.Name} · {(paths.IsPortable ? "portable · " : string.Empty)}{paths.Root}";
         ToolTip.SetTip(StatusText, paths.Root);
         RestorePosition(settings.Current.Interface.MainWindow);
     }
@@ -49,6 +51,13 @@ public sealed partial class MainWindow : Window
     {
         base.OnOpened(e);
         _logger?.LogInformation("Main window opened");
+
+        // P1: the audio debug window is the way to play files until the skinned UI arrives in P2.
+        if (_audioDebug is not null)
+        {
+            _audioDebug.Show();
+            _audioDebug.OpenFiles(_options?.Files ?? []);
+        }
 
         if (_crashReporter?.GetPendingReport() is { } report && _platform is not null)
         {
