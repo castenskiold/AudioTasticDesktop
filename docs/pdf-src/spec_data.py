@@ -10,7 +10,7 @@ S("Core playback", "The basic player functions every other feature builds on.", 
 ("CO-01", "Application shell (cross-platform)",
  "Starts the player, owns the window set (main, playlist, equalizer, art & lyrics, mini player), loads settings, starts background services (analysis, plugin host, casting, IPC) and shuts them down cleanly. Runs on Windows (primary), macOS and Linux from one code base.",
  "No visible UI of its own. On first start, the main window, playlist and equalizer open docked together in their default positions.",
- "<b>Components:</b> AudioTastic.App (Avalonia 11, MIT) with a DI container (Microsoft.Extensions.DependencyInjection, MIT); AudioTastic.Core, .Data, .Platform.* projects. "
+ "<b>Components:</b> AudioTastic.App (Avalonia 12, MIT) with a DI container (Microsoft.Extensions.DependencyInjection, MIT); AudioTastic.Core, .Data, .Platform.* projects. "
  "<b>Platform:</b> one IPlatformServices implementation per OS, picked at start-up via OperatingSystem.IsWindows()/IsMacOS()/IsLinux(). "
  "<b>Packaging:</b> self-contained publish per runtime identifier (win-x64, win-arm64, osx-arm64, osx-x64, linux-x64, linux-arm64) with native libraries (FFmpeg LGPL build, miniaudio, SoundTouch, libopenmpt) in the runtimes folder. "
  "<b>Data paths:</b> %APPDATA%\\AudioTastic (Windows), ~/Library/Application Support/AudioTastic (macOS), ~/.config/AudioTastic (Linux), or the portable folder (TL-05).", None),
@@ -258,7 +258,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 ("UI-03", "Skin engine and skin format",
  "Loads skins that change the look of all player windows. AudioTastic's own format: a .atskin file (zip) containing skin.json (name, author, version, colours, fonts, element positions and sizes per window, and which image draws each element and state), plus SVG or PNG images (PNG @1x and @2x). Skins can be switched while playing. Classic Winamp .wsz skins are not supported.",
  "Settings › Interface › Skin: list with preview thumbnails, Install skin…, Open skins folder. Main menu › Skins for quick switching.",
- "<b>Components:</b> SkinEngine (parse and validate skin.json with System.Text.Json and a JSON schema; elements bound to custom Avalonia controls); SVG rendering via Avalonia.Svg.Skia (MIT). "
+ "<b>Components:</b> SkinEngine (parse and validate skin.json with System.Text.Json and a JSON schema; elements bound to custom Avalonia controls); SVG rendering via Svg.Controls.Skia.Avalonia (MIT). "
  "<b>Deliverables:</b> skin format documentation and JSON schema in /docs, so others can make skins. Invalid skins fall back to the default skin with an error message.", "Settings › Interface: skin."),
 ("UI-04", "App icon and branding",
  "The AudioTastic logo is the application icon on all platforms and appears in the taskbar/dock, tray, file-type icons, About dialog and title bar.",

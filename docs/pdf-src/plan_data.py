@@ -45,7 +45,7 @@ dict(id="P2", name="Player shell and default skin", size="L",
  goal="The real player UI: the main window in the default skin built on the skin engine, window snapping, the settings window, and the basic toggles.",
  why="Building the skin engine first and making the default skin a normal skin means every later UI element is skinnable from the start, instead of retrofitting skins at the end.",
  features=[
-  ("UI-03", "Skin engine: .atskin loading, skin.json parsing and JSON-schema validation, element binding, SVG via Avalonia.Svg.Skia, @1x/@2x PNG support, live switching, fallback to the default skin."),
+  ("UI-03", "Skin engine: .atskin loading, skin.json parsing and JSON-schema validation, element binding, SVG via Svg.Controls.Skia.Avalonia (MIT; Avalonia 12), @1x/@2x PNG support, live switching, fallback to the default skin."),
   ("UI-02", "Default skin in the .atskin format, built from SVG, Inter font embedded; main window first, then equalizer, playlist, Art & Lyrics and mini player sections as those windows arrive."),
   ("UI-04", "App icon on all platforms (ico, icns, PNG set), title-bar logo, About dialog with third-party notices."),
   ("UI-01", "Borderless windows with custom title bars; WindowSnapManager (10 px snapping, group dragging, saved positions); EQ and PL toggle buttons; X11 backend on Linux."),

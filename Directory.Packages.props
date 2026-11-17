@@ -2,7 +2,7 @@
   <!-- Central package versions. Every package must meet the licence policy (CLAUDE.md section 5)
        and be listed in THIRD-PARTY-NOTICES.md. -->
   <PropertyGroup>
-    <AvaloniaVersion>11.3.23</AvaloniaVersion>
+    <AvaloniaVersion>12.1.6</AvaloniaVersion>
     <MicrosoftExtensionsVersion>10.0.15</MicrosoftExtensionsVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -10,7 +10,6 @@
     <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
-    <PackageVersion Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" />
     <!-- Hosting and logging abstractions (MIT) -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />
