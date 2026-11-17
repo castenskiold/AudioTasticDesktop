@@ -15,6 +15,9 @@ When you add a package or native library, add it here in the same pull request.
 | SQLite (bundled by SQLitePCLRaw) | Public domain | Cache database engine | P0 |
 | Serilog, Serilog.Sinks.File, Serilog.Extensions.Logging | Apache-2.0 | Log files (TL-03) | P0 |
 | FFmpeg.AutoGen | MIT | .NET bindings for the FFmpeg libraries (FM-01); loads them dynamically | P1 |
+| Svg.Controls.Skia.Avalonia (with Svg.Skia, Svg.Model, Svg.Custom) | MIT | SVG skin images (UI-03) | P2 |
+| NJsonSchema (with NJsonSchema.Annotations, Namotion.Reflection, Newtonsoft.Json) | MIT | skin.json schema validation (UI-03) | P2 |
+| TagLibSharp | LGPL-2.1 (separate, replaceable DLL) | Tag reading (MD-01) | P3 |
 
 ## .NET packages (development only, not shipped)
 

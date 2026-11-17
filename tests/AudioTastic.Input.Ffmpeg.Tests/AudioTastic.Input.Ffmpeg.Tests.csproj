@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
     <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="..\..\src\AudioTastic.Metadata\AudioTastic.Metadata.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

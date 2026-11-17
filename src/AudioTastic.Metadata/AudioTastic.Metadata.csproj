@@ -1,6 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Tags, album art, lyrics and online lookup (MD-01 to MD-05). Built in P3 and P9. -->
+  <!-- Tags, album art, lyrics and online lookup (MD-01 to MD-05). MD-01 part 1 (tag reading) in P3; the rest in P9. -->
+  <ItemGroup>
+    <PackageReference Include="TagLibSharp" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
+    <ProjectReference Include="..\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioTastic.Input.Ffmpeg.Tests" />
   </ItemGroup>
 </Project>

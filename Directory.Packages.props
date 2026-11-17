@@ -23,6 +23,8 @@
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="$(MicrosoftExtensionsVersion)" />
     <!-- FFmpeg bindings (MIT); the FFmpeg libraries themselves are LGPL, dynamically loaded (FM-01). Keep the major in step with native/fetch_ffmpeg.py. -->
     <PackageVersion Include="FFmpeg.AutoGen" Version="8.1.0" />
+    <!-- Tags (MD-01): LGPL-2.1, used as a separate, replaceable DLL as the licence policy allows -->
+    <PackageVersion Include="TagLibSharp" Version="2.3.0" />
     <!-- Logging (Apache-2.0) -->
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
