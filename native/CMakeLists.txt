@@ -7,7 +7,8 @@
 #   cmake --build native/build/<rid> --config Release
 #   cmake --install native/build/<rid> --config Release
 cmake_minimum_required(VERSION 3.24)
-project(AudioTasticNative C CXX)
+# VERSION is required: SoundTouch's CMakeLists reads CMAKE_PROJECT_VERSION (the top-level project's version).
+project(AudioTasticNative VERSION 0.1.0 LANGUAGES C CXX)
 
 set(AT_RID "" CACHE STRING "Runtime identifier, e.g. win-x64 (output goes to native/out/<rid>/native)")
 if(AT_RID STREQUAL "")
@@ -26,9 +27,11 @@ FetchContent_Declare(miniaudio_src
   GIT_SHALLOW TRUE
   SOURCE_SUBDIR no-cmake-here)  # download sources only; our own target is defined below
 FetchContent_MakeAvailable(miniaudio_src)
-add_library(miniaudio SHARED "${miniaudio_src_SOURCE_DIR}/miniaudio.c")
-target_include_directories(miniaudio PUBLIC "${miniaudio_src_SOURCE_DIR}")
-target_compile_definitions(miniaudio PRIVATE MA_DLL MA_NO_ENCODING MA_NO_GENERATION)
+# miniaudio plus our flat C shim (miniaudio/at_miniaudio.c) that the .NET side P/Invokes (PB-04).
+add_library(miniaudio SHARED "${miniaudio_src_SOURCE_DIR}/miniaudio.c" "${CMAKE_CURRENT_SOURCE_DIR}/miniaudio/at_miniaudio.c")
+target_include_directories(miniaudio PUBLIC "${miniaudio_src_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/miniaudio")
+target_compile_definitions(miniaudio PRIVATE MA_DLL MA_NO_ENCODING MA_NO_GENERATION MA_NO_DECODING MA_NO_RESOURCE_MANAGER MA_NO_NODE_GRAPH MA_NO_ENGINE)
+set_target_properties(miniaudio PROPERTIES C_STANDARD 11 C_VISIBILITY_PRESET hidden)
 if(UNIX AND NOT APPLE)
   target_link_libraries(miniaudio PRIVATE pthread m dl)
 endif()

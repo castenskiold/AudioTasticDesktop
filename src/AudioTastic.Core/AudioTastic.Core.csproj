@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Playback engine (from P1) and shared app services such as logging and crash reporting (TL-03). -->
+  <PropertyGroup>
+    <!-- miniaudio interop (PB-04) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
     <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />

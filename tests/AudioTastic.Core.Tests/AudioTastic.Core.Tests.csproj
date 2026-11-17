@@ -3,6 +3,8 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
+    <!-- miniaudio null-backend tests (PB-04) need the native library. -->
+    <CopyNativeLibraries>true</CopyNativeLibraries>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
