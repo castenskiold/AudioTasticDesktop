@@ -1,8 +1,25 @@
 # AudioTastic.Sdk
 
-Public plugin contracts (PG-02). No reference to any other AudioTastic project; only interfaces, data types and small helpers.
+Contracts for AudioTastic Desktop plugins (PG-02). The package holds only interfaces, data types and small helpers. It references no AudioTastic internals, and its only dependency is Microsoft.Extensions.Logging.Abstractions.
 
-- `Audio/`: `IAudioSource` (decoded stream: read float frames, sample-accurate seek), `IAudioSourceFactory` (input plugin), `AudioFormat`, `AudioStreamInfo`, `AudioSourceException`. Added in P1.
-- `Interop/NativeLibraries`: finds native libraries next to the app or in `runtimes/<rid>/native`; plugins with native code use it too.
+**Status:** pre-release (0.x). Contracts may still change until the DSP chain and crossfading are built. A plugin must be built against the same 0.minor version as the player (`SdkInfo.IsCompatible`).
 
-The SDK is formalised in P4 (versioning, NuGet package, `plugin.json`, templates, samples).
+## What is in it
+
+| Namespace | Contents |
+|---|---|
+| `AudioTastic.Sdk.Plugins` | The seven plugin types: `IInputPlugin`, `IOutputPlugin`, `IDspPlugin` (+ `IDspEffect`), `IVisualisationPlugin` (+ `IVisualisation`), `IGeneralPlugin`, `IUiPanelPlugin`, `ICastTargetPlugin`. Also `IPlugin`, `IPluginContext`, `IPluginSettings`, `IPluginSettingsPage`, `IPlayerApi` and `PluginManifest` (plugin.json), plus `SdkInfo`. |
+| `AudioTastic.Sdk.Audio` | `IAudioSource` (decoded float audio, sample-accurate seek), `IAudioSourceFactory`, `IStreamMetadata`, `IAudioOutput`, `AudioFormat`, `AudioStreamInfo`. |
+| `AudioTastic.Sdk.Playlists` | `PlaylistItem`, `IPlaylistFormat`. |
+| `AudioTastic.Sdk.Metadata` | `TrackTags`. |
+| `AudioTastic.Sdk.Interop` | `NativeLibraries`, for plugins that ship native libraries. |
+
+## Writing a plugin
+
+The plugin author guide in the AudioTastic repository (`docs/plugins/plugin-guide.md`) covers:
+- the manifest;
+- packaging as `.atplugin`;
+- threading rules;
+- the `dotnet new audiotastic-plugin` template.
+
+Samples are in `samples/`.

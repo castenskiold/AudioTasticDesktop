@@ -1,6 +1,4 @@
-using AudioTastic.Sdk.Audio;
-
-namespace AudioTastic.Core.Audio;
+namespace AudioTastic.Sdk.Audio;
 
 /// <summary>Produces audio on the audio thread. Implementations must not allocate, lock or block.</summary>
 public interface IAudioRenderer
@@ -25,8 +23,7 @@ public sealed class AudioOutputLostEventArgs(string reason) : EventArgs
 }
 
 /// <summary>
-/// PB-04: an audio output (P1: miniaudio shared mode). Exclusive mode and ASIO come in P6; output plugins (PG-01)
-/// will implement this too.
+/// PB-04 / PG-01: an audio output (miniaudio in the app; output plugins implement it too). Exclusive mode and ASIO come in P6.
 /// </summary>
 public interface IAudioOutput : IDisposable
 {
