@@ -1,5 +1,6 @@
 using System.Runtime;
 using AudioTastic.Core.Audio;
+using AudioTastic.Core.Playlists;
 using AudioTastic.Data.Settings;
 using AudioTastic.Sdk.Audio;
 using Microsoft.Extensions.Logging;
@@ -35,8 +36,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private readonly Timer _saveTimer;
     private readonly PlayOrder _playOrder = new();
 
-    private string[] _tracks = [];
+    // PL-01: the engine plays entries of a playlist (the 'playing' tab, PL-02). The entry is tracked by identity,
+    // so edits, sorting and moves in the playlist keep the current track; _index is its last known position.
+    private Playlist _playlist = new("Now playing");
+    private PlaylistEntry? _entry;
     private int _index = -1;
+    private int _orderVersion = -1;
     private volatile PlaybackState _state = PlaybackState.Stopped;
     private TrackInfo? _track;
     private AudioFormat _sourceFormat = new(48_000, EngineChannels);
@@ -78,7 +83,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public PlaybackState State => _state;
     public TrackInfo? CurrentTrack => _track;
     public int CurrentIndex => _index;
-    public IReadOnlyList<string> Tracks => _tracks;
+    public Playlist PlayingPlaylist => _playlist;
+    public PlaylistEntry? CurrentEntry => _entry;
     public string? OutputDeviceName => _output.IsOpen ? _output.DeviceName : null;
 
     public TimeSpan Position => _state == PlaybackState.Stopped || _track is null
@@ -135,7 +141,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             if (value != _playOrder.Shuffle)
             {
-                _playOrder.SetShuffle(value, _index);
+                _playOrder.SetShuffle(value, CurrentIndexCore());
+                _orderVersion = _playlist.Version;
                 SavePlayMode();
             }
             return Task.CompletedTask;
@@ -160,13 +167,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public Task OpenAsync(IEnumerable<string> paths, bool play = true)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        var list = paths.ToArray();
+        var playlist = new Playlist("Now playing", paths.Select(p => new PlaylistEntry(p)));
         return RunAsync(async () =>
         {
-            _tracks = list;
-            _index = list.Length > 0 ? 0 : -1;
-            _playOrder.Reset(list.Length, _index);
-            if (_playOrder.Shuffle && list.Length > 0)
+            _playlist = playlist;
+            _entry = null;
+            _index = playlist.Count > 0 ? 0 : -1;
+            SyncOrder(force: true);
+            if (_playOrder.Shuffle && playlist.Count > 0)
             {
                 _index = _playOrder.Order[0]; // CO-03: shuffle starts anywhere in the list
             }
@@ -178,7 +186,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             {
                 await StopCoreAsync().ConfigureAwait(false);
                 _track = null;
-                Raise(TrackChanged, new TrackChangedEventArgs(null, _index));
+                Raise(TrackChanged, new TrackChangedEventArgs(null, _index, null));
             }
         });
     }
@@ -193,16 +201,30 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             case PlaybackState.Playing:
                 await SeekCoreAsync(TimeSpan.Zero).ConfigureAwait(false);
                 break;
-            case PlaybackState.Stopped when _index >= 0:
-                await PlayIndexCoreAsync(_index).ConfigureAwait(false);
+            case PlaybackState.Stopped when _playlist.Count > 0:
+                await PlayIndexCoreAsync(Math.Max(0, CurrentIndexCore())).ConfigureAwait(false);
                 break;
         }
     });
 
+    public Task PlayAsync(Playlist playlist, PlaylistEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(playlist);
+        ArgumentNullException.ThrowIfNull(entry);
+        return RunAsync(() =>
+        {
+            _playlist = playlist;
+            _entry = entry;
+            SyncOrder(force: true);
+            var index = CurrentIndexCore();
+            return index >= 0 ? PlayIndexCoreAsync(index) : Task.CompletedTask;
+        });
+    }
+
     public Task PlayIndexAsync(int index) => RunAsync(() =>
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _tracks.Length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _playlist.Count);
         return PlayIndexCoreAsync(index);
     });
 
@@ -225,11 +247,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public Task PreviousAsync() => RunAsync(async () =>
     {
         var active = _state is PlaybackState.Playing or PlaybackState.Paused;
-        if (active && (Position > RestartThreshold || _playOrder.Previous(_index) is null))
+        SyncOrder();
+        var current = CurrentIndexCore();
+        if (active && (Position > RestartThreshold || _playOrder.Previous(current) is null))
         {
             await SeekCoreAsync(TimeSpan.Zero).ConfigureAwait(false);
         }
-        else if (_playOrder.Previous(_index) is int previous)
+        else if (_playOrder.Previous(current) is int previous)
         {
             await GoToAsync(previous, active).ConfigureAwait(false);
         }
@@ -237,7 +261,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public Task NextAsync() => RunAsync(async () =>
     {
-        if (_playOrder.Next(_index, trackEnded: false) is int next)
+        SyncOrder();
+        if (_playOrder.Next(CurrentIndexCore(), trackEnded: false) is int next)
         {
             await GoToAsync(next, _state is PlaybackState.Playing or PlaybackState.Paused).ConfigureAwait(false);
         }
@@ -290,24 +315,32 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             await PlayIndexCoreAsync(index).ConfigureAwait(false);
             return;
         }
+        var entries = _playlist.Entries;
+        if (index < 0 || index >= entries.Length)
+        {
+            return;
+        }
         _index = index;
+        _entry = entries[index];
         _track = null;
-        Raise(TrackChanged, new TrackChangedEventArgs(null, index));
+        Raise(TrackChanged, new TrackChangedEventArgs(null, index, _entry));
     }
 
     /// <summary>Plays the track at <paramref name="index"/>; unplayable files are reported and skipped.</summary>
     private async Task PlayIndexCoreAsync(int index)
     {
         // Unplayable files are skipped in play order (CO-03), trying each track at most once.
+        var entries = _playlist.Entries;
         int? next = index;
-        for (var attempt = 0; next is int i && attempt < _tracks.Length; attempt++, next = _playOrder.Next(i, trackEnded: false))
+        for (var attempt = 0; next is int i && i < entries.Length && attempt < entries.Length; attempt++, next = _playOrder.Next(i, trackEnded: false))
         {
-            var path = _tracks[i];
+            var entry = entries[i];
+            var path = entry.Path;
             SetState(PlaybackState.Buffering);
             IAudioSource source;
             try
             {
-                source = await Task.Run(() => OpenSource(path)).ConfigureAwait(false);
+                source = await Task.Run(() => OpenSource(entry)).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is AudioSourceException or IOException or UnauthorizedAccessException or NotSupportedException)
             {
@@ -315,7 +348,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 continue;
             }
 
-            var track = BuildTrack(path, source);
+            var track = BuildTrack(entry, source);
             try
             {
                 await StartSourceAsync(source).ConfigureAwait(false);
@@ -330,11 +363,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             }
 
             _index = i;
+            _entry = entry;
             _track = track;
             _lastUnderruns = 0;
             _logger.LogInformation("Playing {Path} ({Codec}, {Rate} Hz, {Channels} ch) on {Device}",
                 path, track.Stream.Codec, track.Stream.SampleRate, track.Stream.Channels, _output.DeviceName);
-            Raise(TrackChanged, new TrackChangedEventArgs(track, i));
+            Raise(TrackChanged, new TrackChangedEventArgs(track, i, entry));
             SetState(PlaybackState.Playing);
             return;
         }
@@ -428,27 +462,69 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _output.StartOutput();
     }
 
-    private IAudioSource OpenSource(string path)
+    private IAudioSource OpenSource(PlaylistEntry entry)
     {
+        var path = entry.Path;
         var factory = _factories.FirstOrDefault(f => f.CanOpen(path))
             ?? throw new AudioSourceException($"Unsupported file type '{System.IO.Path.GetExtension(path)}'.");
-        if (!File.Exists(path))
+        if (!entry.IsUrl && !File.Exists(path))
         {
+            entry.IsMissing = true;
             throw new AudioSourceException("File not found.");
         }
-        return factory.Open(path);
+        var source = factory.Open(path);
+        if (entry.Start is not { } start)
+        {
+            return source;
+        }
+        try
+        {
+            return new RangeAudioSource(source, start, entry.End); // FM-09 virtual track
+        }
+        catch
+        {
+            source.Dispose();
+            throw;
+        }
     }
 
-    private static TrackInfo BuildTrack(string path, IAudioSource source)
+    /// <summary>Playlist/CUE tags win over the file's own tags (a CUE track has its own title and performer).</summary>
+    private static TrackInfo BuildTrack(PlaylistEntry entry, IAudioSource source)
     {
-        var title = source.Tags.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t)
-            ? t
-            : System.IO.Path.GetFileNameWithoutExtension(path);
-        source.Tags.TryGetValue("artist", out var artist);
+        var tags = entry.Tags;
+        var title = !string.IsNullOrWhiteSpace(tags?.Title) ? tags.Title
+            : source.Tags.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t) ? t
+            : entry.FileName;
+        var artist = !string.IsNullOrWhiteSpace(tags?.Artist) ? tags.Artist : source.Tags.GetValueOrDefault("artist");
         TimeSpan? duration = source.LengthFrames is long frames ? source.Format.FramesToTime(frames) : null;
-        return new TrackInfo(path, title, artist, source.Info, duration);
+        return new TrackInfo(entry.Path, title, artist, source.Info, duration);
     }
 
+    /// <summary>Where the current entry is now (it may have moved); falls back to the last known position.</summary>
+    private int CurrentIndexCore()
+    {
+        var entries = _playlist.Entries;
+        if (_entry is not null && entries.IndexOf(_entry) is var i and >= 0)
+        {
+            _index = i;
+        }
+        else
+        {
+            _index = Math.Min(_index, entries.Length - 1);
+        }
+        return _index;
+    }
+
+    /// <summary>CO-03: a new shuffle order whenever the playing playlist changed.</summary>
+    private void SyncOrder(bool force = false)
+    {
+        var version = _playlist.Version;
+        if (force || version != _orderVersion)
+        {
+            _playOrder.Reset(_playlist.Count, CurrentIndexCore());
+            _orderVersion = version;
+        }
+    }
     // ---- background ---------------------------------------------------------------------------------
 
     private void Monitor()
@@ -502,7 +578,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 {
                     ReportError(_track.Path, fault);
                 }
-                if (_playOrder.Next(_index, trackEnded: true) is int next)
+                SyncOrder();
+                if (_playOrder.Next(CurrentIndexCore(), trackEnded: true) is int next)
                 {
                     await PlayIndexCoreAsync(next).ConfigureAwait(false);
                 }

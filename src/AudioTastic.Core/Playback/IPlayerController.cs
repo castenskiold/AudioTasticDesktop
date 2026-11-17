@@ -1,4 +1,5 @@
 using AudioTastic.Core.Audio;
+using AudioTastic.Core.Playlists;
 using AudioTastic.Data.Settings;
 using AudioTastic.Sdk.Audio;
 
@@ -34,10 +35,15 @@ public sealed class PlaybackStateEventArgs(PlaybackState state) : EventArgs
     public PlaybackState State { get; } = state;
 }
 
-public sealed class TrackChangedEventArgs(TrackInfo? track, int index) : EventArgs
+public sealed class TrackChangedEventArgs(TrackInfo? track, int index, PlaylistEntry? entry) : EventArgs
 {
+    /// <summary>The playing track, or null when only the selection moved (stopped) or playback ended.</summary>
     public TrackInfo? Track { get; } = track;
+
+    /// <summary>Position of <see cref="Entry"/> in the playing playlist.</summary>
     public int Index { get; } = index;
+
+    public PlaylistEntry? Entry { get; } = entry;
 }
 
 public sealed class PlaybackErrorEventArgs(string path, string message) : EventArgs
@@ -50,7 +56,7 @@ public sealed class PlaybackErrorEventArgs(string path, string message) : EventA
 /// CO-02: the single entry point for transport commands, used by the UI, plugins, IPC, OS media controls and the
 /// remote-control API. Commands are serialised; events are raised on background threads (UI code must marshal
 /// to its own thread).
-/// <para>P1 keeps a simple track list here; the playlist (PL-01, P3) replaces it.</para>
+/// <para>Plays entries of a <see cref="Playlist"/> (PL-01): the playing playlist can differ from the tab shown (PL-02).</para>
 /// </summary>
 public interface IPlayerController
 {
@@ -59,10 +65,14 @@ public interface IPlayerController
     /// <summary>The loaded track, or null when nothing has been played yet.</summary>
     TrackInfo? CurrentTrack { get; }
 
-    /// <summary>Index of the current track in <see cref="Tracks"/>; -1 when the list is empty.</summary>
+    /// <summary>Index of the current entry in <see cref="PlayingPlaylist"/>; -1 when there is none.</summary>
     int CurrentIndex { get; }
 
-    IReadOnlyList<string> Tracks { get; }
+    /// <summary>PL-02: the playlist Next/Previous follow, even when another tab is shown.</summary>
+    Playlist PlayingPlaylist { get; }
+
+    /// <summary>The current (or last played) entry.</summary>
+    PlaylistEntry? CurrentEntry { get; }
 
     TimeSpan Position { get; }
     TimeSpan? Duration { get; }
@@ -90,13 +100,16 @@ public interface IPlayerController
     /// <summary>Raised when <see cref="Shuffle"/> or <see cref="Repeat"/> changes.</summary>
     event EventHandler<EventArgs>? PlayModeChanged;
 
-    /// <summary>Replaces the track list with <paramref name="paths"/> and plays the first (Open, L key).</summary>
+    /// <summary>Plays <paramref name="entry"/> of <paramref name="playlist"/>, which becomes the playing playlist.</summary>
+    Task PlayAsync(Playlist playlist, PlaylistEntry entry);
+
+    /// <summary>Plays <paramref name="paths"/> as an ad-hoc playlist (tests, tools). The app adds to a playlist tab instead.</summary>
     Task OpenAsync(IEnumerable<string> paths, bool play = true);
 
     /// <summary>Resumes when paused, restarts the current track when playing, starts it when stopped (X key).</summary>
     Task PlayAsync();
 
-    /// <summary>Plays the track at <paramref name="index"/>.</summary>
+    /// <summary>Plays the entry at <paramref name="index"/> of the playing playlist.</summary>
     Task PlayIndexAsync(int index);
 
     /// <summary>Toggles pause (C key).</summary>
