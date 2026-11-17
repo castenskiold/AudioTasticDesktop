@@ -127,6 +127,10 @@ internal sealed class PlaylistListView : Panel, IDisposable
             ItemTemplate = new FuncDataTemplate<RowItem>((_, _) => new PlaylistRow(_style, controller) { Height = _style.RowHeight }),
             ItemContainerTheme = RowTheme(_style),
         };
+        // A slim, skin-coloured scroll bar instead of Fluent's expanding one (Anders, P3).
+        ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+        ScrollViewer.SetAllowAutoHide(_list, false);
+        _list.Styles.Add(new Style(x => x.OfType<ScrollBar>()) { Setters = { new Setter(StyledElement.ThemeProperty, SlimScrollBar(_style)) } });
         Avalonia.Automation.AutomationProperties.SetName(_list, "Playlist");
         DragDrop.SetAllowDrop(_list, true);
         _list.AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -435,6 +439,49 @@ internal sealed class PlaylistListView : Panel, IDisposable
             return Math.Max(0, playlist.IndexOf(visible[visibleIndex]));
         }
         return visible.Count == 0 ? playlist.Count : playlist.IndexOf(visible[^1]) + 1;
+    }
+
+    /// <summary>A thin scroll bar: a rounded thumb in the muted colour, brighter on hover/drag; no arrow buttons.</summary>
+    private static ControlTheme SlimScrollBar(PlaylistStyle style)
+    {
+        var thumb = new ControlTheme(typeof(Thumb))
+        {
+            Setters =
+            {
+                new Setter(TemplatedControl.BackgroundProperty, style.Muted),
+                new Setter(Visual.OpacityProperty, 0.55),
+                new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<Thumb>((t, _) => new Border
+                {
+                    [!Border.BackgroundProperty] = t[!TemplatedControl.BackgroundProperty],
+                    CornerRadius = new CornerRadius(2),
+                })),
+            },
+        };
+        thumb.Add(new Style(x => x.Nesting().Class(":pointerover")) { Setters = { new Setter(Visual.OpacityProperty, 0.9) } });
+        thumb.Add(new Style(x => x.Nesting().Class(":pressed")) { Setters = { new Setter(TemplatedControl.BackgroundProperty, style.Text), new Setter(Visual.OpacityProperty, 1.0) } });
+
+        return new ControlTheme(typeof(ScrollBar))
+        {
+            Setters =
+            {
+                new Setter(Layoutable.WidthProperty, 6.0),
+                new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<ScrollBar>((bar, scope) => new Border
+                {
+                    Background = Brushes.Transparent,
+                    Padding = new Thickness(1.5, 2),
+                    Child = new Track
+                    {
+                        Name = "PART_Track",
+                        [!Track.MinimumProperty] = bar[!RangeBase.MinimumProperty],
+                        [!Track.MaximumProperty] = bar[!RangeBase.MaximumProperty],
+                        [!!Track.ValueProperty] = bar[!!RangeBase.ValueProperty],
+                        [!Track.ViewportSizeProperty] = bar[!ScrollBar.ViewportSizeProperty],
+                        [!Track.OrientationProperty] = bar[!ScrollBar.OrientationProperty],
+                        Thumb = new Thumb { Theme = thumb, MinHeight = 18 },
+                    }.RegisterInNameScope(scope),
+                })),
+            },
+        };
     }
 
     private static ControlTheme RowTheme(PlaylistStyle style)
