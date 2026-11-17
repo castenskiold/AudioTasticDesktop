@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-07 tracker module tests. Need libopenmpt (native/fetch_libopenmpt.py); skipped, not failed, without it. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.OpenMpt\AudioTastic.Input.OpenMpt.csproj" />
+    <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

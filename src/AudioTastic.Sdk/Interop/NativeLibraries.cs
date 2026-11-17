@@ -68,13 +68,15 @@ public static class NativeLibraries
         {
             baseDirectory,
             Path.Combine(baseDirectory, "runtimes", rid, "native"),
-            Path.Combine(baseDirectory, "runtimes", GenericRid(), "native"),
+            Path.Combine(baseDirectory, "runtimes", GetPortableRid(), "native"),
         };
         return candidates.Distinct(StringComparer.OrdinalIgnoreCase).Where(Directory.Exists).ToArray();
     }
 
     /// <summary>Portable RID such as win-x64 even when the runtime reports a distro-specific one.</summary>
-    private static string GenericRid()
+    public static string PortableRid { get; } = GetPortableRid();
+
+    private static string GetPortableRid()
     {
         var os = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
         var arch = RuntimeInformation.ProcessArchitecture switch

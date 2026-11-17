@@ -27,7 +27,7 @@
   <Target Name="StageAudioTasticPlugin" AfterTargets="Build" Condition="'$(IsAudioTasticPlugin)' == 'true'">
     <ItemGroup>
       <_PluginOutput Include="$(OutDir)**\*"
-                     Exclude="$(OutDir)AudioTastic.Sdk.*;$(OutDir)Microsoft.Extensions.Logging.Abstractions.*;$(OutDir)Microsoft.Extensions.DependencyInjection.Abstractions.*;$(OutDir)runtimes\**" />
+                     Exclude="$(OutDir)AudioTastic.Sdk.*;$(OutDir)Microsoft.Extensions.Logging.Abstractions.*;$(OutDir)Microsoft.Extensions.DependencyInjection.Abstractions.*" />
     </ItemGroup>
     <Copy SourceFiles="@(_PluginOutput)" DestinationFiles="@(_PluginOutput->'$(PluginStagingRoot)$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>

@@ -2,6 +2,7 @@
   <Folder Name="/plugins/">
     <Project Path="plugins/AudioTastic.Input.Ffmpeg/AudioTastic.Input.Ffmpeg.csproj" />
     <Project Path="plugins/AudioTastic.Input.Midi/AudioTastic.Input.Midi.csproj" />
+    <Project Path="plugins/AudioTastic.Input.OpenMpt/AudioTastic.Input.OpenMpt.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/GainDsp/GainDsp.csproj" />
@@ -30,6 +31,7 @@
     <Project Path="tests/AudioTastic.Data.Tests/AudioTastic.Data.Tests.csproj" />
     <Project Path="tests/AudioTastic.Input.Ffmpeg.Tests/AudioTastic.Input.Ffmpeg.Tests.csproj" />
     <Project Path="tests/AudioTastic.Input.Midi.Tests/AudioTastic.Input.Midi.Tests.csproj" />
+    <Project Path="tests/AudioTastic.Input.OpenMpt.Tests/AudioTastic.Input.OpenMpt.Tests.csproj" />
     <Project Path="tests/AudioTastic.Plugins.Host.Tests/AudioTastic.Plugins.Host.Tests.csproj" />
     <Project Path="tests/AudioTastic.TestPlugin/AudioTastic.TestPlugin.csproj" />
     <Project Path="tests/AudioTastic.TestSupport/AudioTastic.TestSupport.csproj" />

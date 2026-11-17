@@ -65,7 +65,9 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         {
             foreach (var name in NativeLibraries.PlatformFileNames(unmanagedDllName))
             {
-                path = Probe(name) ?? Probe(Path.Combine("runtimes", System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, "native", name));
+                path = Probe(name)
+                    ?? Probe(Path.Combine("runtimes", NativeLibraries.PortableRid, "native", name))
+                    ?? Probe(Path.Combine("runtimes", System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier, "native", name));
                 if (path is not null)
                 {
                     break;

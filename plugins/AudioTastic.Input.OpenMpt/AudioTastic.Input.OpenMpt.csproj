@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-07: tracker module plugin over libopenmpt (BSD-3-Clause), called through P/Invoke. -->
+  <PropertyGroup>
+    <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioTastic.Input.OpenMpt.Tests" />
+  </ItemGroup>
+  <!-- libopenmpt per runtime identifier (native/fetch_libopenmpt.py or build_libopenmpt_unix.sh; git-ignored),
+       shipped inside the plugin folder as runtimes/<rid>/native. -->
+  <ItemGroup>
+    <None Include="$(RepoRoot)native\out\libopenmpt\**\*" Link="%(RecursiveDir)%(Filename)%(Extension)" Visible="false" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
