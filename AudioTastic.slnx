@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AudioTastic.Analysis/AudioTastic.Analysis.csproj" />
+    <Project Path="src/AudioTastic.App/AudioTastic.App.csproj" />
+    <Project Path="src/AudioTastic.Casting/AudioTastic.Casting.csproj" />
+    <Project Path="src/AudioTastic.Core/AudioTastic.Core.csproj" />
+    <Project Path="src/AudioTastic.Data/AudioTastic.Data.csproj" />
+    <Project Path="src/AudioTastic.Metadata/AudioTastic.Metadata.csproj" />
+    <Project Path="src/AudioTastic.NativeBridge/AudioTastic.NativeBridge.csproj" />
+    <Project Path="src/AudioTastic.Platform.Linux/AudioTastic.Platform.Linux.csproj" />
+    <Project Path="src/AudioTastic.Platform.MacOS/AudioTastic.Platform.MacOS.csproj" />
+    <Project Path="src/AudioTastic.Platform.Windows/AudioTastic.Platform.Windows.csproj" />
+    <Project Path="src/AudioTastic.Platform/AudioTastic.Platform.csproj" />
+    <Project Path="src/AudioTastic.Plugins.Host/AudioTastic.Plugins.Host.csproj" />
+    <Project Path="src/AudioTastic.Sdk/AudioTastic.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AudioTastic.Core.Tests/AudioTastic.Core.Tests.csproj" />
+    <Project Path="tests/AudioTastic.Data.Tests/AudioTastic.Data.Tests.csproj" />
+  </Folder>
+</Solution>

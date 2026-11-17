@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "AvaloniaTeam.vscode-avalonia",
+    "ms-python.python",
+    "EditorConfig.EditorConfig"
+  ]
+}

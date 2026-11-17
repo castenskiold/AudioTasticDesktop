@@ -1,0 +1,11 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AudioTastic.App.App"
+             RequestedThemeVariant="Dark">
+  <!-- The skinned player windows get their look from the skin engine (UI-03, phase P2).
+       Fluent is the theme for dialogs; UI-09 (P2) makes it follow the OS light/dark setting. -->
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="/Styles/Player.axaml" />
+  </Application.Styles>
+</Application>

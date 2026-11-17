@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Chromecast, DLNA, AirPlay, discovery, streaming server and remote control (CN-01 to CN-08). Built in P11. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Core\AudioTastic.Core.csproj" />
+  </ItemGroup>
+</Project>

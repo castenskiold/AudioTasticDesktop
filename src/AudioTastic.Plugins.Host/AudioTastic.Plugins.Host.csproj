@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Plugin discovery and loading (PG-03), one collectible AssemblyLoadContext per plugin. Built in P4. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+</Project>

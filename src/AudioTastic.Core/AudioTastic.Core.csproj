@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Playback engine (from P1) and shared app services such as logging and crash reporting (TL-03). -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
+    <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioTastic.Core.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Temporary P0 styling in the logo's monochrome look. Replaced by the skin engine's default skin in P2. -->
+  <Style Selector="Button.titleButton">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="1,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.titleButton Ellipse">
+    <Setter Property="Width" Value="6" />
+    <Setter Property="Height" Value="6" />
+    <Setter Property="Stroke" Value="#8E8E93" />
+    <Setter Property="StrokeThickness" Value="1" />
+  </Style>
+  <Style Selector="Button.titleButton:pointerover Ellipse">
+    <Setter Property="Fill" Value="#F2F2F2" />
+    <Setter Property="Stroke" Value="#F2F2F2" />
+  </Style>
+</Styles>

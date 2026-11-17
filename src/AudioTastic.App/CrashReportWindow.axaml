@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AudioTastic.App.CrashReportWindow"
+        Title="AudioTastic closed unexpectedly"
+        Icon="/Assets/audiotastic.ico"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <!-- TL-03: offered on the next start after a crash. Nothing is uploaded. -->
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="AudioTastic closed unexpectedly last time." FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+    <TextBlock TextWrapping="Wrap" Opacity="0.8"
+               Text="A crash report with technical details was saved on this computer. Nothing has been sent anywhere. You can open the report, for example to attach it to a bug report." />
+    <TextBlock x:Name="ReportPath" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Open report" Click="OpenReport_OnClick" />
+      <Button Content="Open folder" Click="OpenFolder_OnClick" />
+      <Button Content="Close" Click="Close_OnClick" IsDefault="True" IsCancel="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

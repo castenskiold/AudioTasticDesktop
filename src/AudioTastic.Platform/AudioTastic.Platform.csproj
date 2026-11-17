@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Interfaces for OS-specific services. Implementations live in AudioTastic.Platform.Windows / .MacOS / .Linux. -->
+</Project>

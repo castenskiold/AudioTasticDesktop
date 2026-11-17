@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Windows implementation of AudioTastic.Platform. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Platform\AudioTastic.Platform.csproj" />
+  </ItemGroup>
+</Project>

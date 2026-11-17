@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Public plugin contracts (PG-02), published as a NuGet package. Must not reference any other AudioTastic project. Contracts are added from P1. -->
+</Project>

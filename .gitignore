@@ -1,0 +1,34 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+TestResults/
+
+# IDEs
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Native libraries are fetched/built by native/ scripts, never committed
+native/out/
+native/build/
+native/downloads/
+src/AudioTastic.App/runtimes/
+
+# Generated test media (scripts/generate_test_media.py)
+tests/media/generated/
+
+# Python
+__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db

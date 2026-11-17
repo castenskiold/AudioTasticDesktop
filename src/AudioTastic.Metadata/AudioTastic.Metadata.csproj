@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tags, album art, lyrics and online lookup (MD-01 to MD-05). Built in P3 and P9. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
+  </ItemGroup>
+</Project>

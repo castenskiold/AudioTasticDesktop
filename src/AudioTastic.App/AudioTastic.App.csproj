@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CO-01: Avalonia desktop application (the player itself). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>AudioTastic</AssemblyName>
+    <RootNamespace>AudioTastic.App</RootNamespace>
+    <ApplicationIcon>$(RepoRoot)assets\branding\audiotastic.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <!-- Self-contained publish for every supported runtime identifier: dotnet publish -r <rid> -c Release -->
+    <RuntimeIdentifiers>win-x64;win-arm64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <!-- Avalonia views must be public for the XAML loader; CA1515 does not apply to them. -->
+    <NoWarn>$(NoWarn);CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
+    <ProjectReference Include="..\AudioTastic.Platform\AudioTastic.Platform.csproj" />
+    <ProjectReference Include="..\AudioTastic.Platform.Windows\AudioTastic.Platform.Windows.csproj" />
+    <ProjectReference Include="..\AudioTastic.Platform.MacOS\AudioTastic.Platform.MacOS.csproj" />
+    <ProjectReference Include="..\AudioTastic.Platform.Linux\AudioTastic.Platform.Linux.csproj" />
+    <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+    <ProjectReference Include="..\AudioTastic.Plugins.Host\AudioTastic.Plugins.Host.csproj" />
+    <ProjectReference Include="..\AudioTastic.Analysis\AudioTastic.Analysis.csproj" />
+    <ProjectReference Include="..\AudioTastic.Metadata\AudioTastic.Metadata.csproj" />
+    <ProjectReference Include="..\AudioTastic.Casting\AudioTastic.Casting.csproj" />
+  </ItemGroup>
+
+  <!-- Branding assets live once in /assets/branding and are linked in (UI-04). -->
+  <ItemGroup>
+    <AvaloniaResource Include="$(RepoRoot)assets\branding\audiotastic-logo-transparent.png" Link="Assets\logo.png" />
+    <AvaloniaResource Include="$(RepoRoot)assets\branding\audiotastic.ico" Link="Assets\audiotastic.ico" />
+  </ItemGroup>
+
+  <!-- Native libraries produced by native/ scripts (FFmpeg, miniaudio, ...) are copied when present.
+       Publishing for one runtime identifier copies that RID's libraries next to the executable;
+       a plain build (F5) copies every RID into runtimes/<rid>/native for the native library resolver added in P1. -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != '' And Exists('$(RepoRoot)native\out\$(RuntimeIdentifier)\native')">
+    <None Include="$(RepoRoot)native\out\$(RuntimeIdentifier)\native\*" Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == '' And Exists('$(RepoRoot)native\out')">
+    <None Include="$(RepoRoot)native\out\**\native\*" Link="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

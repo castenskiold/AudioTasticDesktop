@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- PG-06 (Windows only): 32-bit helper process that hosts classic native Winamp plugins. Built in P12. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+</Project>

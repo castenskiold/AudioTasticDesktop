@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Background analysis queue (AN-01 part 2), waveform, loudness and BPM/beat/break analysers. Built in P5 and P8. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AudioTastic.Data\AudioTastic.Data.csproj" />
+    <ProjectReference Include="..\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+</Project>

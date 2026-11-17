@@ -1,0 +1,13 @@
+{
+  "dotnet.defaultSolution": "AudioTastic.slnx",
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true
+  },
+  "search.exclude": {
+    "native/out": true,
+    "native/build": true,
+    "native/downloads": true,
+    "tests/media/generated": true
+  }
+}
