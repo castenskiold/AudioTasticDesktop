@@ -45,6 +45,55 @@ public sealed class MessageWindow : Window
         new MessageWindow(title, message, details).ShowDialog(owner);
 }
 
+/// <summary>A one-line text prompt (FM-10 Open URL). Returns the text, or null when cancelled or empty.</summary>
+public sealed class InputWindow : Window
+{
+    private readonly TextBox _input;
+    private string? _result;
+
+    private InputWindow(string title, string prompt, string? initial, string watermark)
+    {
+        Title = title;
+        Width = 520;
+        SizeToContent = SizeToContent.Height;
+        CanResize = false;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        _input = new TextBox { Text = initial, PlaceholderText = watermark };
+        Avalonia.Automation.AutomationProperties.SetName(_input, prompt);
+        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 80 };
+        ok.Click += (_, _) =>
+        {
+            _result = string.IsNullOrWhiteSpace(_input.Text) ? null : _input.Text.Trim();
+            Close();
+        };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 80 };
+        cancel.Click += (_, _) => Close();
+        Content = new StackPanel
+        {
+            Margin = new Thickness(16),
+            Spacing = 10,
+            Children =
+            {
+                new TextBlock { Text = prompt, TextWrapping = TextWrapping.Wrap },
+                _input,
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { ok, cancel } },
+            },
+        };
+        Opened += (_, _) =>
+        {
+            _input.Focus();
+            _input.SelectAll();
+        };
+    }
+
+    public static async Task<string?> ShowAsync(Window owner, string title, string prompt, string? initial = null, string watermark = "")
+    {
+        var window = new InputWindow(title, prompt, initial, watermark);
+        await window.ShowDialog(owner);
+        return window._result;
+    }
+}
+
 /// <summary>UI-04: About AudioTastic — logo, version, data folder and third-party notices.</summary>
 public sealed class AboutWindow : Window
 {

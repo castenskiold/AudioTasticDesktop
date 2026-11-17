@@ -11,11 +11,20 @@ namespace AudioTastic.Input.Ffmpeg;
 /// edit lists for AAC in MP4) through skip-samples side data, so the first sample returned is the first real sample.</item>
 /// <item>Seeking: <c>av_seek_frame</c> to a point before the target (with pre-roll for lossy codecs), then decode and
 /// discard up to the exact target frame. Positions come from frame timestamps relative to the first decoded frame.</item>
+/// <item>FM-10: http(s) URLs open with ICY metadata requested; the now-playing title (icy_metadata_packet) and station
+/// name (icy-name) are exposed through <see cref="IStreamMetadata"/>.</item>
 /// </list>
 /// Not thread-safe; used from one decoder thread.
 /// </summary>
-public sealed unsafe class FfmpegAudioSource : IAudioSource
+public sealed unsafe class FfmpegAudioSource : IAudioSource, IStreamMetadata
 {
+    /// <summary>FM-10: identifies the player to radio servers.</summary>
+    public const string UserAgent = "AudioTastic/0.4";
+
+    private readonly bool _isStream;
+    private long _nextIcyPoll;
+    private string? _lastIcyPacket;
+
     /// <summary>Decode this much audio before a seek target so lossy decoders settle (MDCT overlap, MP3 bit reservoir).</summary>
     private const double SeekPrerollSeconds = 0.1;
 
@@ -43,10 +52,27 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
     {
         FfmpegLibrary.EnsureLoaded();
         Path = path;
+        _isStream = FfmpegSourceFactory.IsStreamUrl(path);
         try
         {
             AVFormatContext* format = null;
-            Check(ffmpeg.avformat_open_input(&format, path, null, null), "open");
+            AVDictionary* options = null;
+            if (_isStream)
+            {
+                // FM-10: ask for ICY metadata and time out stalled reads. Reconnecting is done by LiveStreamSource
+                // (FFmpeg's own reconnect options would hide drops and retry for an unbounded time).
+                ffmpeg.av_dict_set(&options, "icy", "1", 0);
+                ffmpeg.av_dict_set(&options, "user_agent", UserAgent, 0);
+                ffmpeg.av_dict_set(&options, "rw_timeout", "10000000", 0); // microseconds
+            }
+            try
+            {
+                Check(ffmpeg.avformat_open_input(&format, path, null, &options), "open");
+            }
+            finally
+            {
+                ffmpeg.av_dict_free(&options);
+            }
             _format = format;
             Check(ffmpeg.avformat_find_stream_info(_format, null), "read stream info");
 
@@ -77,6 +103,11 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
             Format = new AudioFormat(_sampleRate, _channels);
             Info = BuildInfo(stream);
             Tags = ReadTags(_format->metadata, stream->metadata);
+            if (_isStream)
+            {
+                StationName = IcyMetadata.ParseHeader(ReadIoOption("icy_metadata_headers"), "icy-name");
+                PollIcy(force: true);
+            }
             _length = ReadLength(stream);
             // Gapless end: FFmpeg removes encoder delay but not always the end padding (AAC in MP4 keeps it).
             // When the container states an exact duration (edit list, LAME/Xing header), stop there.
@@ -114,6 +145,14 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
     public long PositionFrames => _position;
     public bool CanSeek => _format != null && (_format->pb == null || _format->pb->seekable != 0);
     public IReadOnlyDictionary<string, string> Tags { get; }
+
+    /// <summary>FM-10: the ICY StreamTitle, for internet radio.</summary>
+    public string? StreamTitle { get; private set; }
+
+    /// <summary>FM-10: the icy-name header, for internet radio.</summary>
+    public string? StationName { get; }
+
+    public event EventHandler<string?>? StreamTitleChanged;
 
     public int Read(Span<float> buffer)
     {
@@ -356,6 +395,10 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
                 ffmpeg.avcodec_send_packet(_codec, null); // enter draining mode
                 continue;
             }
+            if (_isStream)
+            {
+                PollIcy(force: false);
+            }
             if (_packet->stream_index != _streamIndex)
             {
                 ffmpeg.av_packet_unref(_packet);
@@ -495,6 +538,56 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
             }
         }
         return tags;
+    }
+
+    /// <summary>FM-10: checks the latest ICY metadata block (at most twice a second).</summary>
+    private void PollIcy(bool force)
+    {
+        var now = Environment.TickCount64;
+        if (!force && now < _nextIcyPoll)
+        {
+            return;
+        }
+        _nextIcyPoll = now + 500;
+        var packet = ReadIoOption("icy_metadata_packet");
+        if (string.IsNullOrEmpty(packet) || packet == _lastIcyPacket)
+        {
+            return;
+        }
+        _lastIcyPacket = packet;
+        var title = IcyMetadata.ParseStreamTitle(packet);
+        if (title != StreamTitle)
+        {
+            StreamTitle = title;
+            StreamTitleChanged?.Invoke(this, title);
+        }
+    }
+
+    /// <summary>Reads a string option of the http protocol behind the format's I/O context (raw bytes, ICY text).</summary>
+    private string? ReadIoOption(string name)
+    {
+        if (_format == null || _format->pb == null)
+        {
+            return null;
+        }
+        byte* value = null;
+        if (ffmpeg.av_opt_get(_format->pb, name, ffmpeg.AV_OPT_SEARCH_CHILDREN, &value) < 0 || value == null)
+        {
+            return null;
+        }
+        try
+        {
+            var length = 0;
+            while (value[length] != 0)
+            {
+                length++;
+            }
+            return IcyMetadata.DecodeText(new ReadOnlySpan<byte>(value, length));
+        }
+        finally
+        {
+            ffmpeg.av_free(value);
+        }
     }
 
     /// <summary>AVERROR(EAGAIN); EAGAIN is 35 on macOS and 11 elsewhere.</summary>

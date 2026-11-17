@@ -73,6 +73,11 @@ internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController contro
         {
             context.DrawText(duration, new Point(w - 4 - durationWidth, (h - duration.Height) / 2));
         }
+        else if (entry.IsUrl)
+        {
+            durationWidth = 18; // FM-10: streams show a broadcast icon instead of a duration
+            DrawStreamIcon(context, w - 4, h);
+        }
 
         var title = Text(entry.DisplayName, playing ? style.PlayingTypeface : style.Typeface,
             missing ? style.Muted : playing ? style.Playing : style.Text);
@@ -86,6 +91,32 @@ internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController contro
     {
         base.OnDataContextChanged(e);
         InvalidateVisual();
+    }
+
+    /// <summary>A dot with two arcs on each side, "((·))", in the muted colour; <paramref name="right"/> is its right edge.</summary>
+    private void DrawStreamIcon(DrawingContext context, double right, double h)
+    {
+        var pen = new Pen(style.Muted, 1.1, lineCap: PenLineCap.Round);
+        var cx = right - 8;
+        var cy = h / 2;
+        context.DrawEllipse(style.Muted, null, new Point(cx, cy), 1.4, 1.4);
+        const double halfAngle = 0.75; // radians
+        foreach (var r in new[] { 3.8, 6.8 })
+        {
+            foreach (var side in new[] { -1, 1 })
+            {
+                var x = cx + (side * r * Math.Cos(halfAngle));
+                var geometry = new StreamGeometry();
+                using (var g = geometry.Open())
+                {
+                    g.BeginFigure(new Point(x, cy - (r * Math.Sin(halfAngle))), isFilled: false);
+                    g.ArcTo(new Point(x, cy + (r * Math.Sin(halfAngle))), new Size(r, r), 0, false,
+                        side > 0 ? SweepDirection.Clockwise : SweepDirection.CounterClockwise);
+                    g.EndFigure(isClosed: false);
+                }
+                context.DrawGeometry(null, pen, geometry);
+            }
+        }
     }
 
     private FormattedText Text(string text, Typeface typeface, IBrush brush) =>

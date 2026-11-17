@@ -153,6 +153,52 @@ public sealed class PlaylistController : IDisposable
         }
     }
 
+    private static readonly HttpClient Http = CreateHttpClient();
+
+    /// <summary>
+    /// FM-10: adds a stream URL to the active tab. A link to a playlist (.m3u, .m3u8, .pls, .xspf) is downloaded and
+    /// its entries (usually stream URLs) are added. Returns an error message, or null on success.
+    /// </summary>
+    public async Task<string?> AddUrlAsync(Uri url, bool play)
+    {
+        var path = url.AbsolutePath;
+        if (_service.Formats.FirstOrDefault(f => f.Extensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)) is null)
+        {
+            await AddAsync([url.AbsoluteUri], play: play);
+            return null;
+        }
+        var folder = Directory.CreateTempSubdirectory("audiotastic-url-");
+        try
+        {
+            var bytes = await Http.GetByteArrayAsync(url);
+            if (bytes.Length > 1024 * 1024)
+            {
+                return "The playlist is larger than 1 MB.";
+            }
+            var file = System.IO.Path.Combine(folder.FullName, "stream" + System.IO.Path.GetExtension(path));
+            await File.WriteAllBytesAsync(file, bytes);
+            var before = Active.Entries.Length;
+            await AddAsync([file], play: play);
+            return Active.Entries.Length == before ? "The playlist contains no entries." : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            _logger.LogWarning(ex, "Could not download {Url}", url);
+            return ex.Message;
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("AudioTastic/0.4");
+        return client;
+    }
+
     /// <summary>PL-07: duration of the selection and of the whole playlist; Unknown when some lengths are not known.</summary>
     public (TimeSpan Selected, TimeSpan Total, bool Unknown, int Count) Totals()
     {

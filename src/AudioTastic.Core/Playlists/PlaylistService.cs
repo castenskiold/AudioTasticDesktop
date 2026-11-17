@@ -211,7 +211,7 @@ public sealed class PlaylistService : IDisposable
                         result.AddRange(AudioFile(file));
                     }
                 }
-                else if (IsPlaylistFile(path))
+                else if (!path.Contains("://", StringComparison.Ordinal) && IsPlaylistFile(path))
                 {
                     try
                     {

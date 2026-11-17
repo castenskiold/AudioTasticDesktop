@@ -38,6 +38,75 @@ public sealed class PlaybackEngineTests : IDisposable
         TempFiles.Touch(SyntheticFactory.PathFor(name, rate, seconds, channels));
 
     [Fact]
+    public async Task Stream_title_changes_update_the_current_track()
+    {
+        // FM-10: a live stream starts with the station name; ICY titles replace it while it plays.
+        var radio = new FakeRadio();
+        using var output = new FakeAudioOutput();
+        using var engine = new PlaybackEngine([new FakeRadioFactory(radio)], output, _settings, NullLogger<PlaybackEngine>.Instance);
+        var titles = new List<string>();
+        engine.TrackChanged += (_, e) =>
+        {
+            if (e.Track is { } t)
+            {
+                lock (titles)
+                {
+                    titles.Add(t.Title);
+                }
+            }
+        };
+
+        await engine.OpenAsync(["http://radio.test/live"]);
+        Assert.Equal("Test FM", engine.CurrentTrack!.Title);
+        Assert.Null(engine.Duration);
+
+        radio.SetTitle("Artist - Song");
+
+        Assert.Equal("Artist - Song", engine.CurrentTrack!.Title);
+        Assert.Equal("Test FM", engine.CurrentTrack.Artist);
+        lock (titles)
+        {
+            Assert.Equal(["Test FM", "Artist - Song"], titles);
+        }
+        await engine.StopAsync();
+    }
+
+    private sealed class FakeRadio() : IAudioSource, IStreamMetadata
+    {
+        private readonly SyntheticSource _signal = new(44_100, 2, long.MaxValue);
+
+        public AudioStreamInfo Info => _signal.Info;
+        public AudioFormat Format => _signal.Format;
+        public long? LengthFrames => null;
+        public long PositionFrames => _signal.PositionFrames;
+        public bool CanSeek => false;
+        public IReadOnlyDictionary<string, string> Tags => new Dictionary<string, string>();
+        public string? StreamTitle { get; private set; }
+        public string? StationName => "Test FM";
+        public event EventHandler<string?>? StreamTitleChanged;
+
+        public void SetTitle(string title)
+        {
+            StreamTitle = title;
+            StreamTitleChanged?.Invoke(this, title);
+        }
+
+        public int Read(Span<float> buffer) => _signal.Read(buffer);
+        public void Seek(long frame) => throw new NotSupportedException();
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class FakeRadioFactory(FakeRadio radio) : IAudioSourceFactory
+    {
+        public string Name => "Radio";
+        public IReadOnlyCollection<string> Extensions => [];
+        public bool CanOpen(string path) => path.StartsWith("http://", StringComparison.Ordinal);
+        public IAudioSource Open(string path) => radio;
+    }
+
+    [Fact]
     public async Task Open_plays_the_first_track_at_its_sample_rate()
     {
         TrackChangedEventArgs? changed = null;

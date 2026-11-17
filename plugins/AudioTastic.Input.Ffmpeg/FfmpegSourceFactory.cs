@@ -29,7 +29,12 @@ public sealed class FfmpegSourceFactory : IAudioSourceFactory
     public bool CanOpen(string path) =>
         IsStreamUrl(path) || FileExtensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
-    public IAudioSource Open(string path) => FfmpegAudioSource.Open(path);
+    public IAudioSource Open(string path)
+    {
+        var source = FfmpegAudioSource.Open(path);
+        // FM-10: live streams (no length) get buffering and automatic reconnects; HTTP files play like local files.
+        return IsStreamUrl(path) && source.LengthFrames is null ? new LiveStreamSource(path, source) : source;
+    }
 
     /// <summary>FM-10: internet radio and other HTTP streams.</summary>
     public static bool IsStreamUrl(string path) =>

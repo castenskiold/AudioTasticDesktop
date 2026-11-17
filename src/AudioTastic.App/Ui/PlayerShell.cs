@@ -161,6 +161,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "seekForward": Run(() => player.SeekAsync(player.Position + TimeSpan.FromSeconds(5))); break;
             case "seekBack": Run(() => player.SeekAsync(player.Position - TimeSpan.FromSeconds(5))); break;
             case "open": _ = OpenFilesAsync(window); break;
+            case "openUrl": _ = OpenUrlAsync(window); break;
             case "playlist": SetPlaylistVisible(!_playlist!.IsVisible); break;
             case "hide" when window == _playlist: SetPlaylistVisible(false); break;
             case "search":
@@ -477,6 +478,27 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
     }
 
+    /// <summary>FM-10: Open URL (Ctrl+L) adds an internet radio stream (or a remote .m3u/.pls) and plays it.</summary>
+    private async Task OpenUrlAsync(Window owner)
+    {
+        var url = await InputWindow.ShowAsync(owner, "Open URL", "Internet radio or stream URL (http, https; .m3u and .pls links work too):",
+            watermark: "https://");
+        if (url is null)
+        {
+            return;
+        }
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            await MessageWindow.ShowAsync(owner, "Open URL", "Only http:// and https:// addresses can be opened.", [url]);
+            return;
+        }
+        var error = await _playlists.AddUrlAsync(uri, play: true);
+        if (error is not null)
+        {
+            await MessageWindow.ShowAsync(owner, "Open URL", "The address could not be opened:", [error]);
+        }
+    }
+
     public async Task InstallSkinAsync(Window owner)
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -666,7 +688,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             {
                 Item("Open file…", "open"),
                 Item("Open folder…", enabled: false),
-                Item("Open URL…", enabled: false),
+                Item("Open URL…", "openUrl"),
                 Item("Play CD", enabled: false),
                 new Separator(),
                 new MenuItem

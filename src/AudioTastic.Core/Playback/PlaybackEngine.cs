@@ -44,6 +44,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private int _orderVersion = -1;
     private volatile PlaybackState _state = PlaybackState.Stopped;
     private TrackInfo? _track;
+    private IStreamMetadata? _streamMetadata;
     private AudioFormat _sourceFormat = new(48_000, EngineChannels);
     private bool _canSeek;
     private long _lastUnderruns;
@@ -348,7 +349,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 continue;
             }
 
-            var track = BuildTrack(entry, source);
+            var metadata = source as IStreamMetadata ?? (source as IStreamMetadataSource)?.StreamMetadata;
+            var track = BuildTrack(entry, source, metadata);
+            DetachStreamMetadata();
             try
             {
                 await StartSourceAsync(source).ConfigureAwait(false);
@@ -366,6 +369,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _entry = entry;
             _track = track;
             _lastUnderruns = 0;
+            AttachStreamMetadata(metadata);
             _logger.LogInformation("Playing {Path} ({Codec}, {Rate} Hz, {Channels} ch) on {Device}",
                 path, track.Stream.Codec, track.Stream.SampleRate, track.Stream.Channels, _output.DeviceName);
             Raise(TrackChanged, new TrackChangedEventArgs(track, i, entry));
@@ -488,9 +492,53 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
     }
 
-    /// <summary>Playlist/CUE tags win over the file's own tags (a CUE track has its own title and performer).</summary>
-    private static TrackInfo BuildTrack(PlaylistEntry entry, IAudioSource source)
+    /// <summary>FM-10: follows the now-playing title of an internet radio stream.</summary>
+    private void AttachStreamMetadata(IStreamMetadata? metadata)
     {
+        DetachStreamMetadata();
+        if (metadata is not null)
+        {
+            _streamMetadata = metadata;
+            metadata.StreamTitleChanged += OnStreamTitleChanged;
+        }
+    }
+
+    private void DetachStreamMetadata()
+    {
+        if (Interlocked.Exchange(ref _streamMetadata, null) is { } old)
+        {
+            old.StreamTitleChanged -= OnStreamTitleChanged;
+        }
+    }
+
+    private void OnStreamTitleChanged(object? sender, string? title)
+    {
+        if (sender is not IStreamMetadata metadata || !ReferenceEquals(metadata, _streamMetadata) || _track is not { } track || _entry is not { } entry)
+        {
+            return;
+        }
+        var updated = track with { Title = StreamDisplayTitle(entry, metadata), Artist = metadata.StreamTitle is null ? null : metadata.StationName };
+        if (updated.Title == track.Title)
+        {
+            return;
+        }
+        _track = updated;
+        _logger.LogInformation("Stream title: {Title}", updated.Title);
+        Raise(TrackChanged, new TrackChangedEventArgs(updated, _index, entry));
+    }
+
+    /// <summary>FM-10: "now playing" title, else the station name, else the playlist title, else the URL.</summary>
+    private static string StreamDisplayTitle(PlaylistEntry entry, IStreamMetadata metadata) =>
+        metadata.StreamTitle ?? metadata.StationName ?? (string.IsNullOrWhiteSpace(entry.Tags?.Title) ? entry.Path : entry.Tags.Title);
+
+    /// <summary>Playlist/CUE tags win over the file's own tags (a CUE track has its own title and performer).</summary>
+    private static TrackInfo BuildTrack(PlaylistEntry entry, IAudioSource source, IStreamMetadata? metadata)
+    {
+        if (metadata is not null)
+        {
+            return new TrackInfo(entry.Path, StreamDisplayTitle(entry, metadata), metadata.StreamTitle is null ? null : metadata.StationName,
+                source.Info, null);
+        }
         var tags = entry.Tags;
         var title = !string.IsNullOrWhiteSpace(tags?.Title) ? tags.Title
             : source.Tags.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t) ? t
