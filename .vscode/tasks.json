@@ -30,6 +30,13 @@
       "type": "process",
       "args": ["${workspaceFolder}/scripts/generate_test_media.py"],
       "problemMatcher": []
+    },
+    {
+      "label": "soak test (60 min, silent)",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["run", "-c", "Release", "--project", "${workspaceFolder}/tools/AudioTastic.SoakTest", "--", "--minutes", "60", "--buffer", "20"],
+      "problemMatcher": []
     }
   ]
 }

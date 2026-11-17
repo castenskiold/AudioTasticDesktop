@@ -50,7 +50,7 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
 ("FM-01", "Core formats: WAV, FLAC, MP3, AIFF, APE, AAC, WV",
  "Plays these formats at their native sample rate and bit depth. Handles gapless information in MP3 (LAME header) and AAC/M4A (iTunSMPB / edit lists) so tracks start and end sample-accurately.",
  "Files are added via Open (MW8), Add (PW5), drag and drop (PL-04), file associations (SI-05) or CLI (SI-08). Format shown in MW5 (e.g. FLAC 24/96).",
- "<b>Libraries:</b> FFmpeg (LGPL build, dynamically linked) through FFmpeg.AutoGen or Sdcb.FFmpeg bindings: avformat for demuxing, avcodec for decoding, swresample for sample-format conversion. "
+ "<b>Libraries:</b> FFmpeg (LGPL build, dynamically linked) through the FFmpeg.AutoGen (MIT) bindings, version matched to the FFmpeg major: avformat for demuxing, avcodec for decoding; decoded frames of any sample format are converted to interleaved float by own code (swresample is kept for resampling, PB-01/PB-05). "
  "<b>Components:</b> FfmpegDecoder implementing the SDK's IAudioSource (Open, Read float frames, Seek, Duration, Format, Tags). Registered as the default input plugin (PG-01).", None),
 ("FM-02", "Ogg Vorbis and Opus", "Plays .ogg/.oga (Vorbis) and .opus files, including chained Ogg streams.",
  "As FM-01.", "<b>Libraries:</b> FFmpeg built-in Vorbis decoder and libopus (BSD) in the FFmpeg build. Opus always decodes at 48 kHz.", None),
@@ -117,7 +117,7 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
 ("PB-04", "Output device selection and exclusive mode",
  "Chooses which audio device plays the sound and how. Shared mode (default) mixes with other apps. Exclusive / bit-perfect mode sends the audio unchanged to the device (no OS mixer, no resampling, volume at 100 %). ASIO gives low-latency output on Windows. The device list updates when devices are plugged in or removed; if the selected device disappears, playback falls back to the default device.",
  "Settings › Output. Right-click the volume slider (MW9) for a quick device menu.",
- "<b>Libraries:</b> miniaudio (public domain/MIT-0) via SoundFlow (MIT) or own bindings: WASAPI shared/exclusive (Windows), CoreAudio (macOS), ALSA/PulseAudio/PipeWire (Linux). "
+ "<b>Libraries:</b> miniaudio (public domain/MIT-0) through a small own C shim (native/miniaudio, flat API with opaque handles) and P/Invoke: WASAPI shared/exclusive (Windows), CoreAudio (macOS), ALSA/PulseAudio/PipeWire (Linux). "
  "<b>Exclusive per platform:</b> WASAPI exclusive (miniaudio share mode exclusive); macOS 'hog mode' needs own CoreAudio interop (not in miniaudio); Linux opens an ALSA hw: device directly. "
  "<b>ASIO " + "[Windows only]" + ":</b> a small native C++ shim around the Steinberg ASIO SDK, using Steinberg's free ASIO licence (not the GPLv3 option, which would make the app GPL). "
  "<b>Components:</b> IOutputDevice in Core; output plugins (PG-01) can add further outputs.",

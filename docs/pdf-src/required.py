@@ -188,8 +188,8 @@ lic=[
 ]
 tech=[
 ("UI","<b>Avalonia</b> (MIT). Custom-drawn controls for skins, waveform and visualisations; built-in tray icon support."),
-("Decoding","<b>FFmpeg</b> (LGPL build) via FFmpeg.AutoGen or Sdcb.FFmpeg bindings. Covers WAV, FLAC, MP3, AIFF, APE, AAC, WV, Vorbis, Opus, ALAC, WMA, DSD (to PCM), Musepack, TTA, Shorten, streams. Also encoding for conversion and cast transcoding."),
-("Output","<b>miniaudio</b> (public domain / MIT-0) via SoundFlow (MIT) or own P/Invoke bindings: WASAPI (shared/exclusive), CoreAudio, ALSA/PulseAudio/PipeWire. ASIO via the Steinberg ASIO SDK (free; now also available under GPLv3) {WO}."),
+("Decoding","<b>FFmpeg</b> (LGPL build) via the FFmpeg.AutoGen bindings (MIT). Covers WAV, FLAC, MP3, AIFF, APE, AAC, WV, Vorbis, Opus, ALAC, WMA, DSD (to PCM), Musepack, TTA, Shorten, streams. Also encoding for conversion and cast transcoding."),
+("Output","<b>miniaudio</b> (public domain / MIT-0) via own P/Invoke bindings over a small C shim: WASAPI (shared/exclusive), CoreAudio, ALSA/PulseAudio/PipeWire. ASIO via the Steinberg ASIO SDK (free; now also available under GPLv3) {WO}."),
 ("Tracker / MIDI","libopenmpt (BSD); MeltySynth (MIT) with SoundFont files."),
 ("Time-stretch","SoundTouch (LGPL, dynamically linked) for tempo change with pitch kept."),
 ("BPM, beats, breaks","Own C# implementation (onset detection, tempo estimation, energy-based break detection). Avoids aubio (GPL)."),
@@ -237,4 +237,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.5  ·  17 November 2026", story, short_title="Required Features  ·  v1.5")
+ "Version 1.6  ·  17 November 2026", story, short_title="Required Features  ·  v1.6")

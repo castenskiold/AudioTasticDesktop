@@ -413,5 +413,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.1  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.1")
+        "Version 1.2  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.2")
 print("built")

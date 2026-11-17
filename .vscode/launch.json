@@ -31,6 +31,16 @@
       "args": ["--crash-test"],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
+    },
+    {
+      "name": "AudioTastic (play test sweep)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0/AudioTastic.dll",
+      "args": ["tests/media/generated/sweep.flac.flac", "tests/media/generated/sweep.mp3.mp3", "tests/media/generated/sine1k.hires-24-96.flac"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
     }
   ]
 }

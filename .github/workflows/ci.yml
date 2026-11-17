@@ -1,4 +1,4 @@
-# Phase P0 CI: build and test on Windows, macOS and Linux, publish self-contained apps for all six
+# CI (from P0; test job wired to native libraries and media in P1): build and test on Windows, macOS and Linux, publish self-contained apps for all six
 # runtime identifiers, build/fetch the native libraries and generate the test media.
 name: CI
 
@@ -15,19 +15,34 @@ env:
 jobs:
   build-test:
     name: Build and test (${{ matrix.os }})
+    # Decoder (FM-01) and output (PB-04) tests need the native libraries and the generated media; without them they
+    # are skipped, so this job waits for both and downloads them.
+    needs: [native, test-media]
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: ubuntu-latest, rid: linux-x64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/native
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-media
+          path: tests/media/generated
       - run: dotnet restore AudioTastic.slnx
       - run: dotnet build AudioTastic.slnx -c Release --no-restore
-      - run: dotnet test AudioTastic.slnx -c Release --no-build --logger "trx" --results-directory TestResults
+      # xunit v3 on Microsoft.Testing.Platform (global.json "test.runner").
+      - run: dotnet test AudioTastic.slnx -c Release --no-build --results-directory TestResults --report-xunit-trx
       - uses: actions/upload-artifact@v4
         if: always()
         with:
