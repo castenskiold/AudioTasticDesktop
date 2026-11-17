@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AudioTastic.Plugins.Host.Tests;
 
-public sealed class PluginHostTests : IDisposable
+public sealed partial class PluginHostTests : IDisposable
 {
     private static readonly string TestPluginBuild = Path.Combine(AppContext.BaseDirectory, "test-plugin");
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "at-plugins-" + Guid.NewGuid().ToString("N"));
@@ -151,6 +151,38 @@ public sealed class PluginHostTests : IDisposable
     }
 
     [Fact]
+    public async Task Crashing_decoder_plugin_is_disabled_without_stopping_playback()
+    {
+        // P4 exit criterion: tracks of a plugin that throws while decoding are skipped, the plugin is switched off after
+        // three faults, and the engine carries on with the next playable track (from another plugin).
+        MakePlugin(_builtIn, "test.crash", mode: "read-throws", extension: ".bad");
+        MakePlugin(_builtIn, "test.good");
+        using var host = CreateHost();
+        host.LoadAll();
+        PluginDisabledEventArgs? disabled = null;
+        host.PluginDisabled += (_, e) => disabled = e;
+        using var output = new AudioTastic.Core.Tests.Audio.FakeAudioOutput();
+        using var engine = new AudioTastic.Core.Playback.PlaybackEngine(host.LiveSourceFactories, output, _settings,
+            NullLogger<AudioTastic.Core.Playback.PlaybackEngine>.Instance);
+        string[] names = ["a.bad", "b.bad", "c.bad", "d.bad", "good.tst"];
+        var files = names.Select(f => Path.Combine(_dir, f)).ToArray();
+        foreach (var file in files)
+        {
+            File.WriteAllBytes(file, []);
+        }
+
+        await engine.OpenAsync(files);
+        await AudioTastic.Core.Tests.Audio.Wait.UntilAsync(() => engine.CurrentTrack?.Path == files[^1], 10_000);
+
+        Assert.Equal(AudioTastic.Core.Playback.PlaybackState.Playing, engine.State);
+        Assert.NotNull(disabled);
+        Assert.Equal("test.crash", disabled.Plugin.Id);
+        Assert.Equal(PluginStatus.Failed, host.Plugins.Single(p => p.Id == "test.crash").Status);
+        Assert.Equal(PluginStatus.Enabled, host.Plugins.Single(p => p.Id == "test.good").Status);
+        await engine.StopAsync();
+    }
+
+    [Fact]
     public void Open_errors_are_faults_but_audio_source_exceptions_are_not()
     {
         MakePlugin(_builtIn, "test.good");
@@ -211,6 +243,19 @@ public sealed class PluginHostTests : IDisposable
         var weak = PluginHost.LoadContextReference(host.Plugins[0])!;
         host.Disable(host.Plugins[0].Id);
         return weak;
+    }
+
+    [Fact]
+    public void Player_events_reach_plugins_through_a_guarded_scope_that_is_dropped_on_unload()
+    {
+        // The test plugin's general class reads Player.State; the host gives each plugin its own player view.
+        MakePlugin(_builtIn, "test.good");
+        var player = new FakePlayer();
+        using var host = CreateHost(player);
+        host.LoadAll();
+        Assert.Equal(1, player.TrackChangedSubscribers);
+        host.Disable("test.good");
+        Assert.Equal(0, player.TrackChangedSubscribers);
     }
 
     [Fact]
@@ -298,16 +343,17 @@ public sealed class PluginHostTests : IDisposable
 
     // ---- helpers ----
 
-    private PluginHost CreateHost()
+    private PluginHost CreateHost(FakePlayer? player = null)
     {
         var host = new PluginHost(_paths, _settings, NullLoggerFactory.Instance, [_builtIn]);
-        host.AttachPlayer(new FakePlayer());
+        host.AttachPlayer(player ?? new FakePlayer());
         return host;
     }
 
     private string DataFile(string id, string name) => Path.Combine(_paths.PluginDataFolder, id, name);
 
-    private static string MakePlugin(string root, string id, string mode = "good", string version = "1.0.0", string? sdkVersion = null)
+    private static string MakePlugin(string root, string id, string mode = "good", string version = "1.0.0", string? sdkVersion = null,
+        string extension = ".tst")
     {
         Assert.True(File.Exists(Path.Combine(TestPluginBuild, "AudioTastic.TestPlugin.dll")), "Test plugin was not built.");
         var folder = Directory.CreateDirectory(Path.Combine(root, id)).FullName;
@@ -315,7 +361,7 @@ public sealed class PluginHostTests : IDisposable
         {
             File.Copy(file, Path.Combine(folder, Path.GetFileName(file)), overwrite: true);
         }
-        File.WriteAllText(Path.Combine(folder, "mode.txt"), mode);
+        File.WriteAllLines(Path.Combine(folder, "mode.txt"), [mode, extension]);
         File.WriteAllText(Path.Combine(folder, PluginManifest.FileName), ManifestJson(id, version, sdkVersion ?? SdkInfo.Version));
         return folder;
     }
@@ -342,10 +388,14 @@ public sealed class PluginHostTests : IDisposable
         public NowPlaying? NowPlaying => null;
         public TimeSpan Position => TimeSpan.Zero;
         public int Volume { get; set; } = 80;
-#pragma warning disable CS0067 // Not raised in these tests.
         public event EventHandler<NowPlayingEventArgs>? TrackChanged;
+#pragma warning disable CS0067 // Not raised in these tests.
         public event EventHandler<PlayerStateEventArgs>? StateChanged;
 #pragma warning restore CS0067
+
+        public void RaiseTrackChanged(NowPlaying nowPlaying) => TrackChanged?.Invoke(this, new NowPlayingEventArgs(nowPlaying));
+
+        public int TrackChangedSubscribers => TrackChanged?.GetInvocationList().Length ?? 0;
         public Task PlayAsync() => Task.CompletedTask;
         public Task PauseAsync() => Task.CompletedTask;
         public Task StopAsync() => Task.CompletedTask;

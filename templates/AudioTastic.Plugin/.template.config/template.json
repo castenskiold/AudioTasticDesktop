@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "AudioTastic",
+  "classifications": [ "AudioTastic", "Plugin", "Audio" ],
+  "identity": "AudioTastic.Plugin.Template",
+  "name": "AudioTastic plugin",
+  "description": "A plugin for AudioTastic Desktop (general plugin to start from; see docs/plugins/plugin-guide.md for the other types).",
+  "shortName": "audiotastic-plugin",
+  "sourceName": "AudioTasticPlugin1",
+  "preferNameDirectory": true,
+  "tags": { "language": "C#", "type": "project" },
+  "symbols": {
+    "sdkVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "0.4.0-preview",
+      "replaces": "SDK_PACKAGE_VERSION",
+      "description": "Version of the AudioTastic.Sdk NuGet package."
+    }
+  }
+}

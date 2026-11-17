@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- A plugin folder holds the plugin and its own dependencies (but not the SDK: the player provides it). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile against the SDK; never ship it. -->
+    <PackageReference Include="AudioTastic.Sdk" Version="SDK_PACKAGE_VERSION" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Every build also zips the output into an installable package: bin/<Configuration>/AudioTasticPlugin1.atplugin
+       (install it from AudioTastic › Settings › Plugins › Install plugin…). -->
+  <Target Name="PackAtPlugin" AfterTargets="Build">
+    <!-- The player provides these; leaving them out keeps the package small. -->
+    <Delete Files="$(OutDir)Microsoft.Extensions.Logging.Abstractions.dll;$(OutDir)Microsoft.Extensions.DependencyInjection.Abstractions.dll" />
+    <ZipDirectory SourceDirectory="$(OutDir)" DestinationFile="$(OutDir)..\$(MSBuildProjectName).atplugin" Overwrite="true" />
+  </Target>
+</Project>

@@ -46,6 +46,9 @@ public sealed class PluginRecord
     public bool HasSettingsPage => Instances.OfType<IPluginSettingsPage>().Any();
 
     internal PluginLoadContext? LoadContext { get; set; }
+
+    /// <summary>The plugin's view of the player while it is loaded (guards and drops its event handlers).</summary>
+    internal ScopedPlayerApi? PlayerScope { get; set; }
     internal Queue<DateTime> Faults { get; } = new();
 
     public override string ToString() => $"{Manifest.Name} {Manifest.Version} ({Status})";

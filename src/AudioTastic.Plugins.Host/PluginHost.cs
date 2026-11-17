@@ -382,6 +382,8 @@ public sealed class PluginHost : IDisposable
         var entryPath = Path.Combine(record.Folder, record.Manifest.EntryAssembly);
         var context = new PluginLoadContext(record.Id, entryPath);
         var instances = new List<IPlugin>();
+        record.PlayerScope = new ScopedPlayerApi(
+            _player ?? throw new InvalidOperationException("AttachPlayer must be called before plugins are loaded."), record, this);
         try
         {
             var assembly = context.LoadFromFile(entryPath);
@@ -415,6 +417,8 @@ public sealed class PluginHost : IDisposable
             }
             record.Instances = [];
             record.LoadContext = null;
+            record.PlayerScope.Dispose();
+            record.PlayerScope = null;
             record.Status = PluginStatus.Failed;
             record.Error = reason;
             context.Unload();
@@ -429,6 +433,8 @@ public sealed class PluginHost : IDisposable
             SafeDispose(record, plugin);
         }
         record.Instances = [];
+        record.PlayerScope?.Dispose();
+        record.PlayerScope = null;
         record.Status = status;
         record.Error = error;
         record.LoadContext?.Unload();
@@ -454,7 +460,7 @@ public sealed class PluginHost : IDisposable
         record.Folder,
         Path.Combine(_paths.PluginDataFolder, record.Id),
         new PluginSettingsStore(_settings, record.Id),
-        _player ?? throw new InvalidOperationException("AttachPlayer must be called before plugins are loaded."),
+        record.PlayerScope!,
         _loggerFactory.CreateLogger($"Plugin.{record.Id}"));
 
     private void Rebuild()

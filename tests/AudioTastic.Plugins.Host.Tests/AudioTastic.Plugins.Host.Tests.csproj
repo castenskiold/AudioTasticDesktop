@@ -9,11 +9,18 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AudioTastic.Plugins.Host\AudioTastic.Plugins.Host.csproj" />
+    <!-- P4 exit criterion: a crashing decoder plugin is disabled while the real engine keeps playing. -->
+    <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <Compile Include="..\AudioTastic.Core.Tests\Audio\Fakes.cs" Link="Fakes.cs" />
     <!-- Built first but not referenced: the tests load it into plugin load contexts only. -->
     <ProjectReference Include="..\AudioTastic.TestPlugin\AudioTastic.TestPlugin.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+  <!-- P4 exit check (PG-02): built only by scripts/check_plugin_template.py with -p:TemplateCheck=true. -->
+  <ItemGroup Condition="'$(TemplateCheck)' != 'true'">
+    <Compile Remove="PluginHostTests.Template.cs" />
   </ItemGroup>
   <!-- Copy the test plugin into test-plugin/ beside the tests (not next to them, so it never loads in the default context). -->
   <Target Name="CopyTestPlugin" AfterTargets="Build">

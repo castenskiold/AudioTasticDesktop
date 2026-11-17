@@ -5,21 +5,24 @@ namespace AudioTastic.TestPlugin;
 
 /// <summary>
 /// Test input plugin. mode.txt in the plugin folder selects the behaviour:
-/// "good" (default), "init-throws", "read-throws", "open-throws".
+/// "good" (default), "init-throws", "read-throws", "open-throws"; an optional second line sets the extension (".tst").
 /// It reports what happened by writing files into its data folder, because the test cannot share types with it.
 /// </summary>
 public sealed class TestInputPlugin : IInputPlugin, IPluginSettingsPage
 {
     private IPluginContext? _context;
     private string _mode = "good";
+    private string _extension = ".tst";
 
-    public IReadOnlyList<IAudioSourceFactory> SourceFactories => [new ToneFactory(_mode)];
+    public IReadOnlyList<IAudioSourceFactory> SourceFactories => [new ToneFactory(_mode, _extension)];
 
     public void Initialize(IPluginContext context)
     {
         _context = context;
         var modeFile = Path.Combine(context.PluginFolder, "mode.txt");
-        _mode = File.Exists(modeFile) ? File.ReadAllText(modeFile).Trim() : "good";
+        var lines = File.Exists(modeFile) ? File.ReadAllLines(modeFile) : [];
+        _mode = lines.Length > 0 ? lines[0].Trim() : "good";
+        _extension = lines.Length > 1 ? lines[1].Trim() : ".tst";
         if (_mode == "init-throws")
         {
             throw new InvalidOperationException("init failed on purpose");
@@ -51,12 +54,12 @@ public sealed class TestGeneralPlugin : IGeneralPlugin
     }
 }
 
-internal sealed class ToneFactory(string mode) : IAudioSourceFactory
+internal sealed class ToneFactory(string mode, string extension) : IAudioSourceFactory
 {
     public string Name => "Test tone";
-    public IReadOnlyCollection<string> Extensions => [".tst"];
+    public IReadOnlyCollection<string> Extensions => [extension];
 
-    public bool CanOpen(string path) => string.Equals(Path.GetExtension(path), ".tst", StringComparison.OrdinalIgnoreCase);
+    public bool CanOpen(string path) => string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase);
 
     public IAudioSource Open(string path)
     {
