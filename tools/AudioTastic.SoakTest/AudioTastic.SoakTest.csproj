@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- P1 exit criterion: long playback through the real decoder, engine and output device, watching for dropouts,
+       slow audio callbacks, memory growth and handle leaks. See Program.cs for usage. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <CopyNativeLibraries>true</CopyNativeLibraries>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
+  </ItemGroup>
+</Project>
