@@ -9,5 +9,7 @@
     "native/build": true,
     "native/downloads": true,
     "tests/media/generated": true
-  }
+  },
+  "cmake.sourceDirectory": "${workspaceFolder}/native",
+  "cmake.autoDetectSourceDirectory": false
 }
