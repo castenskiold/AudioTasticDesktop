@@ -38,7 +38,9 @@ install(FILES "${miniaudio_src_SOURCE_DIR}/LICENSE" DESTINATION native RENAME MI
 # --- SoundTouch -------------------------------------------------------------
 option(AT_WITH_SOUNDTOUCH "Build SoundTouch (needed from P6)" ON)
 if(AT_WITH_SOUNDTOUCH)
-set(AT_SOUNDTOUCH_TAG "2.3.3" CACHE STRING "SoundTouch git tag")
+set(AT_SOUNDTOUCH_TAG "2.4.1" CACHE STRING "SoundTouch git tag")
+# SoundTouch declares an old cmake_minimum_required that CMake 4 rejects without this.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(SOUNDTOUCH_DLL ON CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 FetchContent_Declare(soundtouch
