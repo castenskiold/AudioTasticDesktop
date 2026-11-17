@@ -1,6 +1,7 @@
 <Project>
   <!-- PG-02 samples: one small plugin per plugin type, built with the solution and zipped to
-       artifacts/atplugins/<Configuration>/<project>.atplugin (install them from Settings › Plugins). -->
+       artifacts/atplugins/<Configuration>/<project>.atplugin (install them from Settings › Plugins).
+       The samples are MIT licensed (samples/LICENSE.txt), so plugin authors can copy from them freely. -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
   <PropertyGroup>
     <IsAudioTasticPlugin>true</IsAudioTasticPlugin>

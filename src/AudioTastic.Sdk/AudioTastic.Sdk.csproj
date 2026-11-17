@@ -8,6 +8,8 @@
     <Description>Contracts for AudioTastic Desktop plugins: input (decoders), output, DSP, visualisation, general, UI panel and cast target plugins.</Description>
     <PackageTags>audiotastic;audio;player;plugin;sdk</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- MIT, so anyone can write free or commercial plugins (Anders, 17 Nov 2026). The player app's licence is separate. -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Every public member is documented in source; the package carries the XML docs. -->

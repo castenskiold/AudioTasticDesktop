@@ -2,6 +2,8 @@
 
 This guide is for developers who want to extend AudioTastic Desktop: new file formats, effects, visualisations, background features, windows or cast targets. It covers SDK 0.4 (pre-release; see *Versioning*).
 
+**Licence:** the SDK package, the samples and the template are **MIT licensed**, so your plugin can be free or commercial under any licence you choose.
+
 ## Quick start
 
 1. Build or get the SDK package. In this repository: `dotnet pack src/AudioTastic.Sdk -c Release -o artifacts/packages`.

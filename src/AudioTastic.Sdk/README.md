@@ -23,3 +23,7 @@ The plugin author guide in the AudioTastic repository (`docs/plugins/plugin-guid
 - the `dotnet new audiotastic-plugin` template.
 
 Samples are in `samples/`.
+
+## Licence
+
+MIT. Plugins built against the SDK may use any licence, free or commercial.
