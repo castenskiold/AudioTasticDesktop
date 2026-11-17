@@ -31,6 +31,9 @@
     </ItemGroup>
     <RemoveDir Directories="$(PluginStagingRoot)$(MSBuildProjectName)" />
     <Copy SourceFiles="@(_PluginOutput)" DestinationFiles="@(_PluginOutput->'$(PluginStagingRoot)$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <!-- PG-04: the same folder zipped as an installable package. -->
+    <MakeDir Directories="$(RepoRoot)artifacts\atplugins\$(Configuration)" />
+    <ZipDirectory SourceDirectory="$(PluginStagingRoot)$(MSBuildProjectName)" DestinationFile="$(RepoRoot)artifacts\atplugins\$(Configuration)\$(MSBuildProjectName).atplugin" Overwrite="true" />
   </Target>
 
   <ItemGroup Condition="'@(BuiltInPlugin)' != ''">

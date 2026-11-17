@@ -13,6 +13,8 @@ using AudioTastic.Core.Playback;
 using AudioTastic.Data;
 using AudioTastic.Data.Settings;
 using AudioTastic.Platform;
+using AudioTastic.Plugins.Host;
+using AudioTastic.Sdk.Plugins;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.App.Ui;
@@ -24,9 +26,6 @@ namespace AudioTastic.App.Ui;
 /// </summary>
 public sealed class PlayerShell : ISkinHost, IDisposable
 {
-    private static readonly FilePickerFileType AudioFiles =
-        new("Audio files") { Patterns = ["*.wav", "*.flac", "*.mp3", "*.aiff", "*.aif", "*.aifc", "*.ape", "*.aac", "*.m4a", "*.wv"] };
-
     private readonly PlaybackEngine _engine;
     private readonly SettingsStore _settings;
     private readonly SkinManager _skins;
@@ -43,14 +42,17 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private SkinnedWindow? _playlist;
     private bool _playlistBeforeMini;
     private readonly PlaylistController _playlists;
+    private readonly PluginHost _plugins;
     private Skin? _fallbackSkin;
     private SettingsWindow? _settingsWindow;
     private bool _exiting;
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
-        IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, ILoggerFactory loggerFactory)
+        IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
+        ILoggerFactory loggerFactory)
     {
         _playlists = playlists;
+        _plugins = plugins;
         _engine = engine;
         _settings = settings;
         _skins = skins;
@@ -61,7 +63,12 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PlayerShell>();
         Player = new PlayerViewModel(engine, settings);
+        _plugins.PluginDisabled += OnPluginDisabled;
     }
+
+    /// <summary>PG-03: a plugin that kept failing was switched off; say so in the main window.</summary>
+    private void OnPluginDisabled(object? sender, PluginDisabledEventArgs e) =>
+        Dispatcher.UIThread.Post(() => Player.ShowMessage($"Plugin '{e.Plugin.Manifest.Name}' was disabled after repeated errors (see Settings › Plugins)."));
 
     public PlayerViewModel Player { get; }
     public InterfaceSettings UiSettings => _settings.Current.Interface;
@@ -461,7 +468,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         {
             Title = "Open audio files",
             AllowMultiple = true,
-            FileTypeFilter = [AudioFiles, FilePickerFileTypes.All],
+            FileTypeFilter = [_playlists.OpenableFiles(), FilePickerFileTypes.All],
         });
         var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray();
         if (paths.Length > 0)
@@ -519,9 +526,71 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _settingsWindow.Activate();
             return;
         }
-        _settingsWindow = new SettingsWindow(this, _settings, _paths, _platform, _loggerFactory.CreateLogger<SettingsWindow>());
+        _settingsWindow = new SettingsWindow(this, _settings, _paths, _platform, _plugins, _loggerFactory.CreateLogger<SettingsWindow>());
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    /// <summary>PG-01: Windows menu entries for UI panel plugins (separator first when there are any).</summary>
+    private List<object> PanelItems()
+    {
+        var items = new List<object>();
+        foreach (var panel in _plugins.Instances<IUiPanelPlugin>())
+        {
+            if (_plugins.RecordOf(panel) is not { } record)
+            {
+                continue;
+            }
+            string title = record.Manifest.Name;
+            _plugins.Guard(record, () => title = panel.Title);
+            var item = new MenuItem { Header = title, ToggleType = MenuItemToggleType.CheckBox, IsChecked = _panels.ContainsKey(panel) };
+            item.Click += (_, _) => TogglePanel(panel, record, title);
+            items.Add(item);
+        }
+        if (items.Count > 0)
+        {
+            items.Insert(0, new Separator());
+        }
+        return items;
+    }
+
+    private readonly Dictionary<IUiPanelPlugin, Window> _panels = [];
+
+    private void TogglePanel(IUiPanelPlugin panel, PluginRecord record, string title)
+    {
+        if (_panels.Remove(panel, out var open))
+        {
+            open.Close();
+            return;
+        }
+        object? content = null;
+        if (!_plugins.Guard(record, () => content = panel.CreatePanel()) || content is not Control control)
+        {
+            Player.ShowMessage($"Plugin '{record.Manifest.Name}' could not open its panel.");
+            return;
+        }
+        var window = new Window
+        {
+            Title = title,
+            Width = 360,
+            Height = 300,
+            Content = control,
+            ShowInTaskbar = false,
+            Icon = _main!.Icon,
+        };
+        window.Closed += (_, _) => _panels.Remove(panel);
+        _plugins.PluginsChanged += CloseIfUnloaded;
+        window.Closed += (_, _) => _plugins.PluginsChanged -= CloseIfUnloaded;
+        _panels[panel] = window;
+        window.Show(_main);
+
+        void CloseIfUnloaded(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+        {
+            if (record.Status != PluginStatus.Enabled)
+            {
+                window.Close();
+            }
+        });
     }
 
     private void ShowAbout()
@@ -622,13 +691,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 new MenuItem
                 {
                     Header = "Windows",
-                    ItemsSource = new object[]
-                    {
+                    ItemsSource = (object[])
+                    [
                         Item("Equalizer", enabled: false),
                         Item("Playlist", enabled: false),
                         Item("Art & Lyrics", enabled: false),
                         Item("Mini player", "miniPlayer", check: _mini.IsVisible),
-                    },
+                        .. PanelItems(),
+                    ],
                 },
                 new MenuItem { Header = "Skins", ItemsSource = skins },
                 new MenuItem
@@ -665,6 +735,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void Dispose()
     {
+        _plugins.PluginDisabled -= OnPluginDisabled;
         _settings.Changed -= OnSettingsChanged;
         Player.Dispose();
         _fallbackSkin?.Dispose();

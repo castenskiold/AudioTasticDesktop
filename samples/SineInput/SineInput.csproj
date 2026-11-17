@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sample input plugin (PG-01 Input): plays .sine files (a text file holding a frequency in Hz) as a 10 s tone. -->
+</Project>

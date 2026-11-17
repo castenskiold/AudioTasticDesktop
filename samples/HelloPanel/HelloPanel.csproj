@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sample UI panel + general plugin with a settings page (PG-01, PG-05). -->
+  <ItemGroup>
+    <!-- Avalonia is shared with the player: compile against it, never ship it. -->
+    <PackageReference Include="Avalonia" ExcludeAssets="runtime;build;buildTransitive" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

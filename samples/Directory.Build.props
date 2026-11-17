@@ -1,0 +1,14 @@
+<Project>
+  <!-- PG-02 samples: one small plugin per plugin type, built with the solution and zipped to
+       artifacts/atplugins/<Configuration>/<project>.atplugin (install them from Settings › Plugins). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+  <PropertyGroup>
+    <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The SDK (and Avalonia, for plugins with UI) come from the player: never copied into the plugin folder. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" Private="false" />
+  </ItemGroup>
+</Project>

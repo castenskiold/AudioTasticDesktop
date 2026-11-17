@@ -1,0 +1,11 @@
+{
+  "id": "audiotastic.sample.gain-dsp",
+  "name": "Gain DSP (sample)",
+  "version": "1.0.0",
+  "author": "AudioTastic samples",
+  "description": "A DSP effect that changes the level (setting 'gainDb'). Used by the DSP chain from phase P7.",
+  "license": "MIT",
+  "sdkVersion": "0.4.0",
+  "entryAssembly": "GainDsp.dll",
+  "types": ["dsp"]
+}

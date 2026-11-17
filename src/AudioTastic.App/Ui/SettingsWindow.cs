@@ -6,6 +6,7 @@ using AudioTastic.App.Skins;
 using AudioTastic.Data;
 using AudioTastic.Data.Settings;
 using AudioTastic.Platform;
+using AudioTastic.Plugins.Host;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.App.Ui;
@@ -35,12 +36,15 @@ public sealed class SettingsWindow : Window
     private readonly SettingsStore _settings;
     private readonly AppPaths _paths;
     private readonly IPlatformServices _platform;
+    private readonly PluginHost _plugins;
     private readonly ILogger<SettingsWindow> _logger;
     private readonly ListBox _groups;
     private readonly ContentControl _page = new();
 
-    public SettingsWindow(PlayerShell shell, SettingsStore settings, AppPaths paths, IPlatformServices platform, ILogger<SettingsWindow> logger)
+    public SettingsWindow(PlayerShell shell, SettingsStore settings, AppPaths paths, IPlatformServices platform, PluginHost plugins,
+        ILogger<SettingsWindow> logger)
     {
+        _plugins = plugins;
         _shell = shell;
         _settings = settings;
         _paths = paths;
@@ -102,11 +106,16 @@ public sealed class SettingsWindow : Window
                 Note(panel, "The equalizer, presets and DSP chain arrive in phase P7; VST3 and room correction in P12.");
                 break;
             case SettingsGroup.Plugins:
-                Note(panel, "The plugin manager arrives in phase P4.");
+                panel.Children.Add(new PluginManagerPage(_plugins, _paths, _platform, _logger));
                 break;
             case SettingsGroup.General:
                 GeneralPage(panel);
                 break;
+        }
+        if (group == SettingsGroup.Plugins)
+        {
+            _page.Content = panel; // plugin choices are managed per plugin; no "reset to defaults"
+            return;
         }
         var reset = new Button { Content = "Reset to defaults", Margin = new Thickness(0, 12, 0, 0) };
         reset.Click += (_, _) =>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sample visualisation plugin (PG-01 Visualisation): a peak meter. Visualisations are hosted from P7 (UI-07). -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" ExcludeAssets="runtime;build;buildTransitive" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

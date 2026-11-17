@@ -1,0 +1,11 @@
+{
+  "id": "audiotastic.sample.peak-meter",
+  "name": "Peak meter (sample)",
+  "version": "1.0.0",
+  "author": "AudioTastic samples",
+  "description": "A visualisation that draws left/right peak bars. Shown from phase P7 (Main menu › Visualisation).",
+  "license": "MIT",
+  "sdkVersion": "0.4.0",
+  "entryAssembly": "PeakMeter.dll",
+  "types": ["visualisation"]
+}

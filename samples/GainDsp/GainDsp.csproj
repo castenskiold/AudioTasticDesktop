@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sample DSP plugin (PG-01 DSP): a gain stage. The DSP chain that hosts it arrives in P7 (EQ-05). -->
+</Project>

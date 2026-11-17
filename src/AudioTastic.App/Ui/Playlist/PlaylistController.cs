@@ -266,18 +266,24 @@ public sealed class PlaylistController : IDisposable
 
     // ---- dialogs --------------------------------------------------------------------------------------
 
+    /// <summary>PG-01: file dialog filter with every extension of the enabled input plugins plus playlist formats.</summary>
+    public FilePickerFileType OpenableFiles() => new("Audio files and playlists")
+    {
+        Patterns = _factories.SelectMany(f => f.Extensions).Concat(_service.Formats.SelectMany(f => f.Extensions))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Select(e => "*" + e).ToArray(),
+    };
+
     private async Task AddFilesAsync(Control source)
     {
         if (TopLevel.GetTopLevel(source) is not { } top)
         {
             return;
         }
-        var extensions = _factories.SelectMany(f => f.Extensions).Concat(_service.Formats.SelectMany(f => f.Extensions)).Distinct().Select(e => "*" + e).ToArray();
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Add files",
             AllowMultiple = true,
-            FileTypeFilter = [new FilePickerFileType("Audio files and playlists") { Patterns = extensions }, FilePickerFileTypes.All],
+            FileTypeFilter = [OpenableFiles(), FilePickerFileTypes.All],
         });
         await AddAsync(files.Select(f => f.TryGetLocalPath()).OfType<string>());
     }
