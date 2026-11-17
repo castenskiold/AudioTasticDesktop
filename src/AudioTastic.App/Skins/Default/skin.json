@@ -135,5 +135,55 @@
           "images": { "active": "images/speaker-muted.svg" }, "colors": { "normal": "@muted", "hover": "@text", "active": "@muted" },
           "tooltip": "Mute (mouse wheel: volume)" }
       ]
-    }  }
+    },
+    "playlist": {
+      "width": 330,
+      "height": 232,
+      "resizable": true,
+      "minWidth": 275,
+      "minHeight": 116,
+      "background": "@panel",
+      "border": "@text",
+      "borderWidth": 1,
+      "cornerRadius": 6,
+      "elements": [
+        { "type": "dragArea", "x": 0, "y": 0, "width": 330, "height": 18, "anchor": "left right top" },
+        { "type": "text", "x": 10, "y": 3, "width": 150, "height": 12, "text": "PLAYLIST", "font": "title", "color": "@muted", "letterSpacing": 2 },
+        { "type": "button", "bind": "hide", "x": 312, "y": 3, "width": 12, "height": 12, "anchor": "right top", "image": "images/circle.svg",
+          "images": { "hover": "images/circle-filled.svg" }, "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Close playlist (Alt+E)" },
+
+        { "type": "playlistTabs", "x": 8, "y": 20, "width": 314, "height": 11, "anchor": "left right top", "font": "badge", "spacing": 3,
+          "strokeWidth": 0.8, "strokes": { "normal": "@dim", "active": "@text" }, "fills": { "active": "@text" },
+          "colors": { "normal": "@muted", "active": "@bg" } },
+        { "type": "playlistSearch", "x": 8, "y": 34, "width": 314, "height": 12, "anchor": "left right top", "font": "body", "fontSize": 6.5,
+          "stroke": "@line", "strokeWidth": 0.8, "color": "@text", "text": "J   Search playlist…" },
+
+        { "type": "rect", "x": 6, "y": 49, "width": 318, "height": 163, "anchor": "left right top bottom",
+          "fill": "@bg", "stroke": "@line", "strokeWidth": 1, "cornerRadius": 4 },
+        { "type": "playlistList", "x": 8, "y": 51, "width": 314, "height": 159, "anchor": "left right top bottom",
+          "font": "body", "fontSize": 6.8, "rowHeight": 13, "color": "#C4C4C9", "mutedColor": "@muted",
+          "playingColor": "#FFFFFF", "selectionColor": "#2C2C31" },
+
+        { "type": "button", "bind": "plAdd", "x": 8, "y": 216, "width": 21, "height": 11, "anchor": "left bottom", "text": "ADD", "font": "badge",
+          "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "Add files, folder" },
+        { "type": "button", "bind": "plRemove", "x": 32, "y": 216, "width": 21, "height": 11, "anchor": "left bottom", "text": "REM", "font": "badge",
+          "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "Remove selected, duplicates, dead entries" },
+        { "type": "button", "bind": "plSelect", "x": 56, "y": 216, "width": 19, "height": 11, "anchor": "left bottom", "text": "SEL", "font": "badge",
+          "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "Select all / none / invert" },
+        { "type": "button", "bind": "plSort", "x": 78, "y": 216, "width": 23, "height": 11, "anchor": "left bottom", "text": "SORT", "font": "badge",
+          "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "Sort, reverse, randomise, undo" },
+        { "type": "button", "bind": "plList", "x": 104, "y": 216, "width": 21, "height": 11, "anchor": "left bottom", "text": "LIST", "font": "badge",
+          "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
+          "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "New, load, save playlists" },
+
+        { "type": "playlistInfo", "x": 150, "y": 216, "width": 156, "height": 11, "anchor": "right bottom", "font": "medium", "fontSize": 6.5,
+          "color": "@muted", "align": "right" },
+        { "type": "resizeGrip", "x": 314, "y": 216, "width": 16, "height": 16, "anchor": "right bottom" }
+      ]
+    }
+  }
 }

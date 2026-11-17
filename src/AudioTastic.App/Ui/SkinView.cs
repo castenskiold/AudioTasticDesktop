@@ -33,6 +33,12 @@ public interface ISkinHost
 
     /// <summary>True when the toggle's window or feature is on (EQ / PL windows; later XF, CAST).</summary>
     bool IsToggleOn(string bind);
+
+    /// <summary>Files dropped on a player window (PL-04).</summary>
+    void DropFiles(IReadOnlyList<string> paths, Window window);
+
+    /// <summary>Creates elements the view does not know itself (playlist window parts); null to skip.</summary>
+    Control? CreateElement(Skin skin, SkinElement element);
 }
 
 /// <summary>
@@ -45,6 +51,7 @@ public sealed class SkinView : Border, IDisposable
     private readonly ISkinHost _host;
     private readonly PlayerViewModel _vm;
     private readonly List<Action> _updates = [];
+    private readonly List<IDisposable> _disposables = [];
     private readonly Dictionary<string, SkinButton> _toggles = new(StringComparer.Ordinal);
 
     /// <summary>The logo, decoded once at a size that stays sharp in double size on high-DPI screens.</summary>
@@ -55,25 +62,29 @@ public sealed class SkinView : Border, IDisposable
     {
         _host = host;
         _vm = host.Player;
-        Width = window.Width;
-        Height = window.Height;
+        if (!window.Resizable)
+        {
+            Width = window.Width;
+            Height = window.Height;
+        }
         Background = skin.Brush(window.Background);
         BorderBrush = skin.Brush(window.Border);
         BorderThickness = new Thickness(window.BorderWidth);
         CornerRadius = new CornerRadius(window.CornerRadius);
         ClipToBounds = true;
 
-        var canvas = new Canvas { Width = window.Width, Height = window.Height };
+        var canvas = new AnchorPanel(window.Width - (2 * window.BorderWidth), window.Height - (2 * window.BorderWidth));
         foreach (var element in window.Elements)
         {
             if (Create(skin, element, scale) is { } control)
             {
                 // Element coordinates include the window border (they are window coordinates).
-                Canvas.SetLeft(control, element.X - window.BorderWidth);
-                Canvas.SetTop(control, element.Y - window.BorderWidth);
-                control.Width = element.Width;
-                control.Height = element.Height;
+                AnchorPanel.Place(control, new Rect(element.X - window.BorderWidth, element.Y - window.BorderWidth, element.Width, element.Height), element.Anchor);
                 canvas.Children.Add(control);
+                if (control is IDisposable disposable)
+                {
+                    _disposables.Add(disposable);
+                }
             }
         }
         Child = canvas;
@@ -91,7 +102,14 @@ public sealed class SkinView : Border, IDisposable
         }
     }
 
-    public void Dispose() => _vm.PropertyChanged -= OnPlayerChanged;
+    public void Dispose()
+    {
+        _vm.PropertyChanged -= OnPlayerChanged;
+        foreach (var d in _disposables)
+        {
+            d.Dispose();
+        }
+    }
 
     private void OnPlayerChanged(object? sender, PropertyChangedEventArgs e) => UpdateAll();
 
@@ -270,8 +288,23 @@ public sealed class SkinView : Border, IDisposable
                 // UI-07 (P7).
                 return new Border { IsHitTestVisible = false };
 
+            case "resizeGrip":
+            {
+                var grip = new Border { Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.BottomRightCorner) };
+                grip.PointerPressed += (_, args) =>
+                {
+                    if (TopLevel.GetTopLevel(grip) is Window w && args.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
+                    {
+                        w.BeginResizeDrag(WindowEdge.SouthEast, args);
+                        args.Handled = true;
+                    }
+                };
+                ToolTip.SetTip(grip, "Resize");
+                return grip;
+            }
+
             default:
-                return null;
+                return _host.CreateElement(skin, e);
         }
     }
 }

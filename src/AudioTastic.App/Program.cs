@@ -63,6 +63,11 @@ internal static class Program
                 .AddSingleton<IPlayerController>(sp => sp.GetRequiredService<PlaybackEngine>())
                 // P2 player UI: skins (UI-03) and the shell that owns the skinned windows.
                 .AddSingleton<AudioTastic.App.Skins.SkinManager>()
+                // P3 playlists (PL-01..07, FM-09) and tags (MD-01).
+                .AddSingleton(sp => { var s = new AudioTastic.Core.Playlists.PlaylistService(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<ILogger<AudioTastic.Core.Playlists.PlaylistService>>()); s.Load(); return s; })
+                .AddSingleton<AudioTastic.Metadata.TagService>()
+                .AddSingleton<AudioTastic.Metadata.TagLoader>()
+                .AddSingleton<AudioTastic.App.Ui.Playlist.PlaylistController>()
                 .AddSingleton<AudioTastic.App.Ui.PlayerShell>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 

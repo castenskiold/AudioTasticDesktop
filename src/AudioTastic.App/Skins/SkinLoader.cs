@@ -24,7 +24,8 @@ public static partial class SkinLoader
     /// <summary>Allowed <c>bind</c> values per element type; types not listed take no bind.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Binds = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
-        ["button"] = ["previous", "play", "pause", "playPause", "stop", "next", "open", "menu", "minimize", "close", "miniPlayer", "expand"],
+        ["button"] = ["previous", "play", "pause", "playPause", "stop", "next", "open", "menu", "minimize", "close", "miniPlayer", "expand",
+            "hide", "plAdd", "plRemove", "plSelect", "plSort", "plList"],
         ["toggle"] = ["shuffle", "repeat", "mute", "equalizer", "playlist", "crossfade", "cast"],
         ["slider"] = ["volume", "seek"],
     };
@@ -126,7 +127,7 @@ public static partial class SkinLoader
             }
         }
 
-        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini) })
+        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini), ("playlist", skin.Windows.Playlist) })
         {
             if (window is null)
             {
@@ -166,7 +167,7 @@ public static partial class SkinLoader
                 }
                 File(e.Image, where);
                 States(e.Images, where, File);
-                foreach (var c in new[] { e.Fill, e.Stroke, e.Color, e.TrackColor, e.FillColor, e.ThumbColor })
+                foreach (var c in new[] { e.Fill, e.Stroke, e.Color, e.TrackColor, e.FillColor, e.ThumbColor, e.SelectionColor, e.PlayingColor, e.MutedColor })
                 {
                     Color(c, where);
                 }

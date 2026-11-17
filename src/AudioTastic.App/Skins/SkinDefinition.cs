@@ -39,6 +39,7 @@ public sealed class SkinWindows
 {
     public SkinWindowDefinition? Main { get; set; }
     public SkinWindowDefinition? Mini { get; set; }
+    public SkinWindowDefinition? Playlist { get; set; }
 }
 
 public sealed class SkinWindowDefinition
@@ -49,6 +50,11 @@ public sealed class SkinWindowDefinition
     public string? Border { get; set; }
     public double BorderWidth { get; set; }
     public double CornerRadius { get; set; }
+
+    /// <summary>UI-01: the user can resize the window (playlist, Art &amp; Lyrics); elements use <see cref="SkinElement.Anchor"/>.</summary>
+    public bool Resizable { get; set; }
+    public double? MinWidth { get; set; }
+    public double? MinHeight { get; set; }
     public List<SkinElement> Elements { get; set; } = [];
 }
 
@@ -119,6 +125,15 @@ public sealed class SkinElement
     public double? TrackThickness { get; set; }
     public double? Speed { get; set; }
     public double? Spacing { get; set; }
+
+    /// <summary>Which window edges the element keeps its distance to: "left top" (default), "left right top bottom" stretches.</summary>
+    public string? Anchor { get; set; }
+
+    /// <summary>Playlist list: row height, and colours for selection, the playing entry and secondary text.</summary>
+    public double? RowHeight { get; set; }
+    public string? SelectionColor { get; set; }
+    public string? PlayingColor { get; set; }
+    public string? MutedColor { get; set; }
 
     /// <summary>Image for <paramref name="state"/>: per-state images first, then <see cref="Image"/>.</summary>
     public string? ImageFor(SkinState state) => Images?.Get(state) ?? Image;

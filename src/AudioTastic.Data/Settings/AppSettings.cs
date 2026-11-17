@@ -82,6 +82,11 @@ public sealed class InterfaceSettings
     /// <summary>UI-05: saved mini player position.</summary>
     public WindowPlacement? MiniPlayerWindow { get; set; }
 
+    /// <summary>UI-01: saved playlist window position, size (layout units) and visibility.</summary>
+    public WindowPlacement? PlaylistWindow { get; set; }
+    public WindowSize? PlaylistSize { get; set; }
+    public bool PlaylistVisible { get; set; } = true;
+
     /// <summary>UI-05: the mini player was showing when the app closed.</summary>
     public bool MiniPlayerActive { get; set; }
 
@@ -156,6 +161,9 @@ public enum LogLevelSetting
     Warning,
     Error,
 }
+
+/// <summary>Saved window size in layout units (before player size / double size).</summary>
+public sealed record WindowSize(double Width, double Height);
 
 /// <summary>Saved window position in device-independent pixels.</summary>
 public sealed record WindowPlacement(int X, int Y);

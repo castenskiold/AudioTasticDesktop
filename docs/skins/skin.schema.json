@@ -30,7 +30,8 @@
       "additionalProperties": false,
       "properties": {
         "main": { "$ref": "#/definitions/window" },
-        "mini": { "$ref": "#/definitions/window" }
+        "mini": { "$ref": "#/definitions/window" },
+        "playlist": { "$ref": "#/definitions/window" }
       }
     }
   },
@@ -88,6 +89,9 @@
         "border": { "$ref": "#/definitions/color" },
         "borderWidth": { "type": "number", "minimum": 0, "maximum": 20 },
         "cornerRadius": { "type": "number", "minimum": 0, "maximum": 100 },
+        "resizable": { "type": "boolean" },
+        "minWidth": { "type": "number", "minimum": 16 },
+        "minHeight": { "type": "number", "minimum": 8 },
         "elements": { "type": "array", "items": { "$ref": "#/definitions/element" } }
       }
     },
@@ -97,7 +101,8 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "enum": ["rect", "image", "text", "button", "toggle", "slider", "time", "marquee", "indicators", "dragArea", "art", "visualisation"]
+          "enum": ["rect", "image", "text", "button", "toggle", "slider", "time", "marquee", "indicators", "dragArea", "art", "visualisation",
+            "playlistTabs", "playlistSearch", "playlistList", "playlistInfo", "resizeGrip"]
         },
         "bind": { "type": "string", "description": "What the element does or shows; allowed values depend on the type (see skin-format.md)." },
         "x": { "type": "number" },
@@ -127,7 +132,12 @@
         "thumbSize": { "type": "number", "minimum": 0 },
         "trackThickness": { "type": "number", "minimum": 0 },
         "speed": { "type": "number", "minimum": 0, "description": "Marquee scroll speed in pixels per second." },
-        "spacing": { "type": "number", "minimum": 0 }
+        "spacing": { "type": "number", "minimum": 0 },
+        "anchor": { "type": "string", "pattern": "^((left|right|top|bottom)( |$))+$", "description": "Edges the element keeps its distance to when the window is resized (default: left top)." },
+        "rowHeight": { "type": "number", "minimum": 6, "maximum": 60 },
+        "selectionColor": { "$ref": "#/definitions/color" },
+        "playingColor": { "$ref": "#/definitions/color" },
+        "mutedColor": { "$ref": "#/definitions/color" }
       }
     }
   }

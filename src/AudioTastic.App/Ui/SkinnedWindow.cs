@@ -18,6 +18,7 @@ public sealed class SkinnedWindow : Window
 {
     private readonly ISkinHost _host;
     private SkinView? _view;
+    private double _builtScale;
 
     public SkinnedWindow(string skinWindowName, ISkinHost host)
     {
@@ -48,8 +49,24 @@ public sealed class SkinnedWindow : Window
         Content = scale == 1
             ? _view
             : new LayoutTransformControl { LayoutTransform = new ScaleTransform(scale, scale), Child = _view };
-        Width = definition.Width * scale;
-        Height = definition.Height * scale;
+        if (definition.Resizable)
+        {
+            // UI-01: resizable windows keep their size in layout units across skin and scale changes.
+            CanResize = true;
+            MinWidth = (definition.MinWidth ?? definition.Width) * scale;
+            MinHeight = (definition.MinHeight ?? definition.Height) * scale;
+            var (w, h) = _builtScale > 0 && !double.IsNaN(Width)
+                ? (Width / _builtScale, Height / _builtScale)
+                : (definition.Width, definition.Height);
+            Width = Math.Max(w * scale, MinWidth);
+            Height = Math.Max(h * scale, MinHeight);
+        }
+        else
+        {
+            Width = definition.Width * scale;
+            Height = definition.Height * scale;
+        }
+        _builtScale = scale;
     }
 
     /// <summary>Refreshes toggles that depend on the shell (window toggles, settings).</summary>
@@ -93,10 +110,15 @@ public sealed class SkinnedWindow : Window
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        if (e.Handled)
+        {
+            return; // the playlist list handles drops on itself (insert position)
+        }
         var files = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray();
         if (files is { Length: > 0 })
         {
-            _ = _host.Player.Player.OpenAsync(files);
+            e.Handled = true;
+            _host.DropFiles(files, this);
         }
     }
 }

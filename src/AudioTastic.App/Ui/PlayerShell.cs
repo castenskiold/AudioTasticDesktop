@@ -7,6 +7,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using AudioTastic.App.Skins;
+using AudioTastic.App.Ui.Playlist;
 using AudioTastic.Core.Diagnostics;
 using AudioTastic.Core.Playback;
 using AudioTastic.Data;
@@ -39,13 +40,17 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     private SkinnedWindow? _main;
     private SkinnedWindow? _mini;
+    private SkinnedWindow? _playlist;
+    private bool _playlistBeforeMini;
+    private readonly PlaylistController _playlists;
     private Skin? _fallbackSkin;
     private SettingsWindow? _settingsWindow;
     private bool _exiting;
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
-        IPlatformServices platform, StartupOptions options, AppPaths paths, ILoggerFactory loggerFactory)
+        IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, ILoggerFactory loggerFactory)
     {
+        _playlists = playlists;
         _engine = engine;
         _settings = settings;
         _skins = skins;
@@ -75,12 +80,28 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
         _main = new SkinnedWindow("main", this);
         _mini = new SkinnedWindow("mini", this);
+        _playlist = new SkinnedWindow("playlist", this) { ShowInTaskbar = false };
         _snap.Register(_main, isMain: true);
         _snap.Register(_mini);
+        _snap.Register(_playlist);
         _snap.DragCompleted += (_, _) => SavePositions();
         BuildWindows();
         Restore(_main, UiSettings.MainWindow);
         Restore(_mini, UiSettings.MiniPlayerWindow);
+        Restore(_playlist, UiSettings.PlaylistWindow);
+        if (UiSettings.PlaylistSize is { } size)
+        {
+            _playlist.Width = size.Width * Scale;
+            _playlist.Height = size.Height * Scale;
+        }
+        _playlist.Closing += (_, e) =>
+        {
+            if (!_exiting)
+            {
+                e.Cancel = true; // Alt+F4 on the playlist hides it
+                SetPlaylistVisible(false);
+            }
+        };
         ApplyTopmost();
 
         foreach (var window in new[] { _main, _mini })
@@ -133,6 +154,17 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "seekForward": Run(() => player.SeekAsync(player.Position + TimeSpan.FromSeconds(5))); break;
             case "seekBack": Run(() => player.SeekAsync(player.Position - TimeSpan.FromSeconds(5))); break;
             case "open": _ = OpenFilesAsync(window); break;
+            case "playlist": SetPlaylistVisible(!_playlist!.IsVisible); break;
+            case "hide" when window == _playlist: SetPlaylistVisible(false); break;
+            case "search":
+                SetPlaylistVisible(true);
+                _playlists.FocusSearch();
+                break;
+            case "plAdd": _playlists.ShowAddMenu(source); break;
+            case "plRemove": _playlists.ShowRemoveMenu(source); break;
+            case "plSelect": _playlists.ShowSelectMenu(source); break;
+            case "plSort": _playlists.ShowSortMenu(source); break;
+            case "plList": _playlists.ShowListMenu(source); break;
             case "menu": ShowMainMenu(source); break;
             case "minimize": window.WindowState = WindowState.Minimized; break;
             case "close": case "exit": Exit(); break;
@@ -141,7 +173,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "settings": ShowSettings(); break;
             case "about": ShowAbout(); break;
             default:
-                // equalizer, playlist, crossfade, cast: windows/features arrive in later phases.
+                // equalizer, crossfade, cast: windows/features arrive in later phases.
                 _logger.LogDebug("Action {Action} is not available yet", action);
                 break;
         }
@@ -149,9 +181,15 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void BeginDrag(Control source, PointerPressedEventArgs e) => _snap.BeginDrag(source, e);
 
-    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute";
+    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist";
 
-    public bool IsToggleOn(string bind) => false;
+    public Control? CreateElement(Skin skin, SkinElement element) => PlaylistViews.Create(skin, element, _playlists);
+
+    /// <summary>Files dropped on a player window: added to the active playlist; on the main window or mini player they play (PL-04).</summary>
+    public void DropFiles(IReadOnlyList<string> paths, Window window) =>
+        _ = _playlists.AddAsync(paths, play: window != _playlist);
+
+    public bool IsToggleOn(string bind) => bind == "playlist" && _playlist?.IsVisible == true;
 
     public void ShowDeviceMenu(Control source)
     {
@@ -196,6 +234,56 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
             _mini!.Build(_fallbackSkin, _fallbackSkin.Window("mini")!, scale);
         }
+        if (skin.Window("playlist") is { } playlist)
+        {
+            _playlist!.Build(skin, playlist, scale);
+        }
+        else
+        {
+            _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
+            _playlist!.Build(_fallbackSkin, _fallbackSkin.Window("playlist")!, scale);
+        }
+    }
+
+    /// <summary>UI-01: shows or hides the playlist window (PL toggle, Alt+E, Windows menu); the choice is saved.</summary>
+    private void SetPlaylistVisible(bool visible)
+    {
+        if (visible == _playlist!.IsVisible)
+        {
+            return;
+        }
+        if (visible)
+        {
+            ShowPlaylist();
+        }
+        else
+        {
+            SavePositions();
+            _playlist.Hide();
+        }
+        _settings.Update(SettingsGroup.Interface, s => s.Interface.PlaylistVisible = visible);
+        _main!.Refresh();
+        _mini!.Refresh();
+    }
+
+    /// <summary>
+    /// Shows the playlist window owned by the main window, so clicking the app in the taskbar brings both to the front,
+    /// and they minimise and restore together (like Winamp's docked windows).
+    /// </summary>
+    private void ShowPlaylist()
+    {
+        if (!_playlist!.IsVisible)
+        {
+            _playlist.Show(_main!);
+        }
+    }
+
+    /// <summary>First run: dock the playlist window directly below the main window.</summary>
+    private void PlacePlaylistBelowMain()
+    {
+        var bounds = WindowSnapManager.Bounds(_main!);
+        _playlist!.WindowStartupLocation = WindowStartupLocation.Manual;
+        _playlist.Position = new PixelPoint(bounds.X, bounds.Bottom);
     }
 
     private void ToggleMiniPlayer()
@@ -206,6 +294,18 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         show.Show();
         show.Activate();
         hide.Hide();
+        // UI-05: other windows are hidden in the mini player and come back when expanding.
+        if (toMini)
+        {
+            _playlistBeforeMini = _playlist!.IsVisible;
+            _playlist.Hide();
+        }
+        else if (_playlistBeforeMini)
+        {
+            ShowPlaylist();
+        }
+        _main!.Refresh();
+        _mini.Refresh();
         if (_desktop is not null)
         {
             _desktop.MainWindow = show;
@@ -249,6 +349,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             ApplyDialogTheme();
             _main.Refresh();
             _mini!.Refresh();
+            _playlist!.Refresh();
         });
     }
 
@@ -271,6 +372,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     {
         var main = _main!.Position;
         var mini = _mini!.Position;
+        var playlist = _playlist!.Position;
+        var playlistSize = new WindowSize(_playlist.Width / Scale, _playlist.Height / Scale);
+        var playlistVisible = _playlist.IsVisible;
         var mainKnown = _main.IsVisible || UiSettings.MainWindow is null;
         var miniKnown = _mini.IsVisible || UiSettings.MiniPlayerWindow is null;
         _settings.Update(SettingsGroup.Interface, s =>
@@ -282,6 +386,11 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             if (miniKnown && _mini.IsVisible)
             {
                 s.Interface.MiniPlayerWindow = new WindowPlacement(mini.X, mini.Y);
+            }
+            if (playlistVisible)
+            {
+                s.Interface.PlaylistWindow = new WindowPlacement(playlist.X, playlist.Y);
+                s.Interface.PlaylistSize = playlistSize;
             }
         });
     }
@@ -295,6 +404,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _exiting = true;
         SavePositions();
         _settingsWindow?.Close();
+        _playlists.Service.Flush();
+        _playlist?.Close();
         _main?.Close();
         _mini?.Close();
         _desktop?.Shutdown();
@@ -312,6 +423,15 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
         _firstShownDone = true;
         var owner = _main!.IsVisible ? _main : _mini!;
+        if (UiSettings.PlaylistWindow is null)
+        {
+            PlacePlaylistBelowMain();
+        }
+        if (UiSettings.PlaylistVisible && _main.IsVisible)
+        {
+            ShowPlaylist();
+            _main.Refresh();
+        }
 
         if (_skins.StartupErrors.Count > 0)
         {
@@ -329,7 +449,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
         if (_options.Files.Count > 0)
         {
-            Run(() => _engine.OpenAsync(_options.Files));
+            Run(() => _playlists.AddAsync(_options.Files, play: true)); // PL-04: added to the active playlist and played
         }
     }
 
@@ -346,7 +466,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray();
         if (paths.Length > 0)
         {
-            Run(() => _engine.OpenAsync(paths));
+            Run(() => _playlists.AddAsync(paths, play: true)); // CO-02: Open adds the files and plays them
         }
     }
 
