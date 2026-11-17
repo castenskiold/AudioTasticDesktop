@@ -52,5 +52,5 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 | `scripts/` | Developer scripts (test media) |
 | `assets/branding/` | Logo and app icons |
 | `docs/pdf-src/` | Sources of the PDF documents |
-| `.vscode/` | VS Code tasks, launch configurations and recommended extensions (initially in `docs/vscode/`; move them to `.vscode/`) |
-| `docs/ci/` | CI workflow; move `ci.yml` to `.github/workflows/` to activate it |
+| `.vscode/` | VS Code tasks, launch configurations and recommended extensions |
+| `.github/workflows/` | CI workflow (build/test on 3 OSes, publish 6 RIDs, native libraries) |
