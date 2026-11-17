@@ -1,5 +1,7 @@
-# CI (from P0; test job wired to native libraries and media in P1): build and test on Windows, macOS and Linux, publish self-contained apps for all six
-# runtime identifiers, build/fetch the native libraries and generate the test media.
+# CI (from P0; test job wired to native libraries and media in P1; plugin natives in P4): build and test on Windows, macOS and
+# Linux, publish self-contained apps for all six runtime identifiers, build/fetch the native libraries (FFmpeg, miniaudio,
+# SoundTouch, libopenmpt), fetch the plugin assets (GeneralUser GS SoundFont, OptimFROG libraries) and generate the test media.
+# Note: OptimFROG exists for x64 only, so its tests are skipped on the macOS arm64 runner by design.
 name: CI
 
 on:
@@ -17,7 +19,7 @@ jobs:
     name: Build and test (${{ matrix.os }})
     # Decoder (FM-01) and output (PB-04) tests need the native libraries and the generated media; without them they
     # are skipped, so this job waits for both and downloads them.
-    needs: [native, test-media]
+    needs: [native, plugin-assets, test-media]
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +37,14 @@ jobs:
         with:
           name: native-${{ matrix.rid }}
           path: native/out/${{ matrix.rid }}/native
+      - uses: actions/download-artifact@v4
+        with:
+          name: libopenmpt-${{ matrix.rid }}
+          path: native/out/libopenmpt/runtimes/${{ matrix.rid }}/native
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-assets
+          path: native
       - uses: actions/download-artifact@v4
         with:
           name: test-media
@@ -68,6 +78,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/native
+      - uses: actions/download-artifact@v4
+        with:
+          name: libopenmpt-${{ matrix.rid }}
+          path: native/out/libopenmpt/runtimes/${{ matrix.rid }}/native
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-assets
+          path: native
       - run: dotnet publish src/AudioTastic.App/AudioTastic.App.csproj -c Release -r ${{ matrix.rid }} --self-contained -o publish/${{ matrix.rid }}
       - uses: actions/upload-artifact@v4
         with:
@@ -103,10 +125,34 @@ jobs:
           cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} ${{ matrix.cmake_arch }}
           cmake --build native/build/${{ matrix.rid }} --config Release
           cmake --install native/build/${{ matrix.rid }} --config Release
+      - name: libopenmpt (prebuilt, FM-07)
+        if: ${{ startsWith(matrix.rid, 'win') }}
+        run: python native/fetch_libopenmpt.py --rid ${{ matrix.rid }}
+      - name: libopenmpt (built from source, FM-07)
+        if: ${{ !startsWith(matrix.rid, 'win') }}
+        run: native/build_libopenmpt_unix.sh ${{ matrix.rid }}
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.rid }}
           path: native/out/${{ matrix.rid }}/native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libopenmpt-${{ matrix.rid }}
+          path: native/out/libopenmpt/runtimes/${{ matrix.rid }}/native
+
+  plugin-assets:
+    name: Plugin assets (SoundFont, OptimFROG)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 native/fetch_soundfont.py
+      - run: python3 native/fetch_optimfrog.py --rid win-x64 --rid linux-x64 --rid osx-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-assets
+          path: |
+            native/downloads/soundfont
+            native/out/optimfrog
 
   test-media:
     name: Test media
@@ -114,6 +160,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # The OptimFROG package's encoder makes the .ofr test files (used locally, never shipped).
+      - run: python3 native/fetch_optimfrog.py --rid linux-x64
       - run: python3 scripts/generate_test_media.py
       - uses: actions/upload-artifact@v4
         with:
