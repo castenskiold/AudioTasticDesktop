@@ -22,6 +22,8 @@
     <Project Path="tests/AudioTastic.Core.Tests/AudioTastic.Core.Tests.csproj" />
     <Project Path="tests/AudioTastic.Data.Tests/AudioTastic.Data.Tests.csproj" />
     <Project Path="tests/AudioTastic.Input.Ffmpeg.Tests/AudioTastic.Input.Ffmpeg.Tests.csproj" />
+    <Project Path="tests/AudioTastic.Plugins.Host.Tests/AudioTastic.Plugins.Host.Tests.csproj" />
+    <Project Path="tests/AudioTastic.TestPlugin/AudioTastic.TestPlugin.csproj" />
     <Project Path="tests/AudioTastic.TestSupport/AudioTastic.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">

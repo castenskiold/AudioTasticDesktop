@@ -30,6 +30,9 @@ public sealed class AppPaths
     public string PresetsFolder => Path.Combine(Root, "presets");
     public string SkinsFolder => Path.Combine(Root, "skins");
     public string PluginsFolder => Path.Combine(Root, "plugins");
+
+    /// <summary>PG-01: writable folders for plugins' own files (one sub-folder per plugin id), created on demand.</summary>
+    public string PluginDataFolder => Path.Combine(Root, "plugin-data");
     public string LogsFolder => Path.Combine(Root, "logs");
     public string CrashFolder => Path.Combine(Root, "crash");
 

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- PG-03 tests: a plugin loaded by AudioTastic.Plugins.Host.Tests. Its behaviour is set per plugin folder by a
+       mode.txt file, so one assembly can act as a good, a crashing or a failing plugin. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Like every plugin: the SDK comes from the host, so it is not copied into the plugin folder. -->
+    <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" Private="false" ExcludeAssets="runtime" />
+  </ItemGroup>
+</Project>

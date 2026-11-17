@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Plugins.Host\AudioTastic.Plugins.Host.csproj" />
+    <!-- Built first but not referenced: the tests load it into plugin load contexts only. -->
+    <ProjectReference Include="..\AudioTastic.TestPlugin\AudioTastic.TestPlugin.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <!-- Copy the test plugin into test-plugin/ beside the tests (not next to them, so it never loads in the default context). -->
+  <Target Name="CopyTestPlugin" AfterTargets="Build">
+    <ItemGroup>
+      <TestPluginFiles Include="$(MSBuildThisFileDirectory)..\AudioTastic.TestPlugin\bin\$(Configuration)\$(TargetFramework)\AudioTastic.TestPlugin.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(TestPluginFiles)" DestinationFolder="$(OutDir)test-plugin" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

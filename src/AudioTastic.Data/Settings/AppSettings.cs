@@ -136,6 +136,14 @@ public sealed class EqualizerDspSettings
 
 public sealed class PluginSettings
 {
+    /// <summary>PG-04: ids of plugins the user switched off.</summary>
+    public List<string> Disabled { get; set; } = [];
+
+    /// <summary>PG-05: each plugin's own settings (plugin id → JSON object), written through IPluginSettings.</summary>
+    public Dictionary<string, System.Text.Json.Nodes.JsonObject> Data { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>PG-04: plugin folders to delete at the next start (files that were still in use when uninstalled).</summary>
+    public List<string> PendingRemoval { get; set; } = [];
 }
 
 public sealed class GeneralSettings
