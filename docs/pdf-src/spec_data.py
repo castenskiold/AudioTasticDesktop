@@ -266,7 +266,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
  "<b>Assets:</b> assets/branding/audiotastic.ico (Windows, set as ApplicationIcon), audiotastic.icns (macOS bundle), png/audiotastic-*.png (Linux hicolor icon theme and Avalonia Window.Icon). "
  "<b>About dialog:</b> lists THIRD-PARTY-NOTICES.md content.", None),
 ("UI-05", "Mini player",
- "Collapses the whole player to one small window with: logo, previous/play-pause/next, scrolling title, time, a small volume slider and an expand button. Other windows are hidden while the mini player is shown and restored when expanding. Can be set to stay on top.",
+ "Collapses the whole player to one compact two-row window (not a title bar). Top row: logo (main menu), scrolling title, expand button. Bottom row: elapsed time, seek bar, track length, previous / play-pause (a circle that shows pause while playing) / stop / next, shuffle and playlist toggles, and a speaker icon (click mutes, mouse wheel changes the volume). Other windows are hidden while the mini player is shown and restored when expanding. Can be set to stay on top.",
  "Toggle: title bar button in MW1, double-click the main window title bar, or Ctrl+W (Winamp's windowshade key).",
  "<b>Components:</b> MiniPlayerWindow (separate skin section in skin.json); WindowSnapManager remembers the full layout.", "Settings › Interface: always on top for mini player and/or main window."),
 ("UI-06", "Scrolling title and format indicators",
@@ -279,9 +279,9 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
  "<b>Components:</b> VisualisationFeed in Core (taps post-DSP audio, 2048-point FFT via FftSharp, 60 fps); SpectrumControl and ScopeControl (SkiaSharp). "
  "<b>Plugin API:</b> IVisualisationPlugin receives PCM and spectrum frames and draws to an SKCanvas (PG-01).", "Settings › Interface: visualisation type, bar count, peak fall speed, frame rate."),
 ("UI-08", "High-DPI and double size",
- "All windows render sharply at any OS scale (100–300 %). Double size mode doubles the size of the main and equalizer windows (and mini player), like Winamp's double-size.",
+ "All windows render sharply at any OS scale (100–300 %). Player size (100–200 %, default 150 %) scales the skinned windows; double size mode doubles that, like Winamp's double-size.",
  "Main menu › Options › Double size (Ctrl+D).",
- "<b>Components:</b> Avalonia per-monitor DPI handling; vector skin assets or @2x PNGs; a ScaleTransform on the window content for double size.", "Settings › Interface: double size."),
+ "<b>Components:</b> Avalonia per-monitor DPI handling; vector skin assets or @2x PNGs; a ScaleTransform on the window content for double size.", "Settings › Interface: player size, double size."),
 ("UI-09", "Dark/light mode for dialogs",
  "Non-skinned windows (settings, dialogs, tag editor, plugin manager) follow the OS light/dark setting.",
  "All dialogs.",

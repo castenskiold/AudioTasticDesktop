@@ -185,17 +185,22 @@ class Wireframe(Flowable):
             self.txt(AX + AW / 2, ly + i * 10, t, 5.8 if col == WHITE else 5.4, "InM" if col == WHITE else "In", col, "c")
         self.tag(AX + 10, ly + 46, "AL2")
 
-        # ---------------- mini player
-        MY = 262
+        # ---------------- mini player (two rows, UI-05)
+        MY = 256
         self.txt(AX, MY - 6, "M I N I   P L A Y E R", 4.8, "InSB", MUTED)
-        self.rr(AX, MY, AW, 24, 12, 0.9, WHITE, PANEL)
-        c.drawImage(T.LOGO_SMALL, AX + 6, self.Y(MY + 19), 14, 14, mask="auto")
+        self.rr(AX, MY, AW, 38, 7, 0.9, WHITE, PANEL)
+        c.drawImage(T.LOGO_SMALL, AX + 6, self.Y(MY + 15), 10, 10, mask="auto")
+        self.txt(AX + 20, MY + 12, "Artist Two – Now Playing", 6.2, "InSB", WHITE)
+        self.txt(AX + 6, MY + 29, "1:31", 5.4, "InL", WHITE)
+        c.setStrokeColor(DIM); c.setLineWidth(1); c.line(AX + 22, self.Y(MY + 27), AX + AW * 0.45, self.Y(MY + 27))
+        c.setStrokeColor(WHITE); c.line(AX + 22, self.Y(MY + 27), AX + 40, self.Y(MY + 27))
+        self.txt(AX + AW * 0.45 + 4, MY + 29, "5:12", 5.4, "InL", MUTED)
+        cx, cy = AX + AW * 0.66, MY + 27
+        c.setStrokeColor(WHITE); c.setLineWidth(0.8); c.circle(cx, self.Y(cy), 5, stroke=1, fill=0)
         c.setFillColor(WHITE)
-        p = c.beginPath(); cx, cy = AX + 30, MY + 12
-        p.moveTo(cx - 2.5, self.Y(cy - 3)); p.lineTo(cx + 3, self.Y(cy)); p.lineTo(cx - 2.5, self.Y(cy + 3)); p.close(); c.drawPath(p, fill=1, stroke=0)
-        self.txt(AX + 40, MY + 14, "Artist Two – Now Playing", 5.4, "In", WHITE)
-        self.txt(AX + AW - 10, MY + 14, "-3:41", 6, "InM", WHITE, "r")
-        self.tag(AX + AW - 22, MY + 26, "MP")
+        p = c.beginPath(); p.moveTo(cx - 1.5, self.Y(cy - 2.2)); p.lineTo(cx + 2.4, self.Y(cy)); p.lineTo(cx - 1.5, self.Y(cy + 2.2)); p.close(); c.drawPath(p, fill=1, stroke=0)
+        self.pill(AX + AW - 34, MY + 23, "SHF")
+        self.tag(AX + AW - 22, MY + 40, "MP")
 
         # ---------------- legend
         self.txt(AX, 310, "M A I N   M E N U", 4.8, "InSB", MUTED)
@@ -286,7 +291,7 @@ story.append(T.table([
     ("PW6", "Duration info", "Selection / total duration and background analysis status (PL-07, AN-01)."),
     ("AL1", "Album art", "Full-size cover; right-click for online lookup (MD-02, MD-03)."),
     ("AL2", "Lyrics", "Synced or plain lyrics (MD-04)."),
-    ("MP", "Mini player", "Compact single-row player replacing all windows (UI-05)."),
+    ("MP", "Mini player", "Compact two-row player replacing all windows: title row, then time, seek, transport, shuffle, playlist and mute (UI-05)."),
 ], head=("Code", "Region", "Contents"), widths=(17, 40, 113), status_col=-1))
 
 story += T.h2("2.2 Menus")
@@ -413,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.3  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.3")
+        "Version 1.4  ·  17 November 2026", story, short_title="Feature Specification  ·  v1.4")
 print("built")

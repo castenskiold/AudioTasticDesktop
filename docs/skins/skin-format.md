@@ -55,7 +55,7 @@ Add `"$schema": "https://audiotastic.app/schemas/skin-1.json"` (or a relative pa
 
 ### Windows
 
-Each window has `width` and `height` in device-independent pixels at 100 % scale; double size (UI-08) multiplies them by 2. It also has an optional `background`, `border`, `borderWidth` and `cornerRadius`, and a list of `elements`. Elements are drawn in order, so later elements appear on top.
+Each window has `width` and `height` in layout units. The player draws them at the player size from Settings › Interface (default 150 %), and double size (UI-08) doubles that. Use SVG so the skin stays sharp at every size. It also has an optional `background`, `border`, `borderWidth` and `cornerRadius`, and a list of `elements`. Elements are drawn in order, so later elements appear on top.
 
 ### Elements
 
@@ -66,10 +66,10 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `rect` | — | A rectangle: `fill`, `stroke`, `strokeWidth`, `cornerRadius`. Decoration and panels. |
 | `image` | — | A picture: `image`, and `color` for `currentColor` in SVG. |
 | `text` | — | Static `text` with `font`, `fontSize`, `color`, `align`, `letterSpacing`. |
-| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand` | A push button. |
-| `toggle` | `shuffle`, `repeat`, `equalizer`, `playlist`, `crossfade`, `cast` | An on/off button. `repeat` uses the `alternate` state for repeat-track. Toggles for features not built yet are drawn `disabled`. |
+| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand` | A push button. `playPause` is in the `active` state while playing, so `images.active` can show a pause icon. |
+| `toggle` | `shuffle`, `repeat`, `mute`, `equalizer`, `playlist`, `crossfade`, `cast` | An on/off button. `repeat` uses the `alternate` state for repeat-track. Toggles for features not built yet are drawn `disabled`. |
 | `slider` | `volume`, `seek` | A horizontal slider: `trackColor`, `fillColor`, `thumbColor`, `thumbSize`, `trackThickness`. |
-| `time` | — | Elapsed/remaining time (CO-06). Click to toggle; it blinks while paused. `font`, `fontSize`, `color`, `align`. |
+| `time` | none, or `duration` | Without bind: elapsed/remaining time (CO-06); click to toggle; it blinks while paused. With `duration`: the track length. `font`, `fontSize`, `color`, `align`. |
 | `marquee` | — | Scrolling "Artist – Title (duration)" (UI-06). `font`, `fontSize`, `color`, `speed` (px/s). |
 | `indicators` | — | Format indicators and badges (UI-06): bitrate, kHz, channels. `font`, `fontSize`, `color`, `stroke`, `spacing`. |
 | `dragArea` | — | Dragging moves the window, together with the windows docked to it. Double-click toggles the mini player. |
