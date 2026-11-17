@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-06: OptimFROG input plugin over the OptimFROG SDK (closed-source freeware, x64 only), called through P/Invoke. -->
+  <PropertyGroup>
+    <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioTastic.Input.OptimFrog.Tests" />
+  </ItemGroup>
+  <!-- The OptimFROG libraries and their license.html (native/fetch_optimfrog.py; git-ignored), shipped inside the plugin
+       folder as runtimes/<rid>/native. -->
+  <ItemGroup>
+    <None Include="$(RepoRoot)native\out\optimfrog\**\*" Link="%(RecursiveDir)%(Filename)%(Extension)" Visible="false" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

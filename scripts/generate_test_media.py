@@ -5,8 +5,10 @@ Creates synthetic signals (sine, sweep, silence, clicks and gapless pairs) in ev
 can encode, plus a small MIDI file written directly. Output: tests/media/generated/ (git-ignored)
 and a manifest.json describing each file.
 
-Formats FFmpeg cannot encode (APE, Musepack, Shorten, OptimFROG, DSF/DFF, tracker modules) need
-hand-made fixtures; they are listed in the manifest under "missing".
+OptimFROG files (FM-06) are encoded with the encoder from the verified OptimFROG package in
+native/downloads/optimfrog (python native/fetch_optimfrog.py), used locally only and never shipped.
+Other formats FFmpeg cannot encode (APE, Musepack, Shorten, DSF/DFF, XM/IT/S3M) need hand-made fixtures;
+they are listed in the manifest under "missing". The MOD tests write their own module.
 
 Usage: python scripts/generate_test_media.py [--ffmpeg PATH] [--out DIR]
 """
@@ -14,8 +16,11 @@ import argparse
 import json
 import shutil
 import struct
+import platform
 import subprocess
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -50,7 +55,34 @@ GAPLESS_FORMATS = ["wav16", "flac", "mp3", "aac", "opus", "vorbis"]
 GAPLESS_SPLIT_SECONDS = 4.321  # deliberately not on a codec frame boundary
 GAPLESS_TOTAL_SECONDS = 10
 
-MISSING = ["ape", "musepack", "shorten", "optimfrog", "dsf", "dff", "mod", "xm", "it", "s3m"]
+MISSING = ["ape", "musepack", "shorten", "dsf", "dff", "xm", "it", "s3m"]
+
+# FM-06: host OS -> (OptimFROG package, encoder inside it)
+OPTIMFROG = {
+    "Windows": ("OptimFROG_Win_x64_5100", "ofr.exe"),
+    "Linux": ("OptimFROG_Linux_x64_5100", "ofr"),
+    "Darwin": ("OptimFROG_OSX_x64_5100", "ofr"),
+}
+
+
+def write_optimfrog(out: Path, manifest):
+    """Encodes 16- and 24-bit WAVs to .ofr with the OptimFROG encoder (local test data only)."""
+    package, encoder = OPTIMFROG.get(platform.system(), (None, None))
+    archive = REPO / "native" / "downloads" / "optimfrog" / f"{package}.zip"
+    if package is None or platform.machine().lower() not in ("amd64", "x86_64") or not archive.exists():
+        print("OptimFROG encoder not available (run native/fetch_optimfrog.py); no .ofr test files")
+        manifest["missing"].append("optimfrog")
+        return
+    with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(archive) as zf:
+        exe = Path(tmp) / encoder
+        exe.write_bytes(zf.read(f"{package}/{encoder}"))
+        exe.chmod(0o755)
+        for source in ("sine1k.wav16.wav", "sweep.wav16.wav", "sine1k.wav24.wav"):
+            signal, fmt, _ = source.split(".")
+            name = f"{signal}.ofr{fmt.removeprefix('wav')}.ofr"
+            subprocess.run([str(exe), "--encode", str(out / source), "--output", str(out / name), "--preset", "2", "--silent"],
+                           check=True)
+            manifest["files"].append({"file": name, "signal": signal, "format": "optimfrog", "reference": source})
 
 
 def run(ffmpeg, args):
@@ -106,6 +138,8 @@ def main():
         run(args.ffmpeg, ["-ss", str(GAPLESS_SPLIT_SECONDS), "-i", str(reference), *enc, str(b)])
         manifest["files"].append({"file": a.name, "gaplessPair": b.name, "reference": reference.name, "format": fmt,
                                   "splitSeconds": GAPLESS_SPLIT_SECONDS})
+
+    write_optimfrog(out, manifest)
 
     write_midi(out / "arpeggio.mid")
     manifest["files"].append({"file": "arpeggio.mid", "format": "midi", "seconds": 2})

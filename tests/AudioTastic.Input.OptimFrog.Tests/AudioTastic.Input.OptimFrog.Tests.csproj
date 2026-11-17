@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FM-06 OptimFROG tests. Need the OptimFROG library (native/fetch_optimfrog.py, x64 only) and the .ofr files from
+       scripts/generate_test_media.py; skipped, not failed, without them. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.OptimFrog\AudioTastic.Input.OptimFrog.csproj" />
+    <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

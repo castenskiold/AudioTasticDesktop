@@ -45,6 +45,7 @@
     <BuiltInPlugin Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
     <BuiltInPlugin Include="..\..\plugins\AudioTastic.Input.Midi\AudioTastic.Input.Midi.csproj" />
     <BuiltInPlugin Include="..\..\plugins\AudioTastic.Input.OpenMpt\AudioTastic.Input.OpenMpt.csproj" />
+    <BuiltInPlugin Include="..\..\plugins\AudioTastic.Input.OptimFrog\AudioTastic.Input.OptimFrog.csproj" />
   </ItemGroup>
 
   <!-- Branding assets live once in /assets/branding and are linked in (UI-04). -->

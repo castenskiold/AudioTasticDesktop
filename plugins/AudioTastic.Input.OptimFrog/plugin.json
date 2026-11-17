@@ -1,0 +1,11 @@
+{
+  "id": "audiotastic.input.optimfrog",
+  "name": "OptimFROG decoder",
+  "version": "0.4.0",
+  "author": "AudioTastic",
+  "description": "Plays OptimFROG Lossless (.ofr) and DualStream (.ofs) files with the OptimFROG SDK 1.600 (closed-source freeware by Florin Ghido, bundled under its licence). x64 only.",
+  "license": "MIT (plugin); OptimFROG Libraries: freeware, see OptimFROG-license.html",
+  "sdkVersion": "0.4.0",
+  "entryAssembly": "AudioTastic.Input.OptimFrog.dll",
+  "types": ["input"]
+}
