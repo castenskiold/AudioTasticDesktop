@@ -129,8 +129,6 @@ sections2=[
 ("Local HTTP streaming server","Serves the current track to cast targets that pull a URL. Transcodes formats the target cannot play on the fly (e.g. APE to FLAC)."),
 ("Device discovery","mDNS and SSDP discovery with a device picker in the UI."),
 ("Remote control","Web or mobile remote through a local REST/WebSocket API."),
-("Scrobbling","Last.fm and ListenBrainz."),
-("Discord Rich Presence","Shows 'now playing' status."),
 ("Configuration",f"All casting and network features are configured in {GS}."),
 ]),
 ("12. Plugin architecture",[
@@ -168,7 +166,7 @@ gs=[
 ("Output","Output device, exclusive/bit-perfect mode, high-resolution output (bit depth, sample rate, no resampling)."),
 ("Crossfading","Mode (Intro/Outro or Beat matching) and all settings in section 5."),
 ("Metadata","Album art on/off, online lookup on/off (and which services), lyrics on/off."),
-("Casting and network","Chromecast, DLNA/UPnP, AirPlay, streaming server (port, transcoding), discovery, remote control, scrobbling accounts, Discord Rich Presence."),
+("Casting and network","Chromecast, DLNA/UPnP, AirPlay, streaming server (port, transcoding), discovery, remote control."),
 ("Interface","Skin/theme, player size (default 150 %), mini player, always on top, double size, scrolling title, visualisation, notifications, dark/light mode."),
 ("System integration","Global hotkeys, tray behaviour, file associations, context menu."),
 ("Equalizer and DSP","EQ presets, auto EQ rules, DSP chain order, VST plugins, room correction."),
@@ -203,7 +201,6 @@ tech=[
 ("Streaming server","Kestrel / ASP.NET Core (MIT), embedded."),
 ("Local database","SQLite via Microsoft.Data.Sqlite (MIT)."),
 ("System integration","SharpHook (MIT) for global hotkeys; SMTC via CsWinRT (Windows); Tmds.DBus (MIT) for MPRIS (Linux); native interop for macOS Now Playing."),
-("Network services","Inflatable.Lastfm (MIT), ListenBrainz REST API, DiscordRichPresence (MIT)."),
 ("Logging","Serilog (Apache 2.0)."),
 ]
 story+=[PageBreak(),*HH1("15. Technology stack and licence policy"),
@@ -234,6 +231,7 @@ later=[
 ("Localisation","Not included."),
 ("VST2","Not included (VST3 only)."),
 ("AirPlay 2","Not included for now (original AirPlay only)."),
+("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
 ]
 story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome")),Spacer(1,6),
@@ -241,4 +239,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.8  ·  18 November 2026", story, short_title="Required Features  ·  v1.8")
+ "Version 1.9  ·  18 November 2026", story, short_title="Required Features  ·  v1.9")

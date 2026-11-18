@@ -88,7 +88,7 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
  "Plays HTTP, Icecast and SHOUTcast streams (MP3, AAC, Ogg, Opus, FLAC). Shows the now-playing title from ICY metadata in the scrolling title. Reconnects automatically after drops (up to 5 tries with back-off). Opening an .m3u/.pls with stream URLs adds them as stream entries.",
  "Main menu › Open URL… (Ctrl+L) opens a dialog with a URL field; a link to an .m3u/.pls/.xspf is downloaded and its entries added. Stream entries in the playlist show a stream icon and no duration. MW5 shows the stream bitrate; the scrolling title shows the now-playing title, else the station name.",
  "<b>Libraries:</b> FFmpeg http protocol with icy=1 (reads icy_metadata_packet). "
- "<b>Components:</b> LiveStreamSource wrapper (in the FFmpeg plugin) adding buffering (2 s, again after stalls), reconnect logic (up to 5 tries, back-off 0.5–8 s) and metadata change events (IStreamMetadata in the SDK). Scrobbling (CN-07) uses ICY titles.", None),
+ "<b>Components:</b> LiveStreamSource wrapper (in the FFmpeg plugin) adding buffering (2 s, again after stalls), reconnect logic (up to 5 tries, back-off 0.5–8 s) and metadata change events (IStreamMetadata in the SDK).", None),
 ("FM-11", "Audio CD playback and ripping",
  "Lists audio CD tracks, plays them, and rips them to files. Track names come from CD-Text or MusicBrainz disc ID lookup (MD-03). Ripping reads raw audio sectors, writes WAV, then converts with TL-01 to the chosen format and tags the result.",
  "Main menu › Play CD (lists drives). Rip: playlist context menu on CD tracks › Rip… opens the conversion dialog (TL-01) pre-filled.",
@@ -404,15 +404,6 @@ S("Casting and network", "Sending audio to other devices and connecting to onlin
  "Settings › Casting & network › Remote control: on/off, port, pairing QR code and PIN.",
  "<b>Components:</b> REST API + WebSocket (state push) on Kestrel; static HTML/JS remote page embedded as resources; pairing token required on every request. Off by default. "
  "<b>Also:</b> the same API documented for third-party remotes.", "Settings › Casting & network: remote control on/off, port, pairing."),
-("CN-07", "Scrobbling (Last.fm, ListenBrainz)",
- "Sends 'now playing' and completed listens to Last.fm and/or ListenBrainz. A listen counts after half the track or 4 minutes (whichever comes first) for tracks longer than 30 s. Listens made offline are queued and sent later.",
- "Settings › Casting & network › Scrobbling: sign in to Last.fm (browser authorisation), ListenBrainz user token, on/off per service.",
- "<b>Libraries:</b> Inflatable.Lastfm (MIT) for Last.fm (needs an API key and secret registered for AudioTastic); ListenBrainz REST API (submit-listens) via HttpClient. "
- "<b>Components:</b> ScrobbleService with an offline queue in SQLite.", "Settings › Casting & network: scrobbling accounts."),
-("CN-08", "Discord Rich Presence",
- "Shows 'Listening to Artist – Title' with elapsed time in the user's Discord status while playing (cleared when paused or stopped).",
- "Settings › Casting & network: Discord Rich Presence on/off.",
- "<b>Libraries:</b> DiscordRichPresence (MIT). Needs a Discord application (client ID) registered for AudioTastic in the Discord developer portal, with the logo uploaded as an asset.", "Settings › Casting & network: Discord on/off."),
 ])
 
 S("Plugin architecture", "How third parties (and AudioTastic itself) extend the player.", [

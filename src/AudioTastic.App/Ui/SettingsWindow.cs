@@ -93,7 +93,7 @@ public sealed class SettingsWindow : Window
                 Note(panel, "Album art, online lookup and lyrics arrive in phase P9.");
                 break;
             case SettingsGroup.CastingNetwork:
-                Note(panel, "Casting, streaming server, remote control, scrobbling and Discord arrive in phase P11.");
+                Note(panel, "Casting, the streaming server and remote control arrive in phase P11.");
                 break;
             case SettingsGroup.Interface:
                 InterfacePage(panel);

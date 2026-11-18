@@ -357,7 +357,7 @@ story += T.h2("3.2 Stored data")
 story.append(T.table([
     ("settings.json", "All settings (SettingsStore), with schema version for migrations."),
     ("playlists/", "One M3U8 file per playlist tab (titles in #EXTINF, CUE ranges in an #AT-RANGE line) plus playlists.json (tab order, names, active tab, scroll position)."),
-    ("cache.db (SQLite)", "Waveform peaks, loudness, BPM/beat/break data, durations, resume positions, auto-EQ file rules, scrobble queue, tags read for the playlist. Keyed by path + size + modified time."),
+    ("cache.db (SQLite)", "Waveform peaks, loudness, BPM/beat/break data, durations, resume positions, auto-EQ file rules, tags read for the playlist. Keyed by path + size + modified time."),
     ("presets/, skins/, plugins/", "EQ presets, installed skins (.atskin), installed plugins."),
     ("logs/, crash/", "Serilog rolling logs and crash reports."),
 ], head=("Location (data folder)", "Contents"), widths=(52, 118)))
@@ -418,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.10  ·  18 November 2026", story, short_title="Feature Specification  ·  v1.10")
+        "Version 1.11  ·  18 November 2026", story, short_title="Feature Specification  ·  v1.11")
 print("built")
