@@ -113,9 +113,10 @@ public sealed class CrossfadePlannerTests
     [Fact]
     public void Kicks_are_aligned_with_the_local_corrections_at_the_mix_point()
     {
-        // The outgoing kick sits 12 ms late around the mix point; the incoming kick 20 ms early at its entry.
-        var outgoing = Beats() with { Corrections = [new PhaseCorrection(240.1, 0.012)] };
-        var incoming = Beats(bpm: 125, beatStart: 20.1) with { Corrections = [new PhaseCorrection(20.1, -0.020)] };
+        // Where both play at full volume (after the 8 s fade-in, for 16 s), the outgoing kick sits 12 ms late and the
+        // incoming kick 20 ms early (sections every 32 beats; constant over the overlap, so the average is exact).
+        var outgoing = Beats() with { Corrections = [.. Enumerable.Range(0, 6).Select(i => new PhaseCorrection(232.1 + (i * 16), 0.012))] };
+        var incoming = Beats(bpm: 125, beatStart: 20.1) with { Corrections = [.. Enumerable.Range(0, 6).Select(i => new PhaseCorrection(15.46 + (i * 15.36), -0.020))] };
         var plain = CrossfadePlanner.Plan(BeatMatch(), new CrossfadeTrack(300, Beats()), new CrossfadeTrack(300, Beats(bpm: 125, beatStart: 20.1)), 0);
         var plan = CrossfadePlanner.Plan(BeatMatch(), new CrossfadeTrack(300, outgoing), new CrossfadeTrack(300, incoming), 0);
 

@@ -67,8 +67,8 @@ public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, i
     public BeatBreak? BreakAfter(double time) => Breaks.Where(b => b.Start >= time).Select(b => (BeatBreak?)b).FirstOrDefault();
 
     /// <summary>
-    /// XF-02: how far the kick sits from the grid around <paramref name="time"/> (s): the correction of the section
-    /// containing it, else of the nearest section within one section length, else 0.
+    /// XF-02: how far the kick sits from the grid at <paramref name="time"/> (s): interpolated between the centres of
+    /// the neighbouring sections; the nearest section's value up to one section length beyond; else 0.
     /// </summary>
     public double LocalOffset(double time)
     {
@@ -77,8 +77,43 @@ public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, i
             return 0;
         }
         var length = CorrectionBeats * Period;
-        var best = corrections.MinBy(c => Math.Abs(time - (c.Start + (length / 2))));
-        return Math.Abs(time - (best.Start + (length / 2))) <= length ? best.Offset : 0;
+        double Centre(PhaseCorrection c) => c.Start + (length / 2);
+        PhaseCorrection? before = null, after = null;
+        foreach (var c in corrections)
+        {
+            if (Centre(c) <= time && (before is null || Centre(c) > Centre(before.Value)))
+            {
+                before = c;
+            }
+            if (Centre(c) >= time && (after is null || Centre(c) < Centre(after.Value)))
+            {
+                after = c;
+            }
+        }
+        if (before is { } b && after is { } a)
+        {
+            var span = Centre(a) - Centre(b);
+            // Neighbours more than two sections apart (a break between them) are not interpolated: the nearer counts.
+            if (span <= 2 * length)
+            {
+                return span <= 0 ? b.Offset : b.Offset + ((a.Offset - b.Offset) * (time - Centre(b)) / span);
+            }
+            return time - Centre(b) <= Centre(a) - time ? b.Offset : a.Offset;
+        }
+        var nearest = before ?? after!.Value;
+        return Math.Abs(time - Centre(nearest)) <= length ? nearest.Offset : 0;
+    }
+
+    /// <summary>The average <see cref="LocalOffset"/> over [<paramref name="from"/>, <paramref name="to"/>].</summary>
+    public double AverageOffset(double from, double to)
+    {
+        const int points = 9;
+        double sum = 0;
+        for (var i = 0; i < points; i++)
+        {
+            sum += LocalOffset(from + ((to - from) * i / (points - 1)));
+        }
+        return sum / points;
     }
 
     public byte[] Serialize()

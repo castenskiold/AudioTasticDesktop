@@ -96,7 +96,7 @@ public sealed class AnalysisCoordinator : IDisposable
         var beats = xf is { Enabled: true } ? AnalysisKinds.Beats : AnalysisKinds.None;
         if (beats != AnalysisKinds.None && index >= 0 && index < entries.Length && entries[index] is { IsUrl: false } current)
         {
-            _analysis.Request(AnalysisTarget.For(current), beats, AnalysisPriority.Current);
+            _analysis.Request(AnalysisTarget.For(current), beats, AnalysisPriority.Next); // below normal: keep the UI smooth
         }
         if (index + 1 < entries.Length && entries[index + 1] is { IsUrl: false } next)
         {

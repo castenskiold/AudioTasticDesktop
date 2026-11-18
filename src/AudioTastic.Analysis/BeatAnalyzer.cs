@@ -16,7 +16,7 @@ public sealed class BeatAnalyzer : IAnalyzer
     public string Kind => KindName;
     public int DataVersion => 2; // 2: per-section phase corrections
 
-    public IAnalysisRun Start(AudioFormat format, long? lengthFrames) => new Run(format);
+    public IAnalysisRun Start(AudioFormat format, long? lengthFrames) => new Run(format, lengthFrames);
 
     /// <summary>Feature extraction, also used directly by the tests and the mix tool.</summary>
     public sealed class Run : IAnalysisRun
@@ -54,7 +54,7 @@ public sealed class BeatAnalyzer : IAnalyzer
         private float _clickMax;
         private double _thumpSum;
 
-        public Run(AudioFormat format)
+        public Run(AudioFormat format, long? lengthFrames = null)
         {
             _channels = format.Channels;
             SourceRate = format.SampleRate;
@@ -70,6 +70,17 @@ public sealed class BeatAnalyzer : IAnalyzer
             _lowBins = Math.Max(1, (int)Math.Round(150 / binHz));
             _pool = Math.Max(1, (int)Math.Round(Rate / 2000));
             _lowPass = 1 - Math.Exp(-2 * Math.PI * 150 / Rate);
+            if (lengthFrames is > 0 and var length)
+            {
+                // Sized up front: growing lists would reallocate large arrays again and again.
+                var seconds = Math.Min(length / (double)format.SampleRate, MaxEnvelopeSeconds) + 1;
+                var frames = (int)(seconds * FramesPerSecond);
+                var envelope = (int)(seconds * EnvelopeRate);
+                _onset.Capacity = frames;
+                _low.Capacity = frames;
+                _clickEnvelope.Capacity = envelope;
+                _thumpEnvelope.Capacity = envelope;
+            }
         }
 
         public int SourceRate { get; }

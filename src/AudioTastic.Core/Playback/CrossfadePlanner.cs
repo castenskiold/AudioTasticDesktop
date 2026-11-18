@@ -151,8 +151,14 @@ public static class CrossfadePlanner
         var mixStart = outBeats.BeatTime(phrase);
         if (mixStart < now + 1)
         {
-            fallback = "too late to mix on a phrase boundary";
-            return false;
+            // The set mix point has passed (a seek near the end): the next phrase that still fits.
+            var next = outBeats.BeatTime(outBeats.PhraseAtOrAfter(now + 3));
+            if (next > outgoing.Duration - tail)
+            {
+                fallback = "too late to mix on a phrase boundary";
+                return false;
+            }
+            mixStart = next;
         }
 
         // The incoming track enters on its phrase at or after (beat start + setting).
@@ -167,8 +173,9 @@ public static class CrossfadePlanner
         // Align the kicks where the mix happens: each track's kick can sit a little off its grid in some sections
         // (AN-02 corrections). The incoming entry moves so its kick meets the outgoing kick at the mix start:
         // entry + its offset - outgoing offset (scaled to the incoming tempo).
-        var deltaOut = outBeats.LocalOffset(mixStart);
-        var deltaIn = inBeats.LocalOffset(incomingStart);
+        // Measured where it is heard: averaged over the overlap at full volume (after the fade-in).
+        var deltaOut = outBeats.AverageOffset(mixStart + (fadeIn * outgoing.Speed), mixStart + ((fadeIn + overlap) * outgoing.Speed));
+        var deltaIn = inBeats.AverageOffset(incomingStart + (fadeIn * incomingSpeed), incomingStart + ((fadeIn + overlap) * incomingSpeed));
         incomingStart = Math.Max(0, incomingStart + deltaIn - (deltaOut * incomingSpeed / outgoing.Speed));
 
         // XF-04: tempo return after the outgoing track is silent: at the next break, or gradually.

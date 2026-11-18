@@ -73,6 +73,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private IBeatInfoProvider? _beatProvider;
     private BeatInfo? _trackBeats;          // AN-02 analysis of the current track, null until it is known
     private long _trackBeatsCheckedAt;
+    private PlaylistEntry? _nextBeatsRequested; // AN-02: the next track's analysis was asked for
+    private long _preloadRetryAt;              // XF-02: waiting for beat analysis before planning
     private CrossfadePlan? _plan;           // the transition planned for the armed incoming deck
     private CrossfadePlan? _mixing;         // after the hand-over: the outgoing deck still sounds, or the tempo returns
     private Deck? _fading;                  // the outgoing deck after the hand-over
@@ -669,6 +671,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _track = track;
             _trackBeats = null; // XF: fetched again for the new track
             _trackBeatsCheckedAt = 0;
+            _nextBeatsRequested = null;
+            _preloadRetryAt = 0;
             _lastUnderruns = 0;
             if (_abLoop is not null)
             {
@@ -1274,7 +1278,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private bool ShouldPreload() =>
         _preload is null && _graph.Next is null && _fading is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
         _track?.Duration is { } duration && (_settings.Current.Playback.Gapless || _settings.Current.Crossfading.Enabled) &&
-        Position >= PreloadAt(duration) && _entry is { IsUrl: false };
+        Position >= PreloadAt(duration) && _entry is { IsUrl: false } && Environment.TickCount64 >= _preloadRetryAt;
 
     /// <summary>
     /// When to preload: 10 s before the end (gapless), or 10 s before the earliest mix start a crossfade may need
@@ -1297,6 +1301,17 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         return TimeSpan.FromSeconds(Math.Max(0, start - (PreloadLead.TotalSeconds * speed)));
     }
 
+    /// <summary>XF-02: there are more than 5 s left before an Intro/Outro mix would have to start.</summary>
+    private bool StillTimeToWait()
+    {
+        if (_track?.Duration is not { } duration)
+        {
+            return false;
+        }
+        var ioStart = duration.TotalSeconds - (Math.Clamp(_settings.Current.Crossfading.OverlapSeconds, 0.5, 30) * CurrentDeckSpeed);
+        return Position.TotalSeconds < ioStart - 5 - PreloadLead.TotalSeconds;
+    }
+
     /// <summary>The current deck's speed (matched tempo, or the normal speed).</summary>
     private double CurrentDeckSpeed => _deckSpeedOverride ?? NormalSpeed;
 
@@ -1315,6 +1330,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         try
         {
             _trackBeats = _beatProvider.TryGet(entry);
+            // The next track's beats too, so they are ready when the mix is planned (TryGet queues the analysis).
+            if (PeekNext() is { } next && next.Playlist.Entries[next.Index] is { IsUrl: false } nextEntry && !ReferenceEquals(nextEntry, _nextBeatsRequested))
+            {
+                _nextBeatsRequested = nextEntry;
+                _ = _beatProvider.TryGet(nextEntry);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -1449,6 +1470,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 _spare.Gain.TargetGain = gain?.Linear ?? 1f;
                 _spare.Gain.SnapToTarget();
                 var crossfade = PlanCrossfade(entry, track, source, out var startConsumed, out var incomingBeats);
+                if (crossfade is { Mode: CrossfadeMode.IntroOutro, Fallback: "beat analysis missing" } && StillTimeToWait())
+                {
+                    // XF-02: the analysis is queued; plan again in a second rather than giving up on beat matching.
+                    source.Dispose();
+                    _preloadRetryAt = Environment.TickCount64 + 1000;
+                    return;
+                }
+                _preloadRetryAt = 0;
                 _spareSpeedOverride = crossfade is { Mode: CrossfadeMode.BeatMatch } ? crossfade.IncomingSpeed : null;
                 ApplySpeed();
                 await _spare.LoadAsync(source, armed: true).ConfigureAwait(false);
