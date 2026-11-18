@@ -51,6 +51,8 @@ CI (`.github/workflows/ci.yml`) runs the same steps:
 
 `miniaudio/at_miniaudio.h` is a small, flat C API (opaque handles, fixed-layout structs) compiled into the `miniaudio` library. The .NET side (`AudioTastic.Core/Audio/Output/MiniaudioNative.cs`) P/Invokes only this API, never miniaudio's own structs, whose layout differs per platform. When the shim changes, bump `AT_MA_API_VERSION` and `MiniaudioNative.ApiVersionExpected` together.
 
+API version 2 (P6) added sample formats (`AT_MA_FORMAT_F32/S16/S24/S32`), exclusive mode, `at_ma_device_formats` (the device's native formats, used for exclusive-mode negotiation) and `at_ma_device_internal_format`. The data callback receives a raw `void*` buffer in the opened format; integer conversion and dither are done in C# (`SampleConverter`), and `noClip` is set so miniaudio never alters the samples.
+
 ## Rules
 
 - FFmpeg must stay an LGPL build: never `--enable-gpl` or `--enable-nonfree`.

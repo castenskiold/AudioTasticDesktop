@@ -35,14 +35,18 @@ Useful switches:
 - Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played.
 - Internet radio: Ctrl+L (Open URL) takes stream URLs and `.m3u`/`.pls` links.
 - Winamp keys work: Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings.
+- Playback extras: Q queues the selected rows (play next), Shift+V stops after the current track, [ sets A-B repeat
+  (markers on the waveform can be dragged); Main menu › Playback › Speed… and Main menu › Sleep timer….
 
 **Formats** (all played through plugins):
-- FFmpeg: WAV, FLAC, MP3, AIFF, APE, AAC/M4A, WavPack, Ogg Vorbis, Opus, ALAC, WMA, Musepack, TTA, Shorten, http streams;
+- FFmpeg: WAV, FLAC, MP3, AIFF, APE, AAC/M4A, WavPack, Ogg Vorbis, Opus, ALAC, WMA, Musepack, TTA, Shorten, DSD (DSF/DFF, as PCM or DoP), http streams;
 - MIDI with a bundled SoundFont;
 - tracker modules (MOD, XM, IT, S3M, ...);
 - OptimFROG (x64).
 
 **Waveform and loudness:** the strip under the display is a waveform seek bar (click or drag to seek). ReplayGain (Settings › Playback) uses tags or a background EBU R128 analysis; "RG" shows while a gain is applied.
+
+**Playback engine:** gapless playback, short fades on pause/stop/seek, session and per-file resume (Settings › Playback), and exclusive bit-perfect output with 16/24/32-bit formats and DoP (Settings › Output).
 
 **Plugins** are managed in Settings › Plugins. Skins are documented in `docs/skins/skin-format.md`; plugins in `docs/plugins/plugin-guide.md`.
 

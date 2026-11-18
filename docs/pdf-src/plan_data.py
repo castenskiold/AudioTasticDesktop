@@ -127,7 +127,7 @@ dict(id="P6", name="Playback engine completion", size="L",
  goal="All playback-engine features: gapless, fades, exclusive/bit-perfect output, high-resolution and DSD/DoP, speed/pitch, resume, A-B repeat, queue and sleep timer.",
  why="Gapless preloading and the time-stretch stage are direct prerequisites for crossfading (P8). The remaining engine features share the same code paths and are cheapest to finish together.",
  features=[
-  ("PB-01", "Preload next track into the idle deck 10 s before the end; sample-accurate hand-over; resampling between rates; 'match output rate' option."),
+  ("PB-01", "Preload next track into the idle deck 10 s before the end; sample-accurate hand-over; resampling between rates (own windowed-sinc resampler); 'match output rate' option."),
   ("PB-02", "Fade ramps on pause/stop/seek/resume."),
   ("PB-04", "Part 2: exclusive mode (WASAPI exclusive, macOS hog mode via own CoreAudio interop, ALSA hw:), device menu on the volume slider; output plugins (PG-01) listed in Settings › Output. (ASIO is optional and deferred; it may be revisited later.)"),
   ("PB-05", "Device format negotiation, no forced resampling, TPDF dither, OUT indicator."),
@@ -336,7 +336,15 @@ PROGRESS = {
                         "Found and fixed a P4 regression (files from the FFmpeg plugin had no duration, so seeking was off). Checked by Anders."],
                open=["Live waveform for radio not yet checked by Anders; macOS/Linux.",
                      "File info dialog with the ReplayGain values comes with MD-05 (P9)."]),
-    "P6": dict(status="Next", date="", outcome=[], open=[]),
+    "P6": dict(status="Done on Windows", date="18 Nov 2026",
+               outcome=["Gapless playback: the next track is preloaded into the second deck and starts in the same audio callback; MP3, AAC, FLAC, Opus, Vorbis and CUE tracks join sample-exactly (tests). Own windowed-sinc resampler for tracks at another rate.",
+                        "Exclusive WASAPI output with format negotiation (16/24/32-bit, rate matching, TPDF dither only when reducing bit depth); 16- and 24-bit files reach the device bit-identically (test); refused exclusive mode falls back to shared.",
+                        "DSD (DSF/DFF) as PCM, and DoP to exclusive 24/32-bit outputs, verified against the raw DSD bits (no DoP DAC was needed).",
+                        "Fades (linear in dB), speed 0.5–2.0× with or without keeping the pitch (SoundTouch; untouched at 1.0×), session and per-file resume, A-B repeat with draggable waveform markers, play-next queue, stop after current, sleep timer.",
+                        "Checked by Anders: gapless, fades, speed, A-B, queue, badges and session resume. His feedback applied: a second badge row (the first was full, so STOP and the sleep badge were cut off) and short confirmations for Q, Shift+V, [ and the sleep timer."],
+               open=["Exclusive mode on a local sound card (Anders tested over Remote Desktop, whose audio has no exclusive mode); macOS hog mode and Linux ALSA hw: rely on miniaudio's exclusive mode and are untested.",
+                     "Output plugins (PG-01) are not yet listed in Settings › Output; tray entry for the sleep timer comes in P10; macOS/Linux."]),
+    "P7": dict(status="Next", date="", outcome=[], open=[]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).
@@ -345,6 +353,7 @@ PREREQ_STATUS = {
     "OptimFROG SDK downloaded and its redistribution terms checked": "Done: bundling allowed; x64 packages downloaded and verified.",
     "Freely redistributable General MIDI SoundFont chosen": "Done: GeneralUser GS v2.0.3 chosen and downloaded.",
     "GitHub repository and Actions enabled": "Pending: Anders adds the remote later.",
+    "A DoP-capable DAC (optional; otherwise DoP is verified by inspecting output data)": "Not needed: DoP verified by inspecting the output data.",
     ".NET SDK (current LTS) on all build machines": "Done on Windows (.NET SDK 10.0.300).",
     "macOS machine or runner for osx builds": "Pending (CI runner once the repository exists).",
 }

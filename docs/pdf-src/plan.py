@@ -176,5 +176,5 @@ story.append(idx)
 
 T.build("AudioTastic_Implementation_Plan.pdf", "Implementation Plan",
         "Build order, prerequisites and exit criteria for every feature",
-        "Version 1.5  ·  18 November 2026  ·  Based on Feature Specification v1.8", story, short_title="Implementation Plan  ·  v1.5")
+        "Version 1.6  ·  18 November 2026  ·  Based on Feature Specification v1.9", story, short_title="Implementation Plan  ·  v1.6")
 print("built")

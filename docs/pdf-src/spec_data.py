@@ -57,10 +57,11 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
 ("FM-03", "ALAC and M4A", "Plays Apple Lossless and AAC in MP4 containers (.m4a, .mp4, .alac).", "As FM-01.", "<b>Libraries:</b> FFmpeg mov demuxer and alac/aac decoders.", None),
 ("FM-04", "WMA", "Plays Windows Media Audio: WMA 1/2, WMA Pro and WMA Lossless (.wma, .asf).", "As FM-01.", "<b>Libraries:</b> FFmpeg asf demuxer and wmav1/wmav2/wmapro/wmalossless decoders. DRM-protected files are not supported and show an error.", None),
 ("FM-05", "DSD (DSF / DFF)",
- "Plays DSD files. Default: converted to PCM (FFmpeg dsd decoders, output at 352.8 kHz or the device's highest rate). Optional: DoP (DSD over PCM) output to DACs that support it, which sends the raw DSD bits packed in 24-bit PCM frames with alternating 0x05/0xFA markers.",
- "As FM-01. MW5 shows DSD64/DSD128 and 'DoP' when DoP is active.",
+ "Plays DSD files. Default: converted to PCM (FFmpeg dsd decoders, at DSD rate / 8, i.e. 352.8 kHz for DSD64; resampled when the device cannot play that rate). Optional: DoP (DSD over PCM) output to DACs that support it, which sends the raw DSD bits packed in 24-bit PCM frames with alternating 0x05/0xFA markers, at DSD rate / 16 (176.4 kHz for DSD64). "
+ "While DoP plays nothing may alter the samples: volume, ReplayGain, fades and speed are bypassed (mute still works), and there is no gapless preload into or out of a DoP track. If the device has no 24/32-bit exclusive format at the DoP rate, or refuses exclusive mode, the file plays as PCM instead.",
+ "As FM-01. MW5 shows DSD64/DSD128 (PCM) or DSD64 + DOP when DoP is active.",
  "<b>Libraries:</b> FFmpeg dsf/iff demuxers and dsd_lsbf/dsd_msbf decoders for PCM conversion. "
- "<b>Components:</b> DopPacker (own code) reading raw DSD packets from the demuxer. DoP needs exclusive output mode (PB-04).",
+ "<b>Components:</b> DopSource (own code, FFmpeg plugin) reading raw DSD packets from the demuxer, sample-exact seeking; the plugin implements IDopSourceFactory (SDK) so the engine can ask for DoP. DoP needs exclusive output mode (PB-04). Verified by comparing the 24-bit words a (fake) exclusive device receives with the raw DSD bitstream.",
  "Settings › Output: DSD mode (Convert to PCM / DoP)."),
 ("FM-06", "Musepack, TTA, Shorten, OptimFROG",
  "Plays Musepack (.mpc), True Audio (.tta), Shorten (.shn) and OptimFROG (.ofr/.ofs).",
@@ -101,13 +102,13 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
 ("PB-01", "Gapless playback",
  "The next track is opened and pre-decoded before the current one ends, so there is no silence between tracks. Encoder delay and padding are removed (FM-01). If the next track has a different sample rate, it is resampled to the current output rate; if the setting 'Match output rate to each track' is on, the device is reopened instead (which causes a short gap).",
  "No UI apart from the setting.",
- "<b>Components:</b> two decoder 'decks' in the MixerGraph (also used by crossfading, XF-01); preload starts 10 s before the end. "
- "<b>Libraries:</b> FFmpeg swresample (or libsoxr, LGPL) for rate conversion.", "Settings › Playback: Gapless (on/off); Settings › Output: Match output rate to each track."),
+ "<b>Components:</b> two decoder 'decks' in the MixerGraph (also used by crossfading, XF-01); preload starts 10 s before the end into the idle deck, which is 'armed' and started by the mixer in the same render call in which the current deck runs out, so the join is sample-exact. The next deck gets its own ReplayGain before it starts. No preload for streams, during A-B repeat, with stop after current, or for DoP. "
+ "<b>Resampling:</b> own windowed-sinc resampler (Kaiser window, ResamplingSource) per deck; no extra native library. Verified by sample comparison for MP3, AAC, FLAC, Opus, Vorbis and CUE tracks.", "Settings › Playback: Gapless (on/off); Settings › Output: Match output rate to each track."),
 ("PB-02", "Fade on pause, stop and seek",
  "Applies a short volume ramp instead of a hard cut when pausing, stopping or seeking (and a fade-in when resuming). Separate from DJ-style crossfading.",
  "No UI apart from settings.",
- "<b>Components:</b> GainStage ramps (linear in dB) in the MixerGraph; seek = fade out, seek, fade in.",
- "Settings › Playback: on/off and fade length per action (default 150 ms, range 0–2,000 ms)."),
+ "<b>Components:</b> FadeStage after the master volume in the MixerGraph: exponential ramps (linear in dB, from −60 dB) with no allocations on the audio thread; seek = fade out, seek, fade in; a new track always starts at full level.",
+ "Settings › Playback: on/off and fade length per action (default on, 150 ms, range 10–2,000 ms)."),
 ("PB-03", "ReplayGain and loudness normalisation",
  "Adjusts playback volume so tracks sound equally loud. Modes: Off, Track gain, Album gain, Auto (album gain when consecutive tracks come from the same album, otherwise track gain). Reads REPLAYGAIN_* tags (and R128_* in Opus); for untagged files, it can analyse loudness (EBU R128) in the background and cache the result. Prevents clipping by limiting gain to the track peak.",
  "MW5 shows 'RG' when a gain is being applied. File info dialog (MD-05) shows the values.",
@@ -120,35 +121,35 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
  "<b>Libraries:</b> miniaudio (public domain/MIT-0) through a small own C shim (native/miniaudio, flat API with opaque handles) and P/Invoke: WASAPI shared/exclusive (Windows), CoreAudio (macOS), ALSA/PulseAudio/PipeWire (Linux). "
  "<b>Exclusive per platform:</b> WASAPI exclusive (miniaudio share mode exclusive); macOS 'hog mode' needs own CoreAudio interop (not in miniaudio); Linux opens an ALSA hw: device directly. "
  "<b>ASIO (optional, deferred 18 Nov 2026; may be revisited):</b> if revisited, a small native C++ shim around the Steinberg ASIO SDK using Steinberg's free proprietary ASIO licence (not the GPLv3 option, which would make the app GPL) [Windows only]. "
- "<b>Components:</b> IOutputDevice in Core; output plugins (PG-01) can add further outputs.",
- "Settings › Output: device, mode (Shared / Exclusive), buffer size (ms), output bit depth."),
+ "<b>Components:</b> IAudioOutput (SDK) with OutputOptions (exclusive, sample format F32/S16/S24/S32, dither); the shim (API v2) opens the device in the requested format, and integer formats are converted exactly in our code. If exclusive mode is refused (another app holds the device, or the endpoint has no exclusive mode, e.g. Remote Desktop audio), playback continues in shared mode. Output plugins (PG-01) can add further outputs.",
+ "Settings › Output: device, mode (Shared / Exclusive), buffer size (ms), bit depth (Auto / 16 / 24 / 32)."),
 ("PB-05", "High-resolution audio",
  "Plays 24-bit and 32-bit (integer and float) audio at sample rates up to 384 kHz without forced resampling, when the device supports it. The pipeline is 32-bit float internally; output is converted to the device's best format.",
- "MW5 shows the source format (e.g. 24/192) and an 'OUT' indicator if the output rate differs from the source.",
- "<b>Components:</b> format negotiation in OutputService (query device formats via miniaudio); TPDF dither when reducing bit depth. "
- "<b>Depends on:</b> PB-04 (exclusive mode needed for true bit-perfect).", "Settings › Output: allow resampling (on/off), dither (on/off)."),
+ "MW5 shows the source format (e.g. 24 BIT, 192 KHZ); the second badge row shows 'OUT' if the device runs at another rate than the source.",
+ "<b>Components:</b> format negotiation in the engine (device formats from miniaudio): exclusive mode picks the source rate if the device has it (else the nearest higher, else the highest, resampled) and the smallest integer format that holds the source's bits; TPDF dither only when reducing bit depth. Bit-perfect verified: 16- and 24-bit WAV reach a (fake) exclusive device sample-identical at 100 % volume. "
+ "<b>Depends on:</b> PB-04 (exclusive mode needed for true bit-perfect).", "Settings › Output: match output rate to each file (on/off), allow resampling (on/off), dither (on/off)."),
 ("PB-06", "Playback speed and pitch",
  "Changes playback speed from 0.5× to 2.0×. 'Keep pitch' on: tempo changes, pitch stays (time-stretch). 'Keep pitch' off: speed and pitch change together, like a turntable.",
- "Main menu › Playback › Speed… opens a small popover with a slider, Keep pitch checkbox and Reset. MW5 shows the speed (e.g. 1.25×) when not 1.0×.",
- "<b>Libraries:</b> SoundTouch (LGPL, dynamically linked; SoundTouch.Net binding or own P/Invoke): setTempo for keep-pitch, setRate otherwise. "
- "<b>Components:</b> TimeStretchStage in the MixerGraph (shared with beat matching, XF-02).", "Settings › Playback: remember speed per file (on/off)."),
+ "Main menu › Playback › Speed… opens a small dialog with a slider (0.05 steps), Keep pitch checkbox and Reset; changes apply at once. The second badge row in MW5 shows the speed (e.g. 1.25×) when not 1.0×.",
+ "<b>Libraries:</b> SoundTouch 2.4.1 (LGPL, dynamically linked SoundTouchDLL) through own P/Invoke: setTempo for keep-pitch, setRate otherwise. "
+ "<b>Components:</b> TimeStretchSource per deck (shared with beat matching, XF-02); bypassed exactly at 1.0× (bit-identical output); positions are mapped back to the source through checkpoints, so the time display and seeking stay in track time.", "Settings › Playback: remember speed per file (on/off)."),
 ("PB-07", "Resume position",
  "On restart, the player reopens the last playlist, track and position (paused or playing, as set). For long files (longer than a set length, default 20 min, e.g. podcasts and audiobooks), the position is remembered per file and restored when that file is played again.",
- "Playlist context menu › Reset resume position for files that have one (shown with a small marker in PW4).",
- "<b>Components:</b> ResumeStore table in SQLite (path, position, updated). Position saved every 10 s and on exit.",
- "Settings › Playback: resume last session (off / paused / playing); per-file resume (on/off) and minimum length."),
+ "Playlist context menu › Reset resume position for files that have one (shown with a '»' marker in PW4).",
+ "<b>Components:</b> ResumeStore in cache.db (kinds 'resume' and 'speed', keyed like the other cached data); the session (playlist id, index, path, position, playing) is kept in settings.json. Positions are saved every 10 s and on exit; a file within 10 s of its end is cleared.",
+ "Settings › Playback: on start (off / reopen the last track paused (default) / reopen and play); remember the position in long files (on/off) and their minimum length (default 20 min)."),
 ("PB-08", "A-B repeat",
  "Loops a section of the current track. First press sets point A at the current position, second press sets point B and starts looping, third press clears the loop. A and B can be dragged on the waveform.",
- "Main menu › Playback › A-B repeat (keyboard: [ ). A and B markers and a highlighted region appear on the waveform (MW7). MW5 shows 'A-B'.",
- "<b>Components:</b> LoopRegion in PlaybackEngine (sample-accurate seek back to A). Disabled for streams.", None),
+ "Main menu › Playback › A-B repeat (keyboard: [ ). A and B markers and a lightly shaded region appear on the waveform (MW7); dragging a marker moves it. The second badge row in MW5 shows 'A-B', and each press is confirmed in the title area.",
+ "<b>Components:</b> LoopSource in the deck's source chain (sample-exact jump back to A, no gap); the loop is at least 1 s long. Disabled for streams.", None),
 ("PB-09", "Queue and stop after current",
  "'Play next' puts tracks in a queue that plays before the normal playlist order, in the order queued. 'Stop after current' stops playback when the current track ends (one-shot; switches itself off).",
- "Playlist context menu › Play next (keyboard Q); queued entries show their queue number in PW4. Main menu › Playback › Stop after current (Shift+V). MW5 shows 'STOP' when set.",
- "<b>Components:</b> QueueService in Core, consulted by PlayOrder before shuffle/repeat.", "Settings › Playback: clear queue on stop (on/off)."),
+ "Playlist context menu › Play next (keyboard Q; Shift+Enter in the search box queues the result) and Remove from queue; queued entries show their queue position, e.g. [1], in PW4, and queuing is confirmed in the title area. Main menu › Playback › Stop after current (Shift+V) and Clear queue; playlist context menu › Stop after this track. The second badge row in MW5 shows 'STOP AFTER' when set.",
+ "<b>Components:</b> QueueService in Core, consulted before shuffle/repeat (also for gapless preloading).", "Settings › Playback: clear queue on stop (on/off)."),
 ("PB-10", "Sleep timer",
  "Stops playback after a chosen time (15, 30, 45, 60, 90 min or custom) or at the end of the current track or playlist. Optionally fades out over the last 30 s. Optionally closes the app afterwards.",
- "Main menu › Sleep timer… and tray menu. MW5 shows a moon icon with the remaining minutes.",
- "<b>Components:</b> SleepTimerService (Core) using PeriodicTimer; fade via GainStage.", "Settings › Playback: fade out (on/off), fade length, close app when finished."),
+ "Main menu › Sleep timer… (dialog: 15/30/45/60/90 min, custom, end of track, end of playlist, turn off); tray menu in P10. The second badge row in MW5 shows 'SLEEP n MIN' (or 'SLEEP' for end of track/playlist).",
+ "<b>Components:</b> SleepTimerService (Core) using PeriodicTimer; the fade-out lowers the master gain over the last n seconds.", "Settings › Playback: fade out (on/off), fade length, close app when finished."),
 ])
 
 S("DJ-style crossfading", "When the current track nears its end, the next track starts and the two are mixed like a DJ set. All settings are in Settings › Crossfading. The XF button (MW10) switches crossfading on/off; a badge shows the mode (IO = Intro/Outro, BM = Beat matching).", [
