@@ -118,6 +118,18 @@ public interface IPlayerController
     /// <summary>PB-09: the "play next" queue.</summary>
     QueueService Queue { get; }
 
+    /// <summary>PB-06: playback speed 0.5–2.0.</summary>
+    double Speed { get; set; }
+
+    /// <summary>PB-06: keep the pitch when the speed changes.</summary>
+    bool KeepPitch { get; set; }
+
+    /// <summary>PB-06: speed or keep-pitch changed.</summary>
+    event EventHandler<EventArgs>? SpeedChanged;
+
+    /// <summary>PB-07: per-file resume positions and speeds.</summary>
+    ResumeStore ResumePositions { get; }
+
     /// <summary>PB-09: stop when the current track ends (one-shot). Raises PlayModeChanged.</summary>
     bool StopAfterCurrent { get; set; }
 

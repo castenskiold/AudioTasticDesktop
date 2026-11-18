@@ -35,7 +35,7 @@ public sealed class Deck : IDisposable
     private volatile bool _disposed;
 
     // Decoder thread only.
-    private IAudioSource? _source;
+    private TimeStretchSource? _source;
     private float[] _decodeBuffer = [];
     private float[] _mapBuffer = [];
 
@@ -48,12 +48,21 @@ public sealed class Deck : IDisposable
     private long _underruns;
     private Exception? _fault;
 
-    // PB-08 loop region (source frames; -1 = none) and the position mapping across loop wraps.
-    private long _loopA = -1;
-    private long _loopB = -1;
-    private long _framesWritten;   // decoder thread: frames written to the ring since the last reset
-    private long _wrapAt = -1;     // frames written when the last wrap happened (-1 = none)
-    private long _wrapTo;          // source frame the last wrap jumped to
+    // The source chain built by LoadAsync: source -> LoopSource (PB-08) -> TimeStretchSource (PB-06).
+    private volatile LoopSource? _loop;
+    private volatile TimeStretchSource? _stretch;
+    private double _speed = 1;
+    private bool _keepPitch = true;
+
+    // Position checkpoints: after each chunk the decoder records (frames written so far, source position of the next
+    // frame, source frames per output frame for that chunk). The position of what has been played is mapped from
+    // them, which covers speed changes and loop wraps. A small ring: playback lags decoding by under 0.5 s.
+    private const int Checkpoints = 64;
+    private readonly long[] _cpWritten = new long[Checkpoints];
+    private readonly long[] _cpPosition = new long[Checkpoints];
+    private readonly double[] _cpSpeed = new double[Checkpoints];
+    private int _cpCount;
+    private long _framesWritten;
 
     internal Deck(string name, MixerGraph graph)
     {
@@ -94,27 +103,39 @@ public sealed class Deck : IDisposable
         get
         {
             var consumed = Volatile.Read(ref _consumedFrames);
-            var wrapAt = Volatile.Read(ref _wrapAt);
-            return wrapAt >= 0 && consumed >= wrapAt
-                ? Volatile.Read(ref _wrapTo) + (consumed - wrapAt)
-                : Volatile.Read(ref _positionBase) + consumed;
+            var count = Volatile.Read(ref _cpCount);
+            if (count == 0)
+            {
+                return Volatile.Read(ref _positionBase) + consumed;
+            }
+            // The newest checkpoint at or before the consumed frame; the chunk after it ran at the next one's speed.
+            for (var k = count - 1; k >= Math.Max(0, count - Checkpoints); k--)
+            {
+                var i = k % Checkpoints;
+                if (_cpWritten[i] <= consumed)
+                {
+                    var speed = k + 1 < count ? _cpSpeed[(k + 1) % Checkpoints] : _cpSpeed[i];
+                    return _cpPosition[i] + (long)Math.Round((consumed - _cpWritten[i]) * speed);
+                }
+            }
+            return Volatile.Read(ref _positionBase) + consumed;
         }
     }
 
     /// <summary>
-    /// PB-08: loops source frames [<paramref name="a"/>, <paramref name="b"/>): when decoding reaches B the source jumps
-    /// back to A without resetting the buffer, so the loop is seamless. The region should be at least 1 s long.
+    /// PB-08: loops source frames [<paramref name="a"/>, <paramref name="b"/>): decoding stops exactly at B and continues
+    /// from A without resetting the buffer, so the loop is seamless.
     /// </summary>
-    public void SetLoop(long a, long b)
-    {
-        Volatile.Write(ref _loopA, a);
-        Volatile.Write(ref _loopB, b);
-    }
+    public void SetLoop(long a, long b) => _loop?.SetRegion(a, b);
 
-    public void ClearLoop()
+    public void ClearLoop() => _loop?.ClearRegion();
+
+    /// <summary>PB-06: playback speed (0.5–2.0) and keep-pitch; applies from the next decoded chunk.</summary>
+    public void SetSpeed(double speed, bool keepPitch)
     {
-        Volatile.Write(ref _loopB, -1);
-        Volatile.Write(ref _loopA, -1);
+        Volatile.Write(ref _speed, speed);
+        Volatile.Write(ref _keepPitch, keepPitch);
+        _stretch?.SetSpeed(speed, keepPitch);
     }
 
     /// <summary>Number of audio callbacks that found the buffer empty before the end of the source.</summary>
@@ -141,7 +162,12 @@ public sealed class Deck : IDisposable
         {
             Stall();
             _source?.Dispose();
-            _source = source;
+            var loop = new LoopSource(source);
+            var stretch = new TimeStretchSource(loop);
+            stretch.SetSpeed(Volatile.Read(ref _speed), Volatile.Read(ref _keepPitch));
+            _loop = loop;
+            _stretch = stretch;
+            _source = stretch;
             SourceFormat = source.Format;
             Volatile.Write(ref _fault, null);
             PrepareBuffers(source.Format);
@@ -174,9 +200,10 @@ public sealed class Deck : IDisposable
         Stall();
         _source?.Dispose();
         _source = null;
+        _loop = null;
+        _stretch = null;
         SourceFormat = null;
         ResetPosition(0);
-        ClearLoop();
         Volatile.Write(ref _state, StateIdle);
     });
 
@@ -275,10 +302,9 @@ public sealed class Deck : IDisposable
     private void FillOnce()
     {
         int frames;
-        var before = _source!.PositionFrames;
         try
         {
-            frames = _source.Read(_decodeBuffer);
+            frames = _source!.Read(_decodeBuffer);
         }
 #pragma warning disable CA1031 // A broken file ends this deck; the engine reports the fault.
         catch (Exception ex)
@@ -287,37 +313,26 @@ public sealed class Deck : IDisposable
             Volatile.Write(ref _fault, ex);
             frames = 0;
         }
-        // PB-08: stop at B and continue from A.
-        var a = Volatile.Read(ref _loopA);
-        var b = Volatile.Read(ref _loopB);
-        var wrap = a >= 0 && b > a && before < b && before + frames >= b;
-        if (frames == 0 && !wrap)
+        if (frames == 0)
         {
             Volatile.Write(ref _sourceEnded, 1);
             return;
         }
-        if (wrap)
-        {
-            frames = (int)(b - before);
-        }
-        if (frames > 0)
-        {
-            var outChannels = _graph.Format.Channels;
-            ChannelMapper.Map(_decodeBuffer, _source.Format.Channels, _mapBuffer, outChannels, frames);
-            _ring.Write(_mapBuffer.AsSpan(0, frames * outChannels));
-            _framesWritten += frames;
-        }
-        if (wrap)
-        {
-            if (Volatile.Read(ref _wrapAt) >= 0)
-            {
-                // Fold the previous wrap into the base (playback is past it: loops are longer than the buffer).
-                Volatile.Write(ref _positionBase, _wrapTo - _wrapAt);
-            }
-            Volatile.Write(ref _wrapTo, a);
-            Volatile.Write(ref _wrapAt, _framesWritten);
-            _source.Seek(a);
-        }
+        var outChannels = _graph.Format.Channels;
+        ChannelMapper.Map(_decodeBuffer, _source!.Format.Channels, _mapBuffer, outChannels, frames);
+        _ring.Write(_mapBuffer.AsSpan(0, frames * outChannels));
+        _framesWritten += frames;
+        AddCheckpoint();
+    }
+
+    private void AddCheckpoint()
+    {
+        var count = _cpCount;
+        var i = count % Checkpoints;
+        _cpWritten[i] = _framesWritten;
+        _cpPosition[i] = _source!.PositionFrames;
+        _cpSpeed[i] = _stretch?.Speed ?? 1;
+        Volatile.Write(ref _cpCount, count + 1);
     }
 
     private void Prefill()
@@ -353,8 +368,12 @@ public sealed class Deck : IDisposable
         Volatile.Write(ref _sourceEnded, 0);
         Volatile.Write(ref _positionBase, frame);
         Volatile.Write(ref _consumedFrames, 0);
-        Volatile.Write(ref _wrapAt, -1);
+        Volatile.Write(ref _cpCount, 0);
         _framesWritten = 0;
+        if (_source is not null)
+        {
+            AddCheckpoint();
+        }
         Interlocked.Exchange(ref _underruns, 0);
     }
 

@@ -105,6 +105,37 @@ public sealed class CacheStore
         return cmd.ExecuteScalar() as byte[];
     }
 
+    /// <summary>Removes data of <paramref name="kind"/> for a path (every version of the file).</summary>
+    public int Delete(string path, string kind)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM cache_entries WHERE kind = $kind AND file_id IN (SELECT id FROM files WHERE path = $path);";
+        cmd.Parameters.AddWithValue("$kind", kind);
+        cmd.Parameters.AddWithValue("$path", FileKey.Normalize(path));
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>All entries of <paramref name="kind"/> (normalised path and data), for small kinds such as resume positions.</summary>
+    public IReadOnlyList<(string Path, byte[] Data)> GetAll(string kind, int dataVersion)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT f.path, e.data FROM cache_entries e JOIN files f ON f.id = e.file_id
+            WHERE e.kind = $kind AND e.data_version = $version;
+            """;
+        cmd.Parameters.AddWithValue("$kind", kind);
+        cmd.Parameters.AddWithValue("$version", dataVersion);
+        using var reader = cmd.ExecuteReader();
+        var result = new List<(string, byte[])>();
+        while (reader.Read())
+        {
+            result.Add((reader.GetString(0), (byte[])reader[1]));
+        }
+        return result;
+    }
+
     /// <summary>Removes all cached data for a path (every version of the file).</summary>
     public int Remove(string path)
     {

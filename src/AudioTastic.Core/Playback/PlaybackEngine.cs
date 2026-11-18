@@ -58,6 +58,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private OutputOptions? _outputOptions;
     private bool _stopAfterCurrent;
     private AbLoop? _abLoop;
+    private readonly ResumeStore _resume;
+    private double _speed = 1;
+    private bool _keepPitch = true;
+    private int _saveTicks;
+    private TimeSpan? _startAt;
+    private bool _startPaused;
+    private bool _endedNaturally;
     private IReplayGainProvider? _gainProvider;
     private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
@@ -70,8 +77,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private volatile bool _disposed;
 
     public PlaybackEngine(IEnumerable<IAudioSourceFactory> factories, IAudioOutput output, SettingsStore settings,
-        ILogger<PlaybackEngine> logger)
+        ILogger<PlaybackEngine> logger, ResumeStore? resume = null)
     {
+        _resume = resume ?? new ResumeStore(null);
         ArgumentNullException.ThrowIfNull(factories);
         _factories = factories; // PG-01: may be a live view of the enabled input plugins; enumerated per open
         _output = output ?? throw new ArgumentNullException(nameof(output));
@@ -81,6 +89,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _graph = new MixerGraph(new AudioFormat(48_000, EngineChannels));
         _deck = _graph.DeckA;
         _spare = _graph.DeckB;
+        _speed = Math.Clamp(settings.Current.Playback.Speed, 0.5, 2.0);
+        _keepPitch = settings.Current.Playback.KeepPitch;
+        ApplySpeed();
         _volume = Math.Clamp(settings.Current.Playback.Volume, 0, 100);
         _playOrder.SetShuffle(settings.Current.Playback.Shuffle, -1);
         _playOrder.Repeat = settings.Current.Playback.Repeat;
@@ -165,6 +176,75 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     /// <summary>PB-09: the "play next" queue.</summary>
     public QueueService Queue { get; } = new();
+
+    /// <summary>PB-07 / PB-06: per-file resume positions and speeds.</summary>
+    public ResumeStore ResumePositions => _resume;
+
+    /// <summary>PB-06: playback speed 0.5–2.0 (saved; per file when "remember speed per file" is on).</summary>
+    public double Speed
+    {
+        get => _speed;
+        set
+        {
+            var speed = Math.Round(Math.Clamp(value, 0.5, 2.0), 2);
+            if (speed == _speed)
+            {
+                return;
+            }
+            _speed = speed;
+            ApplySpeed();
+            _settings.Update(SettingsGroup.Playback, s => s.Playback.Speed = speed);
+            if (_settings.Current.Playback.RememberSpeedPerFile && _entry is { IsUrl: false } entry)
+            {
+                _resume.SetSpeed(entry.Path, speed);
+            }
+            Raise(SpeedChanged, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>PB-06: keep the pitch when the speed changes (time-stretch) or change both (like a turntable).</summary>
+    public bool KeepPitch
+    {
+        get => _keepPitch;
+        set
+        {
+            if (value == _keepPitch)
+            {
+                return;
+            }
+            _keepPitch = value;
+            ApplySpeed();
+            _settings.Update(SettingsGroup.Playback, s => s.Playback.KeepPitch = value);
+            Raise(SpeedChanged, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>PB-06: <see cref="Speed"/> or <see cref="KeepPitch"/> changed.</summary>
+    public event EventHandler<EventArgs>? SpeedChanged;
+
+    /// <summary>
+    /// PB-07: plays <paramref name="entry"/> from <paramref name="position"/> (session resume at start-up), paused
+    /// unless <paramref name="play"/>.
+    /// </summary>
+    public Task ResumeSessionAsync(Playlist playlist, PlaylistEntry entry, TimeSpan position, bool play)
+    {
+        ArgumentNullException.ThrowIfNull(playlist);
+        ArgumentNullException.ThrowIfNull(entry);
+        return RunAsync(() =>
+        {
+            _playlist = playlist;
+            _entry = entry;
+            SyncOrder(force: true);
+            var index = CurrentIndexCore();
+            if (index < 0)
+            {
+                return Task.CompletedTask;
+            }
+            _startAt = position;
+            _startPaused = !play;
+            return PlayIndexCoreAsync(index);
+        });
+    }
 
     /// <summary>PB-09: stop when the current track ends (switches itself off). Raises PlayModeChanged.</summary>
     public bool StopAfterCurrent
@@ -319,7 +399,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         switch (_state)
         {
             case PlaybackState.Paused:
-                Resume();
+                ResumeCore();
                 break;
             case PlaybackState.Playing:
                 await SeekCoreAsync(TimeSpan.Zero).ConfigureAwait(false);
@@ -362,7 +442,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
         else if (_state == PlaybackState.Paused)
         {
-            Resume();
+            ResumeCore();
         }
     });
 
@@ -436,6 +516,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _monitor.Dispose();
         _saveTimer.Dispose();
         SavePlaybackState();
+        SaveResumePosition(finished: false);
+        SaveSession();
         _output.OutputLost -= OnOutputLost;
         _graph.OutputActive = false;
         _output.Close();
@@ -466,6 +548,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>Plays the track at <paramref name="index"/>; unplayable files are reported and skipped.</summary>
     private async Task PlayIndexCoreAsync(int index)
     {
+        SaveResumePosition(finished: _endedNaturally);
+        _endedNaturally = false;
+        var startAt = _startAt;
+        var startPaused = _startPaused;
+        _startAt = null;
+        _startPaused = false;
         // Unplayable files are skipped in play order (CO-03), trying each track at most once.
         var entries = _playlist.Entries;
         int? next = index;
@@ -490,9 +578,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             var track = BuildTrack(entry, source, metadata);
             DetachStreamMetadata();
             ApplyReplayGain(entry); // before the deck starts, so the track begins at its own level
+            ApplyFileSpeed(entry);
+            if (StartPosition(entry, track, startAt) is { } start && source.CanSeek)
+            {
+                source.Seek(source.Format.TimeToFrames(start)); // PB-07: before the deck starts, so nothing plays from 0
+            }
             try
             {
-                await StartSourceAsync(source).ConfigureAwait(false);
+                await StartSourceAsync(source, startPaused).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is InvalidOperationException or AudioSourceException or IOException)
             {
@@ -516,13 +609,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _logger.LogInformation("Playing {Path} ({Codec}, {Rate} Hz, {Channels} ch) on {Device}",
                 path, track.Stream.Codec, track.Stream.SampleRate, track.Stream.Channels, _output.DeviceName);
             Raise(TrackChanged, new TrackChangedEventArgs(track, i, entry));
-            SetState(PlaybackState.Playing);
+            SetState(startPaused ? PlaybackState.Paused : PlaybackState.Playing);
+            SaveSession();
             return;
         }
         await StopCoreAsync().ConfigureAwait(false);
     }
 
-    private async Task StartSourceAsync(IAudioSource source)
+    private async Task StartSourceAsync(IAudioSource source, bool paused = false)
     {
         await CancelPreloadAsync().ConfigureAwait(false);
         var bits = source.Info.IsLossless ? source.Info.BitsPerSample : 0;
@@ -541,7 +635,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             source = new ResamplingSource(source, _graph.Format.SampleRate); // PB-05: device cannot do the track's rate
         }
-        _graph.Paused = false;
+        _graph.Paused = paused;
         _graph.Fade.Snap(true); // a new track starts at full level (after a stop fade)
         _sourceFormat = source.Format;
         _canSeek = source.CanSeek;
@@ -599,6 +693,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private async Task StopCoreAsync()
     {
+        SaveResumePosition(finished: _endedNaturally);
+        _endedNaturally = false;
+        SaveSession();
         var fades = _settings.Current.Playback.Fades;
         await FadeOutAsync(fades.OnStop ? fades.StopMilliseconds : 0).ConfigureAwait(false);
         await CancelPreloadAsync().ConfigureAwait(false);
@@ -630,7 +727,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
     }
 
-    private void Resume()
+    private void ResumeCore()
     {
         var fades = _settings.Current.Playback.Fades;
         if (fades.OnPause && fades.PauseMilliseconds > 0)
@@ -828,6 +925,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             if (state is PlaybackState.Playing or PlaybackState.Paused)
             {
                 Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
+                if (++_saveTicks >= 100) // PB-07: every 10 s
+                {
+                    _saveTicks = 0;
+                    SaveSession();
+                    SaveResumePosition(finished: false);
+                }
             }
 
             var deck = _deck;
@@ -882,6 +985,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 {
                     ReportError(_track.Path, fault);
                 }
+                _endedNaturally = true; // PB-07: a long file played to the end loses its resume position
                 if (_stopAfterCurrent)
                 {
                     _stopAfterCurrent = false; // PB-09: one-shot
@@ -1070,6 +1174,10 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                     return;
                 }
                 var track = BuildTrack(entry, source, null);
+                if (StartPosition(entry, track, null) is { } resumeAt && source.CanSeek)
+                {
+                    source.Seek(source.Format.TimeToFrames(resumeAt));
+                }
                 if (source.Format.SampleRate != _graph.Format.SampleRate)
                 {
                     var output = _settings.Current.Output;
@@ -1145,6 +1253,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             ReportError(_track.Path, fault);
         }
+        _endedNaturally = true;
+        SaveResumePosition(finished: true);
+        _endedNaturally = false;
         (_deck, _spare) = (_spare, _deck);
         _preload = null;
         if (Queue.Peek() is { } queued && ReferenceEquals(queued.Entry, p.Entry))
@@ -1171,10 +1282,104 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             Raise(ReplayGainChanged, EventArgs.Empty);
         }
         await finished.UnloadAsync().ConfigureAwait(false);
+        ApplyFileSpeed(p.Entry);
+        SaveSession();
         _logger.LogInformation("Gapless: playing {Path}", p.Entry.Path);
         Raise(TrackChanged, new TrackChangedEventArgs(p.Track, p.Index, p.Entry));
         return true;
     }
+
+    // ---- PB-06 speed, PB-07 resume -----------------------------------------------------------------------
+
+    private void ApplySpeed()
+    {
+        _deck.SetSpeed(_speed, _keepPitch);
+        _spare.SetSpeed(_speed, _keepPitch);
+    }
+
+    /// <summary>PB-06: with "remember speed per file", a file starts at its saved speed (or 1.0).</summary>
+    private void ApplyFileSpeed(PlaylistEntry entry)
+    {
+        if (!_settings.Current.Playback.RememberSpeedPerFile || entry.IsUrl)
+        {
+            return;
+        }
+        var speed = _resume.GetSpeed(entry.Path) ?? 1.0;
+        if (Math.Abs(speed - _speed) > 1e-6)
+        {
+            _speed = Math.Clamp(speed, 0.5, 2.0);
+            ApplySpeed();
+            Raise(SpeedChanged, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>PB-07: long files (per-file resume on) have their position remembered.</summary>
+    private bool IsLongFile(PlaylistEntry? entry, TrackInfo? track)
+    {
+        var options = _settings.Current.Playback;
+        return options.ResumeLongFiles && entry is { IsUrl: false, IsVirtual: false } && track?.Duration is { } duration &&
+            duration >= TimeSpan.FromMinutes(Math.Max(1, options.ResumeMinimumMinutes));
+    }
+
+    /// <summary>Where a track starts: an explicit position (session resume), a long file's saved position, or 0 (null).</summary>
+    private TimeSpan? StartPosition(PlaylistEntry entry, TrackInfo track, TimeSpan? explicitStart)
+    {
+        if (explicitStart is { } start && start > TimeSpan.Zero)
+        {
+            return track.Duration is { } d && start >= d ? null : start;
+        }
+        if (IsLongFile(entry, track) && _resume.GetPosition(entry.Path) is { } saved && saved < track.Duration!.Value - ResumeEndMargin)
+        {
+            _logger.LogInformation("Resuming {Path} at {Position}", entry.Path, saved);
+            return saved;
+        }
+        return null;
+    }
+
+    /// <summary>Saves (or, when it was played to the end, clears) the current long file's position.</summary>
+    private void SaveResumePosition(bool finished)
+    {
+        var (entry, track) = (_entry, _track);
+        if (!IsLongFile(entry, track))
+        {
+            return;
+        }
+        try
+        {
+            var position = Position;
+            if (finished || position >= track!.Duration!.Value - ResumeEndMargin)
+            {
+                _resume.ClearPosition(entry!.Path);
+            }
+            else if (position > ResumeEndMargin)
+            {
+                _resume.SetPosition(entry!.Path, position);
+            }
+        }
+#pragma warning disable CA1031 // Saving the position is best effort.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "Could not save the resume position");
+        }
+    }
+
+    /// <summary>PB-07: where playback is, for the next start.</summary>
+    private void SaveSession()
+    {
+        if (_entry is not { } entry)
+        {
+            return;
+        }
+        var session = new SessionState(_playlist.Id.ToString(), Math.Max(0, _index), entry.Path,
+            Math.Round(Position.TotalSeconds, 1), _state == PlaybackState.Playing);
+        if (_settings.Current.Playback.LastSession != session)
+        {
+            _settings.Update(SettingsGroup.Playback, s => s.Playback.LastSession = session);
+        }
+    }
+
+    private static readonly TimeSpan ResumeEndMargin = TimeSpan.FromSeconds(10);
 
     // ---- helpers ------------------------------------------------------------------------------------
 
