@@ -14,7 +14,7 @@ public sealed class BeatAnalyzer : IAnalyzer
 {
     public const string KindName = "beats";
     public string Kind => KindName;
-    public int DataVersion => 2; // 2: per-section phase corrections
+    public int DataVersion => 3; // 2: per-section phase corrections; 3: beat start/end where the groove is steady
 
     public IAnalysisRun Start(AudioFormat format, long? lengthFrames) => new Run(format, lengthFrames);
 
@@ -271,6 +271,9 @@ public static class BeatDetector
             (lowPerBeat, accent) = PerBeat(low, onset, fps, frameOffset, firstBeat, periodSeconds, duration);
             (beatStart, beatEnd, inner) = Sections(lowPerBeat);
         }
+
+        // Beat start and end where the groove is steady: an intro whose low hits wander (not yet 4/4) is not a place to mix.
+        (beatStart, beatEnd) = SteadyEdges(thump, envelopeRate, periodSeconds, firstBeat, beatStart, beatEnd);
 
         // Per-section corrections: where the kick sits against the final grid in each 32-beat drum section. Only clear
         // measurements (within ±50 ms) are kept; bigger ones are another event (a 16th, the off-beat), not the kick.
@@ -678,6 +681,86 @@ public static class BeatDetector
         }
         return Array.IndexOf(scores, scores.Max());
     }
+
+    /// <summary>Beats compared when deciding whether the groove is steady, and how many of them must match.</summary>
+    private const int SteadyBeats = 16;
+    private const int SteadyMatches = 14;
+
+    /// <summary>
+    /// Moves the beat start later and the beat end earlier to where the groove is steady: each beat's low-band pattern
+    /// (the strongest low-band power in each of its four 16ths, relative to the beat's own maximum) must match the
+    /// median pattern of the next (or previous) 16 beats in at least 14 of them. Dance intros and outros often play
+    /// low hits that wander across the 16ths before the 4/4 kick starts (heard on Anders's tracks), which energy alone
+    /// counts as drums. Unchanged when no steady stretch is found near the edge.
+    /// </summary>
+    internal static (int BeatStart, int BeatEnd) SteadyEdges(IReadOnlyList<float> thump, double envelopeRate, double period, double firstBeat,
+        int beatStart, int beatEnd)
+    {
+        var count = beatEnd - beatStart;
+        if (count < 4 * SteadyBeats)
+        {
+            return (beatStart, beatEnd);
+        }
+        var patterns = new double[count][];
+        for (var i = 0; i < count; i++)
+        {
+            patterns[i] = Pattern(thump, envelopeRate, period, firstBeat + ((beatStart + i) * period));
+        }
+        bool Steady(int from)
+        {
+            var window = patterns.Skip(from).Take(SteadyBeats).ToArray();
+            var median = Enumerable.Range(0, 4).Select(q => window.Select(p => p[q]).Order().ElementAt(window.Length / 2)).ToArray();
+            return window.Count(p => Similar(p, median)) >= SteadyMatches;
+        }
+        // At most a quarter of the drum section from each edge (the middle is the track itself).
+        var limit = count / 4;
+        var start = 0;
+        while (start < limit && !Steady(start))
+        {
+            start++;
+        }
+        var end = count;
+        while (count - end < limit && !Steady(end - SteadyBeats))
+        {
+            end--;
+        }
+        if (start >= limit)
+        {
+            start = 0;
+        }
+        if (count - end >= limit)
+        {
+            end = count;
+        }
+        return (beatStart + start, beatStart + end);
+    }
+
+    /// <summary>The strongest low-band power in each 16th of the beat at <paramref name="beat"/> (s), relative to the largest.</summary>
+    private static double[] Pattern(IReadOnlyList<float> thump, double envelopeRate, double period, double beat)
+    {
+        var result = new double[4];
+        for (var q = 0; q < 4; q++)
+        {
+            var from = (int)Math.Round((beat + (q * period / 4)) * envelopeRate);
+            var to = (int)Math.Round((beat + ((q + 1) * period / 4)) * envelopeRate);
+            for (var i = Math.Max(0, from); i < Math.Min(thump.Count, to); i++)
+            {
+                result[q] = Math.Max(result[q], thump[i]);
+            }
+        }
+        var max = result.Max();
+        if (max > 0)
+        {
+            for (var q = 0; q < 4; q++)
+            {
+                result[q] /= max;
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Two 16th patterns match: every 16th within 0.35 of the other's (relative to each beat's maximum).</summary>
+    private static bool Similar(double[] a, double[] b) => Enumerable.Range(0, 4).All(q => Math.Abs(a[q] - b[q]) <= 0.35);
 
     /// <summary>
     /// Beat start and end (beat indices: the first beat with drums, and the beat after the last one) and the breaks

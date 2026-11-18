@@ -59,9 +59,9 @@ public sealed class BeatMatchTests
         File.WriteAllBytes(inPath, []);
         sources = new Dictionary<string, float[]> { [outPath] = outgoing.Samples, [inPath] = incoming.Samples };
         var aligner = new CrossfadeAligner([new MemoryFactory(sources)]);
-        var shift = aligner.Refine(new CrossfadeAlignment(outPath, plan.MixStart, 1, inPath, plan.IncomingStart, plan.IncomingSpeed,
+        var (shift, differences) = aligner.Measure(new CrossfadeAlignment(outPath, plan.MixStart, 1, inPath, plan.IncomingStart, plan.IncomingSpeed,
             plan.IncomingFadeLength, plan.Overlap, 60 / outBeats.Bpm));
-        Assert.NotNull(shift);
+        Assert.True(shift.HasValue, $"no answer; measured {string.Join(" ", differences.Select(d => (d * 1000).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)))} ms");
         Assert.InRange(shift.Value, -gridError - 0.004, -gridError + 0.004);
     }
 

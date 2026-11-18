@@ -131,13 +131,17 @@ async Task<int> MixAsync(string[] rest)
     {
         var (shift, differences) = new CrossfadeAligner([new FfmpegSourceFactory()]).Measure(new CrossfadeAlignment(first, plan.MixStart, 1, second, plan.IncomingStart,
             plan.IncomingSpeed, plan.IncomingFadeLength, plan.Overlap, 60 / bpmOut));
-        Console.WriteLine("Aligner, incoming kicks against the outgoing ones per 8 beats (ms): " + string.Join(" ", differences.Select(d => (d * 1000).ToString("+0.0;-0.0", culture))));
+        Console.WriteLine("Aligner, incoming transients against the outgoing ones (ms; whole overlap, first half, second half): " + string.Join(" ", differences.Select(d => (d * 1000).ToString("+0.0;-0.0", culture))));
         Console.WriteLine(shift is { } s ? string.Create(culture, $"Aligner: incoming entry moved {s * 1000:+0.0;-0.0} ms") : "Aligner: no clear answer; the grids decide");
     }
     var fallbackText = plan.Fallback is null ? string.Empty : $" (fallback: {plan.Fallback})";
     Console.WriteLine(string.Create(culture,
         $"Plan: {plan.Mode} at {plan.MixStart:0.000} s, incoming from {plan.IncomingStart:0.000} s at {plan.IncomingSpeed:0.0000}x ({plan.IncomingBpm:0.00} -> {plan.MatchedBpm:0.00} BPM), overlap {plan.Overlap:0.0} s, fade {plan.OutgoingFadeLength:0.0} s{fallbackText}"));
     var lead = 25.0;
+    if (Environment.GetEnvironmentVariable("MIXLAB_PLAN_ONLY") is { Length: > 0 })
+    {
+        return 0; // diagnostics: the plan and the aligner only
+    }
     var startAt = Math.Max(0, plan.MixStart - lead);
     var mixOffset = plan.MixStart - startAt; // output seconds into the render (outgoing speed 1)
     var renderSeconds = mixOffset + plan.OutgoingTail + 4;
@@ -157,6 +161,12 @@ async Task<int> MixAsync(string[] rest)
     // XF-02 exit criterion: render each deck alone and compare their beats over the overlap.
     var outgoingOnly = await RenderAsync(xf, first, second, beats, startAt, renderSeconds, Mute.Incoming);
     var incomingOnly = await RenderAsync(xf, first, second, beats, startAt, renderSeconds, Mute.Outgoing);
+    if (Environment.GetEnvironmentVariable("MIXLAB_SOLOS") is { Length: > 0 })
+    {
+        // Diagnostics: the two decks rendered alone (their sum should be the mix).
+        WriteWav(Path.ChangeExtension(output, null) + " (outgoing only).wav", outgoingOnly.Samples, outgoingOnly.Rate);
+        WriteWav(Path.ChangeExtension(output, null) + " (incoming only).wav", incomingOnly.Samples, incomingOnly.Rate);
+    }
     var outPeriod = 60 / plan.OutgoingBpm!.Value;
     // Measured over the overlap at full volume (after the fade-in, when both kicks are clearly there).
     var measureFrom = mixOffset + plan.IncomingFadeLength;
@@ -202,7 +212,10 @@ async Task<Render> RenderAsync(CrossfadingSettings xf, string first, string seco
         using var engine = new PlaybackEngine([new FfmpegSourceFactory()], device, settings, NullLogger<PlaybackEngine>.Instance)
         {
             BeatProvider = new FixedBeats(beats),
-            CrossfadeAligner = new CrossfadeAligner([new FfmpegSourceFactory()]),
+            // MIXLAB_SHIFT_MS: listening tests, the incoming kicks moved by a fixed amount (output ms) after the alignment.
+            CrossfadeAligner = Environment.GetEnvironmentVariable("MIXLAB_SHIFT_MS") is { Length: > 0 } shiftMs
+                ? new FixedShift(double.Parse(shiftMs, CultureInfo.InvariantCulture) / 1000, new CrossfadeAligner([new FfmpegSourceFactory()]))
+                : new CrossfadeAligner([new FfmpegSourceFactory()]),
         };
         device.Graph = engine.Graph;
         var playlist = new Playlist("mix", [new PlaylistEntry(first), new PlaylistEntry(second)]);
@@ -302,7 +315,13 @@ int Clicks(string[] rest)
     }
     for (var k = info.BeatAtOrAfter(from); info.BeatTime(k) < from + seconds; k++)
     {
-        var at = (int)((info.BeatTime(k) - from) * rate);
+        // With the per-section correction, as the engine uses it.
+        var beat = info.BeatTime(k) + info.LocalOffset(info.BeatTime(k));
+        var at = (int)((beat - from) * rate);
+        if (at < 0)
+        {
+            continue;
+        }
         var hz = info.IsPhraseStart(k) ? 2000.0 : 1000.0;
         for (var i = 0; i < rate / 50 && at + i < frames; i++)
         {
@@ -419,6 +438,12 @@ internal enum Mute
 }
 
 /// <summary>Beat analysis computed up front.</summary>
+/// <summary>Moves the incoming kicks by a fixed amount (output seconds; positive = later) on top of the aligner.</summary>
+internal sealed class FixedShift(double seconds, ICrossfadeAligner aligner) : ICrossfadeAligner
+{
+    public double? Refine(CrossfadeAlignment alignment) => (aligner.Refine(alignment) ?? 0) - (seconds * alignment.IncomingSpeed);
+}
+
 internal sealed class FixedBeats(Dictionary<string, BeatInfo> beats) : IBeatInfoProvider
 {
     public BeatInfo? TryGet(PlaylistEntry entry) => beats.GetValueOrDefault(Path.GetFullPath(entry.Path));

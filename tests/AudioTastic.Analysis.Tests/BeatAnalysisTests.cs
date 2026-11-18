@@ -108,7 +108,10 @@ internal sealed class DanceTrack
                 // Bass note per phrase step (changes every 8 beats from phraseShift).
                 var step = (((k - introBeats - phraseShift) % 8) + 8) % 8 == 0;
                 var note = 80 + (20 * ((((k - introBeats - phraseShift) / 8) % 3 + 3) % 3));
-                Add(mono, rate, t0 + (period * 0.5), period * 0.45, (t, _) => (float)((step ? 0.35 : 0.2) * Math.Sin(2 * Math.PI * note * t)));
+                // With a 5 ms release, as a synth has: a hard cut would click just before the next kick.
+                var noteLength = period * 0.45;
+                Add(mono, rate, t0 + (period * 0.5), noteLength, (t, _) =>
+                    (float)((step ? 0.35 : 0.2) * Math.Sin(2 * Math.PI * note * t) * Math.Clamp((noteLength - t) / 0.005, 0, 1)));
             }
             // Hi-hat on the off-beat in every section (keeps time through intro and break).
             Add(mono, rate, t0 + (period * 0.5), 0.04, (t, _) => (float)(0.15 * ((random.NextDouble() * 2) - 1) * Math.Exp(-t * 80)));
