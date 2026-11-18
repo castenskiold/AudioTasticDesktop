@@ -92,6 +92,9 @@ public sealed class PluginHost : IDisposable
     /// <summary>A plugin was disabled because of faults (PG-03 notification).</summary>
     public event EventHandler<PluginDisabledEventArgs>? PluginDisabled;
 
+    /// <summary>Raised just before a loaded plugin's instances are disposed (disable, fault limit, uninstall, exit).</summary>
+    public event EventHandler<PluginRecord>? PluginUnloading;
+
     /// <summary>The player API given to plugins; set before <see cref="LoadAll"/>.</summary>
     public void AttachPlayer(IPlayerApi player) => _player = player;
 
@@ -428,6 +431,19 @@ public sealed class PluginHost : IDisposable
 
     private void Unload(PluginRecord record, PluginStatus status, string? error)
     {
+        if (record.Instances.Count > 0)
+        {
+            try
+            {
+                PluginUnloading?.Invoke(this, record); // e.g. OutputRouter closes the plugin's output first
+            }
+#pragma warning disable CA1031 // Our own subscribers; unloading must go on.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogWarning(ex, "Preparing to unload plugin {Id} failed", record.Id);
+            }
+        }
         foreach (var plugin in record.Instances)
         {
             SafeDispose(record, plugin);

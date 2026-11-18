@@ -62,7 +62,10 @@ internal static class Program
                 .AddSingleton<IEnumerable<IAudioSourceFactory>>(sp => sp.GetRequiredService<PluginHost>().LiveSourceFactories)
                 .AddSingleton(sp => new PlayerApi(sp.GetRequiredService<PlaybackEngine>(), sp.GetRequiredService<AudioTastic.Core.Playlists.PlaylistService>(),
                     sp.GetRequiredService<AudioTastic.Metadata.TagService>(), () => sp.GetRequiredService<AudioTastic.App.Ui.Playlist.PlaylistController>()))
-                .AddSingleton<IAudioOutput>(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
+                .AddSingleton(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
+                // PB-04 / PG-01: the engine plays through the router: built-in devices plus output plugins' devices.
+                .AddSingleton<IAudioOutput>(sp => new AudioTastic.Plugins.Host.OutputRouter(sp.GetRequiredService<MiniaudioOutput>(),
+                    sp.GetRequiredService<PluginHost>(), sp.GetRequiredService<ILogger<AudioTastic.Plugins.Host.OutputRouter>>()))
                 .AddSingleton(sp => new AudioTastic.Core.Playback.ResumeStore(sp.GetRequiredService<AudioTastic.Data.Cache.CacheStore>()))
                 .AddSingleton<PlaybackEngine>()
                 .AddSingleton<AudioTastic.Core.Playback.SleepTimerService>()

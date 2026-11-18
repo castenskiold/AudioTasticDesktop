@@ -51,7 +51,7 @@ public sealed partial class PluginHostTests : IDisposable
         var record = Assert.Single(host.Plugins);
         Assert.Equal(PluginStatus.Enabled, record.Status);
         Assert.True(record.IsBuiltIn);
-        Assert.Equal(2, record.Instances.Count);
+        Assert.Equal(3, record.Instances.Count); // input, general and output classes
         Assert.True(record.HasSettingsPage);
         Assert.Single(host.Instances<IGeneralPlugin>());
         Assert.Equal("Stopped", File.ReadAllText(DataFile("test.good", "general.txt")));
@@ -373,7 +373,7 @@ public sealed partial class PluginHostTests : IDisposable
         Version = version,
         SdkVersion = sdkVersion,
         EntryAssembly = "AudioTastic.TestPlugin.dll",
-        Types = [PluginType.Input, PluginType.General],
+        Types = [PluginType.Input, PluginType.General, PluginType.Output],
     }, PluginManifest.JsonOptions);
 
     private static void WriteEntry(ZipArchive zip, string name, string text)

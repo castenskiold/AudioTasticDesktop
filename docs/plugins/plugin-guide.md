@@ -106,6 +106,15 @@ Plugins of types not hosted yet already load, initialise and show in the plugin 
 - "Cannot play this file" is an `AudioSourceException`: the player shows it and skips to the next track. Any **other** exception counts as a plugin fault (see *Faults*).
 - All calls on a source come from one decoder thread, never the audio thread. They may block briefly (file I/O). For network input, see `IStreamMetadata` (now-playing titles).
 
+### Writing an output (output plugin)
+
+- `IOutputPlugin.Name` is shown in Settings › Output. Each device from your `IAudioOutput.GetDevices()` appears as **"Name: device"**; if you return no devices, a single entry **"Name"** opens your output with `device = null`.
+- The player calls `CreateOutput()` once, on first use, and disposes that output before it disposes your plugin (when it is switched off, fails or the player exits). If your output is playing then, the player continues on the system default device.
+- `Open(device, format, options, renderer)`: the renderer produces **interleaved 32-bit float** in `format`. Throw `InvalidOperationException` to **refuse** (an unsupported format or exclusive mode): the player falls back without counting a fault. Any other exception counts as a plugin fault (see *Faults*) and the player falls back to the default device.
+- `StartOutput()` starts pulling audio: call `renderer.Render(buffer)` from **your own audio thread**, at the pace of your device. Do not allocate, lock or block there, and **catch your own exceptions** on that thread: the player cannot catch them, and an unhandled exception on a thread you own ends the process.
+- `StopOutput()` stops pulling (the output stays open); `Close()` releases the device. Raise `OutputLost` if the device stops on its own (the player reopens on the default device) and `DevicesChanged` when your device list changes.
+- Optional members: `IsExclusive`, `SampleFormat`, `DeviceSampleRate`, `GetDeviceFormats` (used to choose exclusive formats), `SetDither`.
+
 ### Writing an effect (DSP plugin)
 
 `IDspEffect.Process` runs **on the audio thread**. It must not allocate, lock, block, do I/O or throw. Allocate buffers when the effect is created. To receive settings from other threads, use volatile fields (see `samples/GainDsp`). From P7, an effect that keeps exceeding its time budget is disabled.

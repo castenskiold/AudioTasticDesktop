@@ -341,9 +341,11 @@ PROGRESS = {
                         "Exclusive WASAPI output with format negotiation (16/24/32-bit, rate matching, TPDF dither only when reducing bit depth); 16- and 24-bit files reach the device bit-identically (test); refused exclusive mode falls back to shared.",
                         "DSD (DSF/DFF) as PCM, and DoP to exclusive 24/32-bit outputs, verified against the raw DSD bits (no DoP DAC was needed).",
                         "Fades (linear in dB), speed 0.5–2.0× with or without keeping the pitch (SoundTouch; untouched at 1.0×), session and per-file resume, A-B repeat with draggable waveform markers, play-next queue, stop after current, sleep timer.",
+                        "Output plugins (PG-01) hosted: their devices appear in Settings › Output beside the sound cards, with fault handling and fallback to the default device.",
                         "Checked by Anders: gapless, fades, speed, A-B, queue, badges and session resume. His feedback applied: a second badge row (the first was full, so STOP and the sleep badge were cut off) and short confirmations for Q, Shift+V, [ and the sleep timer."],
                open=["Exclusive mode on a local sound card (Anders tested over Remote Desktop, whose audio has no exclusive mode); macOS hog mode and Linux ALSA hw: rely on miniaudio's exclusive mode and are untested.",
-                     "Output plugins (PG-01) are not yet listed in Settings › Output; tray entry for the sleep timer comes in P10; macOS/Linux."]),
+                     "Output plugins are hosted (listed in Settings › Output, guarded, safe to switch off; covered by tests with a test plugin); Anders checks them by hand once a real output plugin exists.",
+                     "Tray entry for the sleep timer comes in P10; macOS/Linux."]),
     "P7": dict(status="Next", date="", outcome=[], open=[]),
 }
 

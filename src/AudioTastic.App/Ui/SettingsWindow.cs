@@ -253,7 +253,7 @@ public sealed class SettingsWindow : Window
             var chosen = device.SelectedIndex <= 0 ? null : devices[device.SelectedIndex];
             _ = _shell.Engine.SetOutputDeviceAsync(chosen);
         };
-        Row(panel, "Device", device, "Right-click the volume slider for a quick device menu.");
+        Row(panel, "Device", device, "Output plugins (Settings › Plugins) add their devices here as 'Plugin: device'. Right-click the volume slider for a quick device menu.");
 
         void O(Action<OutputSettings> change) => _settings.Update(SettingsGroup.Output, s => change(s.Output));
         var mode = new ComboBox { ItemsSource = new[] { "Shared (mixed with other apps)", "Exclusive (bit-perfect)" }, SelectedIndex = output.Exclusive ? 1 : 0, Width = 320 };

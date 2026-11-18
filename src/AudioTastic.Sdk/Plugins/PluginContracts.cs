@@ -83,7 +83,13 @@ public interface IInputPlugin : IPlugin
     IReadOnlyList<IPlaylistFormat> PlaylistFormats => [];
 }
 
-/// <summary>PG-01 Output: new output devices (listed in Settings › Output). Hosted from P6.</summary>
+/// <summary>
+/// PG-01 Output: new output devices, listed in Settings › Output as "Name: device" (or just "Name" when
+/// <see cref="IAudioOutput.GetDevices"/> returns none). The host calls <see cref="CreateOutput"/> once and disposes the
+/// output before the plugin. <see cref="IAudioOutput.Open"/> throws <see cref="InvalidOperationException"/> to refuse
+/// a format or exclusive mode (the player then falls back); any other exception counts as a plugin fault (PG-03).
+/// The output calls the renderer on its own audio thread and must catch its own exceptions there.
+/// </summary>
 public interface IOutputPlugin : IPlugin
 {
     string Name { get; }
