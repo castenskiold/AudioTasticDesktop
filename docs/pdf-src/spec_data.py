@@ -41,7 +41,7 @@ S("Core playback", "The basic player functions every other feature builds on.", 
 ("CO-07", "Waveform display and seek",
  "Shows the whole current track as a waveform (min/max peaks) with the played part drawn brighter than the rest. Clicking or dragging on it seeks to that position. While the waveform is being generated, a thin progress line is shown; streams show a scrolling live waveform instead. Waveforms are cached so a track only needs analysing once.",
  "MW7: full-width strip directly beneath the display panel (beneath the time display).",
- "<b>Components:</b> WaveformAnalyzer in AudioTastic.Analysis (decodes the file with FFmpeg on a background thread, reduces to about 2,000 min/max pairs per channel); WaveformControl (Avalonia, SkiaSharp rendering). "
+ "<b>Components:</b> WaveformAnalyzer in AudioTastic.Analysis (decodes the file through the input plugins on the analysis queue, reduces to 2,000 min/max pairs per channel); WaveformControl (Avalonia), drawn scaled to the track's own peak; skin element type 'waveform' (trackColor, fillColor, thumbColor); AnalysisCoordinator analyses the current track first and prefetches the next; live streams draw a lock-free peak tap after the deck mix. "
  "<b>Cache:</b> SQLite table keyed by file path + size + modified time, peaks stored as a compressed blob. "
  "<b>Depends on:</b> FM-01, AN-01 analysis queue.", None),
 ])
@@ -111,8 +111,8 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
 ("PB-03", "ReplayGain and loudness normalisation",
  "Adjusts playback volume so tracks sound equally loud. Modes: Off, Track gain, Album gain, Auto (album gain when consecutive tracks come from the same album, otherwise track gain). Reads REPLAYGAIN_* tags (and R128_* in Opus); for untagged files, it can analyse loudness (EBU R128) in the background and cache the result. Prevents clipping by limiting gain to the track peak.",
  "MW5 shows 'RG' when a gain is being applied. File info dialog (MD-05) shows the values.",
- "<b>Libraries:</b> libebur128 (MIT) or own R128 implementation for analysis; TagLibSharp for tags. "
- "<b>Components:</b> LoudnessAnalyzer (AN-01 queue); GainStage. Optionally writes analysed values back to tags (off by default).",
+ "<b>Libraries:</b> own EBU R128 / BS.1770-4 implementation (K-weighting for any sample rate, 400 ms blocks, absolute and relative gates; checked against FFmpeg's ebur128 within 0.1 LU); TagLibSharp for tags. "
+ "<b>Components:</b> LoudnessAnalyzer (AN-01 queue; keeps every block's energy so album loudness is exact); ReplayGainService decides the gain (tags first, then analysis, reference −18 LUFS; Auto = album gain when a neighbouring playlist entry is from the same album); the engine applies it to the deck's GainStage before the track starts. Optionally writes analysed values back to tags (off by default). ReplayGain is off by default.",
  "Settings › Playback: mode, pre-amp for tagged files (dB), pre-amp for untagged files (dB), analyse untagged files (on/off), prevent clipping (on/off), write tags (on/off)."),
 ("PB-04", "Output device selection and exclusive mode",
  "Chooses which audio device plays the sound and how. Shared mode (default) mixes with other apps. Exclusive / bit-perfect mode sends the audio unchanged to the device (no OS mixer, no resampling, volume at 100 %). ASIO gives low-latency output on Windows. The device list updates when devices are plugged in or removed; if the selected device disappears, playback falls back to the default device.",
@@ -177,7 +177,7 @@ S("DJ-style crossfading", "When the current track nears its end, the next track 
 ("AN-01", "Background analysis queue",
  "Shared job queue for waveform (CO-07), loudness (PB-03) and BPM/beat/break analysis (AN-02). Prioritises the current and next tracks, runs at low priority with a configurable number of worker threads, and skips files whose cached results are still valid.",
  "Optional status text in the playlist bottom bar (PW6): 'Analysing 3/120'.",
- "<b>Components:</b> AnalysisService in AudioTastic.Analysis using System.Threading.Channels; results in CacheStore (SQLite via Microsoft.Data.Sqlite).", "Settings › General: analysis threads."),
+ "<b>Components:</b> AnalysisService in AudioTastic.Analysis: a priority queue (current, next, background) with merged requests and dedicated worker threads; one decode per file feeds every requested analyser; the current track's job runs at normal priority, others below normal; results in CacheStore (SQLite via Microsoft.Data.Sqlite), CUE virtual tracks cached separately.", "Settings › General: analysis threads (default 2)."),
 ("AN-02", "Track analysis: BPM, beat grid and breaks",
  "Analyses each track once and stores its BPM, beat positions (grid with first-beat offset), phrase boundaries and break positions (sections with a clear drop in energy or no drums). Runs in the background for the current playlist, starting with the next tracks to play.",
  "Background only. File info dialog (MD-05) shows BPM. Optional BPM column in PW4.",

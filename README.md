@@ -42,6 +42,8 @@ Useful switches:
 - tracker modules (MOD, XM, IT, S3M, ...);
 - OptimFROG (x64).
 
+**Waveform and loudness:** the strip under the display is a waveform seek bar (click or drag to seek). ReplayGain (Settings › Playback) uses tags or a background EBU R128 analysis; "RG" shows while a gain is applied.
+
 **Plugins** are managed in Settings › Plugins. Skins are documented in `docs/skins/skin-format.md`; plugins in `docs/plugins/plugin-guide.md`.
 
 The tests need the native libraries, the plugin assets and the generated test media; without them the decoder and output tests are reported as skipped. `python scripts/check_plugin_template.py` checks that a plugin made from the `dotnet new` template and built only from the SDK package loads, runs and unloads.

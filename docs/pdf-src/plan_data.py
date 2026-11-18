@@ -329,7 +329,14 @@ PROGRESS = {
                         "Checked by Anders: plugin manager, sample plugins, internet radio, MIDI, MOD and OptimFROG playback."],
                open=["Output, DSP, visualisation and cast-target plugins are used once their hosts exist (P6, P7, P11); DSP time budget in P7.",
                      "Fixtures for Musepack, Shorten, APE, XM/IT/S3M; Anders's own MIDI/MOD/WMA/Ogg/Opus files; macOS/Linux (libopenmpt build script untested)."]),
-    "P5": dict(status="Next", date="", outcome=[], open=[]),
+    "P5": dict(status="Done on Windows", date="18 Nov 2026",
+               outcome=["Background analysis queue (current track first at normal priority, the rest at low priority; worker count in Settings › General) with one decode per file feeding every analyser.",
+                        "Waveform seek bar in the main window (played part white, click/drag to seek, progress line while analysing, live waveform for streams); a 5-minute FLAC takes about 1 s (0.6 s Release) and is instant from the cache.",
+                        "ReplayGain (Off/Track/Album/Auto) from tags or our own EBU R128 analysis, within 0.1 LU of FFmpeg's ebur128 on ten test files; pre-amps, clipping prevention, optional tag writing, RG badge.",
+                        "Found and fixed a P4 regression (files from the FFmpeg plugin had no duration, so seeking was off). Checked by Anders."],
+               open=["Live waveform for radio not yet checked by Anders; macOS/Linux.",
+                     "File info dialog with the ReplayGain values comes with MD-05 (P9)."]),
+    "P6": dict(status="Next", date="", outcome=[], open=[]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).
