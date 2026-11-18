@@ -656,6 +656,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         SetBitPerfect(dop);
         _graph.Paused = paused;
         _graph.Fade.Snap(true); // a new track starts at full level (after a stop fade)
+        _graph.Dsp.RequestReset(); // EQ-05: no reverb tail etc. from the previous track
         _sourceFormat = source.Format;
         _canSeek = source.CanSeek;
         await _deck.LoadAsync(source).ConfigureAwait(false);
@@ -748,6 +749,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             return;
         }
         _bitPerfect = on;
+        _graph.Dsp.Bypass = on; // EQ-05: no effects on DoP
         ApplyGain();
         _graph.Master.SnapToTarget();
         ApplySpeed();
@@ -790,6 +792,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         var fade = fades.OnSeek && _state == PlaybackState.Playing && !_bitPerfect ? fades.SeekMilliseconds : 0;
         await FadeOutAsync(fade).ConfigureAwait(false);
         await _deck.SeekAsync(frame).ConfigureAwait(false);
+        _graph.Dsp.RequestReset(); // EQ-05: effect tails belong to the old position
         if (fade > 0)
         {
             _graph.Fade.FadeIn(fade);

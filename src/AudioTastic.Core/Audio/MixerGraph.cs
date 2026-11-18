@@ -1,11 +1,13 @@
 using System.Diagnostics;
+using AudioTastic.Core.Audio.Dsp;
 using AudioTastic.Sdk.Audio;
 
 namespace AudioTastic.Core.Audio;
 
 /// <summary>
 /// The engine's mixer graph (audio pipeline, Feature Specification section 3):
-/// deck A + deck B → (P6+: time-stretch, ReplayGain) → sum → (P7: DSP chain) → master <see cref="GainStage"/> → output.
+/// deck A + deck B (time-stretch, ReplayGain) → sum → <see cref="DspChain"/> → visualisation/peak taps →
+/// master <see cref="GainStage"/> → fades → output.
 /// <see cref="Render"/> runs on the audio thread and never allocates or locks.
 /// </summary>
 public sealed class MixerGraph : IAudioRenderer, IDisposable
@@ -35,8 +37,14 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     public Deck DeckA { get; }
     public Deck DeckB { get; }
 
-    /// <summary>CO-07: peaks of the mixed decks before the master volume (live waveform for streams).</summary>
+    /// <summary>CO-07: peaks after the DSP chain, before the master volume (live waveform for streams).</summary>
     public PeakTap Peaks { get; } = new();
+
+    /// <summary>EQ-05: the DSP chain (equalizer, effects, plugin effects).</summary>
+    public DspChain Dsp { get; } = new();
+
+    /// <summary>UI-07: post-DSP audio for the visualisations.</summary>
+    public VisualisationFeed Visualisation { get; } = new();
 
     /// <summary>PB-02 / PB-10: fades on pause, stop, seek and the sleep timer, after the master volume.</summary>
     public FadeStage Fade { get; } = new();
@@ -88,6 +96,8 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
         }
         Master.Configure(format.SampleRate);
         Peaks.Configure(format.SampleRate);
+        Dsp.Configure(format.SampleRate, format.Channels);
+        Visualisation.Configure(format.SampleRate);
         Fade.Configure(format.SampleRate);
         DeckA.Gain.Configure(format.SampleRate);
         DeckB.Gain.Configure(format.SampleRate);
@@ -119,6 +129,8 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
                     }
                 }
             }
+            Dsp.Process(output, Format.Channels);
+            Visualisation.Write(output, Format.Channels);
             Peaks.Write(output, Format.Channels);
             Master.Process(output, Format.Channels);
             Fade.Process(output, Format.Channels);
@@ -130,7 +142,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     /// Blocks until any render that may have started before the call has completed (two render boundaries).
     /// Returns at once when no output is active, and gives up after 250 ms if the device stalls.
     /// </summary>
-    internal void WaitForRenderBoundary()
+    public void WaitForRenderBoundary()
     {
         if (!_outputActive)
         {

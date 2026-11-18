@@ -170,6 +170,30 @@ public sealed class InterfaceSettings
 
     /// <summary>UI-09: theme of dialogs and the settings window.</summary>
     public DialogTheme DialogTheme { get; set; } = DialogTheme.System;
+
+    /// <summary>UI-01 / EQ-01: saved equalizer window position and visibility.</summary>
+    public WindowPlacement? EqualizerWindow { get; set; }
+    public bool EqualizerVisible { get; set; }
+
+    /// <summary>UI-07: what MW6 shows (clicking it cycles).</summary>
+    public VisualisationType Visualisation { get; set; } = VisualisationType.Spectrum;
+
+    /// <summary>UI-07: number of spectrum bars (8–64).</summary>
+    public int SpectrumBars { get; set; } = 20;
+
+    /// <summary>UI-07: how fast the peak caps fall, in bar heights per second.</summary>
+    public double PeakFallSpeed { get; set; } = 0.6;
+
+    /// <summary>UI-07: drawing rate of MW6 (15–60 fps).</summary>
+    public int VisualisationFps { get; set; } = 60;
+}
+
+/// <summary>UI-07: built-in visualisation in MW6.</summary>
+public enum VisualisationType
+{
+    Spectrum,
+    Oscilloscope,
+    Off,
 }
 
 /// <summary>UI-09: dialog theme choice.</summary>
@@ -186,6 +210,135 @@ public sealed class SystemIntegrationSettings
 
 public sealed class EqualizerDspSettings
 {
+    /// <summary>EQ-01 / EQ-04: the equalizer (graphic or parametric). Its ON switch is the "equalizer" chain entry.</summary>
+    public EqualizerSettings Equalizer { get; set; } = new();
+
+    /// <summary>
+    /// EQ-05: the DSP chain in processing order. Ids: equalizer, compressor, widener, reverb, limiter, and
+    /// "plugin:&lt;plugin id&gt;:&lt;effect name&gt;" for plugin effects. Effects missing here are appended (off).
+    /// </summary>
+    public List<DspChainEntry> Chain { get; set; } = DspChainEntry.Defaults();
+
+    public CompressorSettings Compressor { get; set; } = new();
+    public LimiterSettings Limiter { get; set; } = new();
+    public ReverbSettings Reverb { get; set; } = new();
+    public WidenerSettings Widener { get; set; } = new();
+
+    /// <summary>EQ-03: load a preset automatically when a track starts (file rule first, then genre rule).</summary>
+    public bool AutoEq { get; set; }
+
+    /// <summary>EQ-03: genre (case-insensitive) → preset name. File rules live in cache.db (kind "autoeq").</summary>
+    public Dictionary<string, string> GenrePresets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>EQ-01 / EQ-04 settings.</summary>
+public sealed class EqualizerSettings
+{
+    /// <summary>Winamp's ten bands (Hz).</summary>
+    public static readonly double[] GraphicFrequencies = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+
+    public EqualizerMode Mode { get; set; } = EqualizerMode.Graphic;
+
+    /// <summary>Preamp, ±12 dB.</summary>
+    public double PreampDb { get; set; }
+
+    /// <summary>EQ-01: the ten graphic bands, ±12 dB each.</summary>
+    public double[] Bands { get; set; } = new double[10];
+
+    /// <summary>EQ-04: up to ten parametric bands.</summary>
+    public List<ParametricBand> Parametric { get; set; } = ParametricBand.Defaults();
+
+    /// <summary>EQ-02: name of the preset last loaded (shown in the window); null after manual changes.</summary>
+    public string? Preset { get; set; }
+
+    public EqualizerSettings Clone() => new()
+    {
+        Mode = Mode,
+        PreampDb = PreampDb,
+        Bands = (double[])Bands.Clone(),
+        Parametric = [.. Parametric],
+        Preset = Preset,
+    };
+}
+
+public enum EqualizerMode
+{
+    Graphic,
+    Parametric,
+}
+
+/// <summary>EQ-04 filter types.</summary>
+public enum FilterType
+{
+    Peak,
+    LowShelf,
+    HighShelf,
+    LowPass,
+    HighPass,
+    Notch,
+}
+
+/// <summary>EQ-04: one parametric band: frequency 20 Hz–20 kHz, gain ±24 dB, Q 0.1–10.</summary>
+public sealed record ParametricBand(FilterType Type, double Frequency, double GainDb, double Q, bool Enabled = true)
+{
+    public static List<ParametricBand> Defaults() =>
+    [
+        new(FilterType.LowShelf, 100, 0, 0.7),
+        new(FilterType.Peak, 400, 0, 1),
+        new(FilterType.Peak, 1500, 0, 1),
+        new(FilterType.Peak, 5000, 0, 1),
+        new(FilterType.HighShelf, 10000, 0, 0.7),
+    ];
+}
+
+/// <summary>EQ-05: one effect in the chain.</summary>
+public sealed record DspChainEntry(string Id, bool Enabled)
+{
+    public const string Equalizer = "equalizer";
+    public const string Compressor = "compressor";
+    public const string Widener = "widener";
+    public const string Reverb = "reverb";
+    public const string Limiter = "limiter";
+    public const string PluginPrefix = "plugin:";
+
+    public static List<DspChainEntry> Defaults() =>
+        [new(Equalizer, false), new(Compressor, false), new(Widener, false), new(Reverb, false), new(Limiter, false)];
+}
+
+public sealed class CompressorSettings
+{
+    public double ThresholdDb { get; set; } = -20;
+    public double Ratio { get; set; } = 4;
+    public double AttackMs { get; set; } = 10;
+    public double ReleaseMs { get; set; } = 200;
+    public double MakeupDb { get; set; }
+}
+
+public sealed class LimiterSettings
+{
+    public double CeilingDb { get; set; } = -1;
+    public double ReleaseMs { get; set; } = 100;
+}
+
+public sealed class ReverbSettings
+{
+    /// <summary>0–1.</summary>
+    public double RoomSize { get; set; } = 0.5;
+
+    /// <summary>0–1.</summary>
+    public double Damping { get; set; } = 0.5;
+
+    /// <summary>Wet level 0–1 (the dry signal stays at full level).</summary>
+    public double Mix { get; set; } = 0.2;
+
+    /// <summary>Stereo width of the reverb 0–1.</summary>
+    public double Width { get; set; } = 1;
+}
+
+public sealed class WidenerSettings
+{
+    /// <summary>Side level: 0 = mono, 1 = unchanged, 2 = twice as wide.</summary>
+    public double Width { get; set; } = 1.5;
 }
 
 public sealed class PluginSettings
