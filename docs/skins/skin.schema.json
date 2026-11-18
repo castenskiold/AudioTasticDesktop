@@ -101,7 +101,7 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "enum": ["rect", "image", "text", "button", "toggle", "slider", "time", "marquee", "indicators", "dragArea", "art", "visualisation",
+          "enum": ["rect", "image", "text", "button", "toggle", "slider", "waveform", "time", "marquee", "indicators", "dragArea", "art", "visualisation",
             "playlistTabs", "playlistSearch", "playlistList", "playlistInfo", "resizeGrip"]
         },
         "bind": { "type": "string", "description": "What the element does or shows; allowed values depend on the type (see skin-format.md)." },

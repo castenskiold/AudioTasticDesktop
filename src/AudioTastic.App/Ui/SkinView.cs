@@ -213,6 +213,32 @@ public sealed class SkinView : Border, IDisposable
                 return slider;
             }
 
+            case "waveform":
+            {
+                // CO-07 (MW7): waveform seek bar.
+                var wave = new WaveformControl(skin, e);
+                if (e.Tooltip is not null)
+                {
+                    ToolTip.SetTip(wave, e.Tooltip);
+                }
+                wave.SeekRequested += (_, v) =>
+                {
+                    if (_vm.Duration is { } d && _vm.HasTrack)
+                    {
+                        _ = _vm.Player.SeekAsync(d * v);
+                    }
+                };
+                _updates.Add(() =>
+                {
+                    var shown = _vm.Track is not null;
+                    var canSeek = _vm.HasTrack && _vm.Duration is { } length && length > TimeSpan.Zero;
+                    wave.Update(shown ? _vm.Waveform : null, shown ? _vm.WaveformProgress : null,
+                        canSeek ? _vm.Position / _vm.Duration!.Value : 0, canSeek, shown && _vm.IsLive, _vm.Player.Peaks,
+                        _vm.State == PlaybackState.Playing);
+                });
+                return wave;
+            }
+
             case "time" when e.Bind == "duration":
             {
                 var length = new TimeDisplay(skin, e) { Cursor = Cursor.Default };

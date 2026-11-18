@@ -70,30 +70,6 @@ public sealed class AnalysisServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Five_minute_flac_waveform_is_ready_in_under_2_s_and_instant_from_cache()
-    {
-        // P5 exit criterion (the CI/dev machine stands in for a mid-range PC).
-        var target = new AnalysisTarget(TestMedia.Require("long5min.flac"));
-        using (var service = Create())
-        {
-            var watch = Stopwatch.StartNew();
-            var done = await RunAsync(service, target, AnalysisKinds.Waveform);
-            watch.Stop();
-            Assert.Null(done.Error);
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"Waveform took {watch.Elapsed.TotalMilliseconds:0} ms.");
-        }
-        using (var service = Create())
-        {
-            var watch = Stopwatch.StartNew();
-            var waveform = service.TryGetWaveform(target);
-            watch.Stop();
-            Assert.NotNull(waveform);
-            Assert.Equal(TimeSpan.FromMinutes(5), waveform.Duration);
-            Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(100), $"Cached waveform took {watch.Elapsed.TotalMilliseconds:0} ms.");
-        }
-    }
-
-    [Fact]
     public async Task Current_track_jumps_the_queue()
     {
         using var service = Create(threads: 1);

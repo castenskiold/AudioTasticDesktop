@@ -56,7 +56,8 @@ public sealed class AnalysisProgressEventArgs(AnalysisTarget target, double frac
 /// AN-01 part 2: the background analysis queue. Jobs are prioritised (current track, next track, background),
 /// merged when the same target is requested again, and skipped when the cache already holds valid results (cache key:
 /// path + size + modified time). Each job decodes the file once and feeds every requested analyser.
-/// Workers are below-normal-priority threads; their number follows Settings › General › analysis threads.
+/// Workers are below-normal-priority threads (normal while working on the current track); their number follows
+/// Settings › General › analysis threads.
 /// Events are raised on worker threads.
 /// </summary>
 public sealed class AnalysisService : IDisposable
@@ -70,11 +71,10 @@ public sealed class AnalysisService : IDisposable
     private readonly Lock _lock = new();
     private readonly PriorityQueue<Job, (int Priority, long Sequence)> _queue = new();
     private readonly Dictionary<AnalysisTarget, Job> _pending = [];
-    private readonly List<Thread> _workers = [];
+    private readonly List<Worker> _workers = [];
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _signal = new(0);
     private long _sequence;
-    private int _desiredWorkers;
     private int _batchDone;
     private int _batchTotal;
 
@@ -115,7 +115,7 @@ public sealed class AnalysisService : IDisposable
         {
             lock (_lock)
             {
-                return _workers.Count(w => w.IsAlive);
+                return _workers.Count(w => w.Thread.IsAlive);
             }
         }
     }
@@ -187,8 +187,7 @@ public sealed class AnalysisService : IDisposable
         Thread[] workers;
         lock (_lock)
         {
-            workers = [.. _workers];
-            _signal.Release(workers.Length);
+            workers = [.. _workers.Select(w => w.Thread)];
         }
         foreach (var worker in workers)
         {
@@ -227,65 +226,71 @@ public sealed class AnalysisService : IDisposable
         count = Math.Clamp(count, 1, 8);
         lock (_lock)
         {
-            _desiredWorkers = count;
-            _workers.RemoveAll(w => !w.IsAlive);
+            _workers.RemoveAll(w => !w.Thread.IsAlive);
+            // Surplus workers stop between jobs (one that is analysing finishes first).
+            while (_workers.Count > count)
+            {
+                var surplus = _workers[^1];
+                _workers.RemoveAt(_workers.Count - 1);
+                surplus.Retire.Cancel();
+            }
             while (_workers.Count < count)
             {
-                var index = _workers.Count;
-                var thread = new Thread(() => WorkLoop(index))
+                var worker = new Worker(new CancellationTokenSource());
+                var thread = new Thread(() => WorkLoop(worker))
                 {
                     IsBackground = true,
                     Priority = ThreadPriority.BelowNormal,
-                    Name = $"AudioTastic analysis {index + 1}",
+                    Name = $"AudioTastic analysis {_workers.Count + 1}",
                 };
-                _workers.Add(thread);
+                worker.Thread = thread;
+                _workers.Add(worker);
                 thread.Start();
             }
         }
-        int alive;
-        lock (_lock)
-        {
-            alive = _workers.Count;
-        }
-        _signal.Release(alive); // wake every worker, so surplus ones notice and exit
     }
 
-    private void WorkLoop(int index)
+    private void WorkLoop(Worker worker)
     {
-        var token = _stop.Token;
-        while (!token.IsCancellationRequested)
+        var stop = _stop.Token;
+        using var waitToken = CancellationTokenSource.CreateLinkedTokenSource(stop, worker.Retire.Token);
+        try
         {
-            try
+            while (!waitToken.IsCancellationRequested)
             {
-                _signal.Wait(token);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            Job? job = null;
-            lock (_lock)
-            {
-                if (index >= _desiredWorkers)
+                try
                 {
-                    _workers.Remove(Thread.CurrentThread);
-                    _signal.Release(); // pass the wake-up on: it may have been meant for a job
+                    _signal.Wait(waitToken.Token);
+                }
+                catch (OperationCanceledException)
+                {
                     return;
                 }
-                while (job is null && _queue.TryDequeue(out var next, out var key))
+                Job? job = null;
+                lock (_lock)
                 {
-                    if (next.Started || key.Priority != next.Priority)
+                    while (job is null && _queue.TryDequeue(out var next, out var key))
                     {
-                        continue; // stale duplicate of a re-prioritised job
+                        if (next.Started || key.Priority != next.Priority)
+                        {
+                            continue; // stale duplicate of a re-prioritised job
+                        }
+                        next.Started = true;
+                        job = next;
                     }
-                    next.Started = true;
-                    job = next;
+                }
+                if (job is not null)
+                {
+                    // The playing track's job is what the user is waiting for: it runs at normal priority; the rest at low.
+                    Thread.CurrentThread.Priority = job.Priority == (int)AnalysisPriority.Current ? ThreadPriority.Normal : ThreadPriority.BelowNormal;
+                    Run(job, stop);
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 }
             }
-            if (job is not null)
-            {
-                Run(job, token);
-            }
+        }
+        finally
+        {
+            worker.Retire.Dispose();
         }
     }
 
@@ -388,6 +393,12 @@ public sealed class AnalysisService : IDisposable
             }
             return [.. analyzers.Zip(runs, (a, r) => (a, r.Finish()))];
         }
+    }
+
+    private sealed class Worker(CancellationTokenSource retire)
+    {
+        public CancellationTokenSource Retire { get; } = retire;
+        public Thread Thread { get; set; } = null!;
     }
 
     private sealed class Job(AnalysisTarget target)

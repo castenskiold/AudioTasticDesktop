@@ -82,7 +82,8 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `slider` | `volume`, `seek` | A horizontal slider: `trackColor`, `fillColor`, `thumbColor`, `thumbSize`, `trackThickness`. |
 | `time` | none, or `duration` | Without bind: elapsed/remaining time (CO-06); click to toggle; it blinks while paused. With `duration`: the track length. `font`, `fontSize`, `color`, `align`. |
 | `marquee` | — | Scrolling "Artist – Title (duration)" (UI-06). `font`, `fontSize`, `color`, `speed` (px/s). |
-| `indicators` | — | Format indicators and badges (UI-06): bitrate, kHz, channels. `font`, `fontSize`, `color`, `stroke`, `spacing`. |
+| `waveform` | — | The waveform seek bar (CO-07, MW7): the track's peaks, played part in `fillColor`, the rest in `trackColor`, position line in `thumbColor`. Click or drag to seek. A thin centre line shows progress while the waveform is made; streams show a scrolling live waveform. |
+| `indicators` | — | Format indicators and badges (UI-06): bitrate, kHz, channels, and `RG` when ReplayGain is applied (PB-03). `font`, `fontSize`, `color`, `stroke`, `spacing`. |
 | `dragArea` | — | Dragging moves the window, together with the windows docked to it. Double-click toggles the mini player. |
 | `art` | — | Album art thumbnail (MW2). Shows the logo until album art (MD-02) arrives. |
 | `visualisation` | — | Area reserved for the spectrum and oscilloscope (UI-07, phase P7). |

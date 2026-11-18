@@ -35,7 +35,7 @@ public static class DisplayText
     }
 
     /// <summary>UI-06 / MW5: codec, bit depth (lossless), bitrate, sample rate and channels.</summary>
-    public static IReadOnlyList<string> Indicators(TrackInfo? track)
+    public static IReadOnlyList<string> Indicators(TrackInfo? track, ReplayGainDecision? replayGain = null)
     {
         if (track is null)
         {
@@ -60,6 +60,10 @@ public static class DisplayText
             8 => "7.1",
             var n => string.Create(CultureInfo.InvariantCulture, $"{n} CH"),
         });
+        if (replayGain is not null)
+        {
+            list.Add("RG"); // PB-03: a ReplayGain / loudness gain is applied
+        }
         return list;
     }
 

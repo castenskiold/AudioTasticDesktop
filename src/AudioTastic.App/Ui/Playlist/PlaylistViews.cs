@@ -323,6 +323,10 @@ internal sealed class PlaylistInfoView : TextBlock, IDisposable
     {
         var (selected, total, unknown, count) = _controller.Totals();
         Text = $"{DisplayText.Time(selected)} / {DisplayText.Time(total)}{(unknown ? "+" : string.Empty)}";
+        if (_controller.AnalysisStatus is { } analysing)
+        {
+            Text = $"{analysing} · {Text}"; // AN-01 status text
+        }
         var tip = $"{count} {(count == 1 ? "entry" : "entries")}; selection / total duration" + (unknown ? " (some lengths not known yet)" : string.Empty);
         ToolTip.SetTip(this, tip);
         Avalonia.Automation.AutomationProperties.SetName(this, Text + ", " + tip);

@@ -71,6 +71,10 @@ internal static class Program
                 .AddSingleton(sp => { var s = new AudioTastic.Core.Playlists.PlaylistService(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<ILogger<AudioTastic.Core.Playlists.PlaylistService>>(), sp.GetRequiredService<PluginHost>().LivePlaylistFormats); s.Load(); return s; })
                 .AddSingleton<AudioTastic.Metadata.TagService>()
                 .AddSingleton<AudioTastic.Metadata.TagLoader>()
+                // P5 analysis (AN-01), waveforms (CO-07) and ReplayGain (PB-03).
+                .AddSingleton<AudioTastic.Analysis.AnalysisService>()
+                .AddSingleton<AudioTastic.Analysis.ReplayGainService>()
+                .AddSingleton<AudioTastic.App.Ui.AnalysisCoordinator>()
                 .AddSingleton<AudioTastic.App.Ui.Playlist.PlaylistController>()
                 .AddSingleton<AudioTastic.App.Ui.PlayerShell>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -81,6 +85,9 @@ internal static class Program
             var plugins = services.GetRequiredService<PluginHost>();
             plugins.AttachPlayer(services.GetRequiredService<PlayerApi>());
             plugins.LoadAll();
+
+            // PB-03: the engine asks the ReplayGain service for each track's gain.
+            services.GetRequiredService<PlaybackEngine>().ReplayGainProvider = services.GetRequiredService<AudioTastic.Analysis.ReplayGainService>();
 
             var exitCode = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             log.LogInformation("AudioTastic exited with code {Code}", exitCode);

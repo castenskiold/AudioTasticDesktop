@@ -49,7 +49,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, ILoggerFactory loggerFactory)
     {
         _playlists = playlists;
         _plugins = plugins;
@@ -62,7 +62,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _paths = paths;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PlayerShell>();
-        Player = new PlayerViewModel(engine, settings);
+        Player = new PlayerViewModel(engine, settings, analysis);
         _plugins.PluginDisabled += OnPluginDisabled;
     }
 

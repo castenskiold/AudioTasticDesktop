@@ -81,8 +81,7 @@ public sealed class SettingsWindow : Window
         switch (group)
         {
             case SettingsGroup.Playback:
-                Note(panel, "Gapless playback, fades, ReplayGain, speed, resume, stop after current and the sleep timer arrive in phase P6. " +
-                            "Shuffle and repeat are switched in the main window (S, R) and are remembered.");
+                PlaybackPage(panel);
                 break;
             case SettingsGroup.Output:
                 OutputPage(panel);
@@ -125,6 +124,44 @@ public sealed class SettingsWindow : Window
         };
         panel.Children.Add(reset);
         _page.Content = panel;
+    }
+
+    private void PlaybackPage(StackPanel panel)
+    {
+        var rg = _settings.Current.Playback.ReplayGain;
+        void Update(Action<ReplayGainSettings> change) => _settings.Update(SettingsGroup.Playback, s => change(s.Playback.ReplayGain));
+
+        var mode = new ComboBox
+        {
+            ItemsSource = new[] { "Off", "Track gain", "Album gain", "Auto (album gain for album neighbours)" },
+            SelectedIndex = (int)rg.Mode,
+            Width = 320,
+        };
+        mode.SelectionChanged += (_, _) => Update(r => r.Mode = (ReplayGainMode)Math.Max(0, mode.SelectedIndex));
+        Row(panel, "ReplayGain", mode,
+            "Plays tracks at the same loudness, using ReplayGain tags or, for untagged files, an EBU R128 analysis in the background. " +
+            "'RG' appears in the main window while a gain is applied.");
+
+        NumericUpDown Db(double value, Action<double> changed)
+        {
+            var box = new NumericUpDown { Minimum = -15, Maximum = 15, Increment = 0.5m, Value = (decimal)value, FormatString = "+0.0;-0.0;0.0", Width = 140 };
+            box.ValueChanged += (_, e) =>
+            {
+                if (e.NewValue is { } v)
+                {
+                    changed((double)v);
+                }
+            };
+            return box;
+        }
+        Row(panel, "Pre-amp for tagged files (dB)", Db(rg.PreampTaggedDb, v => Update(r => r.PreampTaggedDb = v)));
+        Row(panel, "Pre-amp for untagged files (dB)", Db(rg.PreampUntaggedDb, v => Update(r => r.PreampUntaggedDb = v)),
+            "Used for files without tags while they are analysed (or when analysis is off), and added to analysed gains.");
+        Check(panel, "Analyse untagged files (EBU R128)", rg.AnalyseUntagged, v => Update(r => r.AnalyseUntagged = v));
+        Check(panel, "Prevent clipping (limit the gain to the peak)", rg.PreventClipping, v => Update(r => r.PreventClipping = v));
+        Check(panel, "Write analysed values to the files' tags", rg.WriteTags, v => Update(r => r.WriteTags = v));
+        Note(panel, "Gapless playback, fades, speed, resume, stop after current and the sleep timer arrive in phase P6. " +
+                    "Shuffle and repeat are switched in the main window (S, R) and are remembered.");
     }
 
     private void OutputPage(StackPanel panel)
@@ -224,6 +261,17 @@ public sealed class SettingsWindow : Window
         var level = new ComboBox { ItemsSource = Enum.GetNames<LogLevelSetting>(), SelectedIndex = (int)general.LogLevel, Width = 200 };
         level.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.General, s => s.General.LogLevel = (LogLevelSetting)Math.Max(0, level.SelectedIndex));
         Row(panel, "Log level", level, "Log files are in the logs folder of the data folder and are kept for 7 days.");
+
+        var threads = new NumericUpDown { Minimum = 1, Maximum = 8, Increment = 1, Value = general.AnalysisThreads, FormatString = "0", Width = 140 };
+        threads.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                _settings.Update(SettingsGroup.General, s => s.General.AnalysisThreads = (int)v);
+            }
+        };
+        Row(panel, "Analysis threads", threads,
+            "Background analysis of waveforms and loudness (and BPM later) runs at low priority on this many threads.");
 
         var open = new Button { Content = "Open data folder" };
         open.Click += (_, _) => _platform.OpenFolder(_paths.Root);

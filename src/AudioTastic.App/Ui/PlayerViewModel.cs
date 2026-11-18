@@ -14,6 +14,10 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IPlayerController _player;
     private readonly SettingsStore _settings;
+    private readonly AnalysisCoordinator? _analysis;
+    private Analysis.Waveform? _waveform;
+    private double? _waveformProgress;
+    private bool _isLive;
     private PlaybackState _state;
     private TrackInfo? _track;
     private TimeSpan _position;
@@ -27,10 +31,11 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     private IReadOnlyList<string> _indicators = [];
     private string? _status;
 
-    public PlayerViewModel(IPlayerController player, SettingsStore settings)
+    public PlayerViewModel(IPlayerController player, SettingsStore settings, AnalysisCoordinator? analysis = null)
     {
         _player = player;
         _settings = settings;
+        _analysis = analysis;
         _state = player.State;
         _volume = player.Volume;
         _muted = player.IsMuted;
@@ -44,7 +49,21 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         player.PositionChanged += OnPositionChanged;
         player.PlayModeChanged += OnPlayModeChanged;
         player.PlaybackError += OnPlaybackError;
+        player.ReplayGainChanged += OnReplayGainChanged;
+        if (analysis is not null)
+        {
+            analysis.Changed += OnAnalysisChanged;
+        }
     }
+
+    /// <summary>CO-07: the playing track's waveform, once analysed.</summary>
+    public Analysis.Waveform? Waveform { get => _waveform; private set => Set(ref _waveform, value); }
+
+    /// <summary>CO-07: 0–1 while the waveform is being made; null otherwise.</summary>
+    public double? WaveformProgress { get => _waveformProgress; private set => Set(ref _waveformProgress, value); }
+
+    /// <summary>A live stream is playing (scrolling waveform).</summary>
+    public bool IsLive { get => _isLive; private set => Set(ref _isLive, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -115,7 +134,22 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         _player.PositionChanged -= OnPositionChanged;
         _player.PlayModeChanged -= OnPlayModeChanged;
         _player.PlaybackError -= OnPlaybackError;
+        _player.ReplayGainChanged -= OnReplayGainChanged;
+        if (_analysis is not null)
+        {
+            _analysis.Changed -= OnAnalysisChanged;
+        }
     }
+
+    private void OnReplayGainChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+        Indicators = DisplayText.Indicators(_track, _player.ReplayGain));
+
+    private void OnAnalysisChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        Waveform = _analysis!.Waveform;
+        WaveformProgress = _analysis.Progress;
+        IsLive = _analysis.IsLive;
+    });
 
     private void OnStateChanged(object? sender, PlaybackStateEventArgs e) => Dispatcher.UIThread.Post(() =>
     {
@@ -156,7 +190,7 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         Track = track;
         Duration = track?.Duration;
         Title = DisplayText.Title(track);
-        Indicators = DisplayText.Indicators(track);
+        Indicators = DisplayText.Indicators(track, _player.ReplayGain);
         OnPropertyChanged(nameof(TimeText));
     }
 

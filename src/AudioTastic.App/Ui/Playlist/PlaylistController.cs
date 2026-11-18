@@ -25,14 +25,24 @@ public sealed class PlaylistController : IDisposable
     private readonly IPlatformServices _platform;
     private readonly ILogger<PlaylistController> _logger;
     private readonly IEnumerable<IAudioSourceFactory> _factories;
+    private readonly Analysis.AnalysisService? _analysis;
+
+    /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
+    public string? AnalysisStatus => _analysis?.Status is { Total: > 0 } s ? $"Analysing {s.Done + 1}/{s.Total}" : null;
     private Core.Playlists.Playlist _attached;
     private string _search = string.Empty;
     private IReadOnlyList<PlaylistEntry> _visible = [];
     private PlaylistListView? _list;
 
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
-        IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger)
+        IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
+        Analysis.AnalysisService? analysis = null)
     {
+        _analysis = analysis;
+        if (analysis is not null)
+        {
+            analysis.StatusChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => DetailsChanged?.Invoke(this, EventArgs.Empty));
+        }
         _service = service;
         _engine = engine;
         _loader = loader;
