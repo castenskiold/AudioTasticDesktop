@@ -127,6 +127,13 @@ async Task<int> MixAsync(string[] rest)
     var outDuration = Duration(first);
     var inDuration = Duration(second);
     var plan = CrossfadePlanner.Plan(xf, new CrossfadeTrack(outDuration, beats[first]), new CrossfadeTrack(inDuration, beats[second]), 0);
+    if (plan.Mode == CrossfadeMode.BeatMatch && plan.OutgoingBpm is { } bpmOut)
+    {
+        var (shift, differences) = new CrossfadeAligner([new FfmpegSourceFactory()]).Measure(new CrossfadeAlignment(first, plan.MixStart, 1, second, plan.IncomingStart,
+            plan.IncomingSpeed, plan.IncomingFadeLength, plan.Overlap, 60 / bpmOut));
+        Console.WriteLine("Aligner, incoming kicks against the outgoing ones per 8 beats (ms): " + string.Join(" ", differences.Select(d => (d * 1000).ToString("+0.0;-0.0", culture))));
+        Console.WriteLine(shift is { } s ? string.Create(culture, $"Aligner: incoming entry moved {s * 1000:+0.0;-0.0} ms") : "Aligner: no clear answer; the grids decide");
+    }
     var fallbackText = plan.Fallback is null ? string.Empty : $" (fallback: {plan.Fallback})";
     Console.WriteLine(string.Create(culture,
         $"Plan: {plan.Mode} at {plan.MixStart:0.000} s, incoming from {plan.IncomingStart:0.000} s at {plan.IncomingSpeed:0.0000}x ({plan.IncomingBpm:0.00} -> {plan.MatchedBpm:0.00} BPM), overlap {plan.Overlap:0.0} s, fade {plan.OutgoingFadeLength:0.0} s{fallbackText}"));
@@ -195,6 +202,7 @@ async Task<Render> RenderAsync(CrossfadingSettings xf, string first, string seco
         using var engine = new PlaybackEngine([new FfmpegSourceFactory()], device, settings, NullLogger<PlaybackEngine>.Instance)
         {
             BeatProvider = new FixedBeats(beats),
+            CrossfadeAligner = new CrossfadeAligner([new FfmpegSourceFactory()]),
         };
         device.Graph = engine.Graph;
         var playlist = new Playlist("mix", [new PlaylistEntry(first), new PlaylistEntry(second)]);
@@ -519,9 +527,16 @@ internal sealed class OfflineOutput : IAudioOutput
     private void Loop()
     {
         var buffer = new float[BlockFrames * 2];
+        // Until the incoming deck is armed, at most 4x real time: the engine plans and aligns the transition on other
+        // threads, which in real time has 10 s or more before the mix start.
+        var clock = Stopwatch.StartNew();
+        long rendered = 0;
+        var armed = false;
         while (_running)
         {
-            if (Graph is { } g && (g.Paused || !g.DeckA.CanRender(BlockFrames) || !g.DeckB.CanRender(BlockFrames)))
+            armed |= Graph?.Next is not null;
+            if (Graph is { } g && (g.Paused || !g.DeckA.CanRender(BlockFrames) || !g.DeckB.CanRender(BlockFrames) ||
+                (!armed && rendered > 4 * clock.Elapsed.TotalSeconds * Rate)))
             {
                 // Paused: nothing to capture (every render starts exactly at playback start); otherwise let the
                 // decoders catch up.
@@ -529,6 +544,7 @@ internal sealed class OfflineOutput : IAudioOutput
                 continue;
             }
             _renderer!.Render(buffer);
+            rendered += BlockFrames;
             if (_capture)
             {
                 lock (_lock)

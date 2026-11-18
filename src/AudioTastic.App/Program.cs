@@ -109,6 +109,8 @@ internal static class Program
 
             // AN-02 / XF-02: the engine asks the analysis for beats when it plans a beat-matched transition.
             services.GetRequiredService<PlaybackEngine>().BeatProvider = services.GetRequiredService<AudioTastic.Analysis.BeatInfoService>();
+            services.GetRequiredService<PlaybackEngine>().CrossfadeAligner =
+                new AudioTastic.Analysis.CrossfadeAligner(services.GetRequiredService<IEnumerable<IAudioSourceFactory>>());
 
             // PB-03: the engine asks the ReplayGain service for each track's gain.
             services.GetRequiredService<PlaybackEngine>().ReplayGainProvider = services.GetRequiredService<AudioTastic.Analysis.ReplayGainService>();

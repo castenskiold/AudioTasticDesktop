@@ -71,6 +71,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     // XF-01..XF-04 crossfading (all changed inside the gate, except the tempo timer which takes the gate itself).
     private IBeatInfoProvider? _beatProvider;
+    private ICrossfadeAligner? _crossfadeAligner;
     private BeatInfo? _trackBeats;          // AN-02 analysis of the current track, null until it is known
     private long _trackBeatsCheckedAt;
     private PlaylistEntry? _nextBeatsRequested; // AN-02: the next track's analysis was asked for
@@ -209,6 +210,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     {
         get => _beatProvider;
         set => _beatProvider = value;
+    }
+
+    /// <summary>XF-02: lines up the kicks from the audio of the overlap (set by the app; without it the grids decide).</summary>
+    public ICrossfadeAligner? CrossfadeAligner
+    {
+        get => _crossfadeAligner;
+        set => _crossfadeAligner = value;
     }
 
     public CrossfadeStatus? Crossfade
@@ -1228,7 +1236,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     /// <summary>
     /// XF-01..XF-04: plans the transition to <paramref name="entry"/> (null when crossfading is off or it is too late:
-    /// then the track follows gaplessly). Seeks <paramref name="source"/> to the incoming entry point for beat matching.
+    /// then the track follows gaplessly). The caller seeks the source to the incoming entry point for beat matching.
     /// <paramref name="startConsumed"/> is the outgoing deck's consumed-frame count at which the incoming deck starts.
     /// </summary>
     private CrossfadePlan? PlanCrossfade(PlaylistEntry entry, TrackInfo track, IAudioSource source, out long startConsumed, out BeatInfo? incomingBeats)
@@ -1267,10 +1275,6 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _logger.LogInformation("Too late to crossfade into {Path}; it follows gaplessly", entry.Path);
             startConsumed = -1;
             return null;
-        }
-        if (plan.Mode == CrossfadeMode.BeatMatch)
-        {
-            source.Seek(source.Format.TimeToFrames(TimeSpan.FromSeconds(plan.IncomingStart)));
         }
         return plan;
     }
@@ -1478,6 +1482,39 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                     return;
                 }
                 _preloadRetryAt = 0;
+                if (crossfade is { Mode: CrossfadeMode.BeatMatch } bm)
+                {
+                    // XF-02: line the kicks up from the audio of the overlap itself, then seek to the entry point.
+                    if (_crossfadeAligner is { } aligner && entry.Start is null && _entry is { Start: null } current && bm.OutgoingBpm is { } outBpm)
+                    {
+                        var request = new CrossfadeAlignment(current.Path, bm.MixStart, CurrentDeckSpeed, entry.Path, bm.IncomingStart, bm.IncomingSpeed,
+                            bm.IncomingFadeLength, bm.Overlap, 60 / outBpm);
+                        double? shift = null;
+                        try
+                        {
+                            shift = await Task.Run(() => aligner.Refine(request)).ConfigureAwait(false);
+                        }
+#pragma warning disable CA1031 // Alignment is a refinement: without it the grids decide.
+                        catch (Exception ex)
+#pragma warning restore CA1031
+                        {
+                            _logger.LogWarning(ex, "Aligning the kicks failed; the beat grids decide");
+                        }
+                        if (shift is { } s)
+                        {
+                            crossfade = bm with { IncomingStart = Math.Max(0, bm.IncomingStart + s) };
+                            _logger.LogInformation("Kicks aligned from the audio: incoming entry moved {Shift:+0.0;-0.0} ms", s * 1000);
+                        }
+                        if (startConsumed < _deck.Snapshot().Consumed + (_graph.Format.SampleRate / 5))
+                        {
+                            // The mix start passed while aligning: plan again (the next phrase).
+                            source.Dispose();
+                            _preloadRetryAt = Environment.TickCount64;
+                            return;
+                        }
+                    }
+                    source.Seek(source.Format.TimeToFrames(TimeSpan.FromSeconds(crossfade.IncomingStart)));
+                }
                 _spareSpeedOverride = crossfade is { Mode: CrossfadeMode.BeatMatch } ? crossfade.IncomingSpeed : null;
                 ApplySpeed();
                 await _spare.LoadAsync(source, armed: true).ConfigureAwait(false);

@@ -20,7 +20,52 @@ public sealed class BeatMatchTests
     private const int Rate = 44_100;
 
     [Fact]
-    public async Task Beat_matched_kicks_stay_within_10_ms_and_the_incoming_track_fades_in()
+    public Task Beat_matched_kicks_stay_within_10_ms_and_the_incoming_track_fades_in() => MixAsync(gridError: 0, align: false);
+
+    /// <summary>
+    /// The incoming track's beat grid is 25 ms off (as real tracks' grids can be in places): the aligner finds the
+    /// kicks in the audio of the overlap and still brings them within 10 ms.
+    /// </summary>
+    [Theory]
+    [InlineData(0.025)]
+    [InlineData(-0.025)]
+    public Task Audio_alignment_corrects_a_wrong_incoming_grid(double gridError) => MixAsync(gridError, align: true);
+
+    /// <summary>The aligner on its own: the shift it finds undoes the grid error.</summary>
+    [Theory]
+    [InlineData(0.025)]
+    [InlineData(-0.025)]
+    [InlineData(0.0)]
+    public void Aligner_finds_the_shift_that_undoes_a_grid_error(double gridError)
+    {
+        var outgoing = DanceTrack.Create(140, Rate, introBeats: 16, mainBeats: 120, breakBeats: 0, outroBeats: 16, offset: 0.2);
+        var incoming = DanceTrack.Create(146, Rate, introBeats: 16, mainBeats: 120, breakBeats: 0, outroBeats: 16, offset: 0.35);
+        var outBeats = BeatAnalysisTests.Analyze(outgoing.Samples, Rate);
+        var inBeats = BeatAnalysisTests.Analyze(incoming.Samples, Rate).Nudged(gridError);
+        var xf = new CrossfadingSettings
+        {
+            Enabled = true,
+            Mode = CrossfadeMode.BeatMatch,
+            FadeInSeconds = 2,
+            OverlapSeconds = 6,
+            MixBeforeBeatEndSeconds = 10,
+        };
+        var plan = CrossfadePlanner.Plan(xf, new CrossfadeTrack(Duration(outgoing), outBeats), new CrossfadeTrack(Duration(incoming), inBeats), 0);
+        var sources = new Dictionary<string, float[]> { ["out"] = outgoing.Samples, ["in"] = incoming.Samples };
+        var dir = Directory.CreateTempSubdirectory("audiotastic-align-").FullName;
+        var outPath = Path.Combine(dir, "out.mem");
+        var inPath = Path.Combine(dir, "in.mem");
+        File.WriteAllBytes(outPath, []);
+        File.WriteAllBytes(inPath, []);
+        sources = new Dictionary<string, float[]> { [outPath] = outgoing.Samples, [inPath] = incoming.Samples };
+        var aligner = new CrossfadeAligner([new MemoryFactory(sources)]);
+        var shift = aligner.Refine(new CrossfadeAlignment(outPath, plan.MixStart, 1, inPath, plan.IncomingStart, plan.IncomingSpeed,
+            plan.IncomingFadeLength, plan.Overlap, 60 / outBeats.Bpm));
+        Assert.NotNull(shift);
+        Assert.InRange(shift.Value, -gridError - 0.004, -gridError + 0.004);
+    }
+
+    private static async Task MixAsync(double gridError, bool align)
     {
         var outgoing = DanceTrack.Create(140, Rate, introBeats: 16, mainBeats: 120, breakBeats: 0, outroBeats: 16, offset: 0.2);
         var incoming = DanceTrack.Create(146, Rate, introBeats: 16, mainBeats: 120, breakBeats: 0, outroBeats: 16, offset: 0.35);
@@ -33,7 +78,7 @@ public sealed class BeatMatchTests
         var beats = new Dictionary<string, BeatInfo>
         {
             [outPath] = BeatAnalysisTests.Analyze(outgoing.Samples, Rate),
-            [inPath] = BeatAnalysisTests.Analyze(incoming.Samples, Rate),
+            [inPath] = BeatAnalysisTests.Analyze(incoming.Samples, Rate).Nudged(gridError),
         };
         var xf = new CrossfadingSettings
         {
@@ -53,8 +98,8 @@ public sealed class BeatMatchTests
 
         var startAt = plan.MixStart - 14;
         var seconds = 14 + plan.OutgoingTail + 1;
-        var outOnly = await RenderAsync(xf, sources, beats, outPath, inPath, startAt, seconds, muteIncoming: true);
-        var inOnly = await RenderAsync(xf, sources, beats, outPath, inPath, startAt, seconds, muteIncoming: false);
+        var outOnly = await RenderAsync(xf, sources, beats, outPath, inPath, startAt, seconds, muteIncoming: true, align);
+        var inOnly = await RenderAsync(xf, sources, beats, outPath, inPath, startAt, seconds, muteIncoming: false, align);
 
         // Every outgoing beat in the full-volume overlap: the incoming kick must be within 10 ms of the outgoing one.
         var period = 60 / beats[outPath].Bpm;
@@ -74,9 +119,10 @@ public sealed class BeatMatchTests
         Assert.True(compared >= 10, $"only {compared} beats compared");
         Assert.True(worst <= 0.010, $"worst kick misalignment {worst * 1000:F1} ms (per beat: {string.Join(" ", diffs.Select(d => (d * 1000).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)))})");
 
-        // The incoming track fades in: quiet at the mix start, full level after the fade-in.
-        var early = Rms(inOnly, 14, 0.3);
-        var late = Rms(inOnly, 14 + plan.IncomingFadeLength + 0.5, 0.3);
+        // The incoming track fades in: quiet at the mix start, full level after the fade-in (one beat each, so both
+        // windows hold exactly one kick wherever the alignment put it).
+        var early = Rms(inOnly, 14, period);
+        var late = Rms(inOnly, 14 + plan.IncomingFadeLength + 0.5, period);
         Assert.True(early < late * 0.3, $"incoming level {early:F3} at the mix start, {late:F3} after the fade-in");
     }
 
@@ -120,7 +166,7 @@ public sealed class BeatMatchTests
     }
 
     private static async Task<float[]> RenderAsync(CrossfadingSettings xf, Dictionary<string, float[]> sources, Dictionary<string, BeatInfo> beats,
-        string outPath, string inPath, double startAt, double seconds, bool muteIncoming)
+        string outPath, string inPath, double startAt, double seconds, bool muteIncoming, bool align)
     {
         var dir = Directory.CreateTempSubdirectory("audiotastic-beatmatch-").FullName;
         var paths = AppPaths.Resolve(new AppPathsContext(AppPathsContext.CurrentOs, dir, dir, null, null, [AppPaths.PortableSwitch])).EnsureCreated();
@@ -135,6 +181,7 @@ public sealed class BeatMatchTests
         using var engine = new PlaybackEngine([new MemoryFactory(sources)], device, settings, NullLogger<PlaybackEngine>.Instance)
         {
             BeatProvider = new FixedBeats(beats),
+            CrossfadeAligner = align ? new CrossfadeAligner([new MemoryFactory(sources)]) : null,
         };
         device.Graph = engine.Graph;
         var playlist = new Playlist("mix", [new PlaylistEntry(outPath), new PlaylistEntry(inPath)]);
@@ -296,14 +343,22 @@ public sealed class BeatMatchTests
         private void Loop()
         {
             var buffer = new float[Block * 2];
+            // Offline rendering outruns real time: until the incoming deck is armed, render at most 4x real time (the
+            // engine plans and aligns it on other threads, which in real time has 10 s or more before the mix start).
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            long rendered = 0;
+            var armed = false;
             while (_running)
             {
-                if (Graph is { } g && (g.Paused || !g.DeckA.CanRender(Block) || !g.DeckB.CanRender(Block)))
+                armed |= Graph?.Next is not null;
+                if (Graph is { } g && (g.Paused || !g.DeckA.CanRender(Block) || !g.DeckB.CanRender(Block) ||
+                    (!armed && rendered > 4 * clock.Elapsed.TotalSeconds * Rate)))
                 {
                     Thread.Sleep(1);
                     continue;
                 }
                 _renderer!.Render(buffer);
+                rendered += Block;
                 if (_capture)
                 {
                     lock (_lock)
