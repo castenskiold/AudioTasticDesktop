@@ -11,5 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="AudioTastic.Input.Ffmpeg.Tests" />
+    <InternalsVisibleTo Include="AudioTastic.Analysis.Tests" />
   </ItemGroup>
 </Project>

@@ -18,7 +18,7 @@ public sealed class TagService
     private const string CacheKind = "tags";
 
     /// <summary>Bump when <see cref="TrackTags"/> reading changes, so cached results are read again.</summary>
-    private const int CacheDataVersion = 1;
+    private const int CacheDataVersion = 2; // 2: ReplayGain values (PB-03)
 
     private static readonly string[] CueSheetExtensions = [".flac", ".ape", ".wv"];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -103,6 +103,7 @@ public sealed class TagService
             using var file = TagLib.File.Create(path);
             var tag = file.Tag;
             var duration = file.Properties?.Duration is { } d && d > TimeSpan.Zero ? d : (TimeSpan?)null;
+            var replayGain = ReadReplayGain(file);
             return new TrackTags(
                 Clean(tag.Title),
                 Clean(tag.JoinedPerformers) ?? Clean(tag.FirstAlbumArtist),
@@ -112,7 +113,8 @@ public sealed class TagService
                 tag.Disc > 0 ? (int)tag.Disc : null,
                 tag.Year > 0 ? (int)tag.Year : null,
                 Clean(tag.FirstGenre),
-                duration);
+                duration,
+                replayGain);
         }
         catch (Exception ex) when (IsTagLibFailure(ex))
         {
@@ -143,7 +145,9 @@ public sealed class TagService
                 Number(Get("disc")),
                 Number(Get("date", "year") is { Length: >= 4 } year ? year[..4] : null),
                 Get("genre"),
-                duration);
+                duration,
+                new ReplayGainInfo(ParseGain(Get("replaygain_track_gain")), ParseGain(Get("replaygain_track_peak")),
+                    ParseGain(Get("replaygain_album_gain")), ParseGain(Get("replaygain_album_peak"))) is { IsEmpty: false } rg ? rg : null);
         }
         catch (Exception ex) when (ex is AudioSourceException or IOException or NotSupportedException)
         {
@@ -153,6 +157,34 @@ public sealed class TagService
     }
 
     /// <summary>"3/12" → 3.</summary>
+    /// <summary>PB-03: REPLAYGAIN_* through TagLib (all tag types), or Opus R128_* gains (Q7.8 dB relative to -23 LUFS).</summary>
+    private static ReplayGainInfo? ReadReplayGain(TagLib.File file)
+    {
+        var tag = file.Tag;
+        static double? Value(double v) => double.IsNaN(v) ? null : v;
+        var info = new ReplayGainInfo(Value(tag.ReplayGainTrackGain), Value(tag.ReplayGainTrackPeak),
+            Value(tag.ReplayGainAlbumGain), Value(tag.ReplayGainAlbumPeak));
+        if (info.IsEmpty && file.GetTag(TagLib.TagTypes.Xiph) is TagLib.Ogg.XiphComment xiph)
+        {
+            static double? R128(string? v) => int.TryParse(v, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var q)
+                ? (q / 256.0) + 5.0 // R128 reference -23 LUFS -> ReplayGain reference -18 LUFS
+                : null;
+            info = new ReplayGainInfo(R128(xiph.GetFirstField("R128_TRACK_GAIN")), null, R128(xiph.GetFirstField("R128_ALBUM_GAIN")), null);
+        }
+        return info.IsEmpty ? null : info;
+    }
+
+    /// <summary>PB-03: "-6.54 dB" / "0.988" style values from FFmpeg metadata.</summary>
+    internal static double? ParseGain(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+        var text = value.Replace("dB", "", StringComparison.OrdinalIgnoreCase).Trim();
+        return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+    }
+
     private static int? Number(string? value)
     {
         if (string.IsNullOrEmpty(value))

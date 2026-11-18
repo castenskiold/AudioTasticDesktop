@@ -33,6 +33,9 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     public Deck DeckA { get; }
     public Deck DeckB { get; }
 
+    /// <summary>CO-07: peaks of the mixed decks before the master volume (live waveform for streams).</summary>
+    public PeakTap Peaks { get; } = new();
+
     /// <summary>CO-05: master volume and mute, applied after mixing (after the DSP chain from P7).</summary>
     public GainStage Master { get; } = new();
 
@@ -66,6 +69,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
             _scratch = new float[MaxBlockFrames * format.Channels];
         }
         Master.Configure(format.SampleRate);
+        Peaks.Configure(format.SampleRate);
         DeckA.Gain.Configure(format.SampleRate);
         DeckB.Gain.Configure(format.SampleRate);
     }
@@ -83,6 +87,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
                 DeckA.MixInto(chunk, _scratch);
                 DeckB.MixInto(chunk, _scratch);
             }
+            Peaks.Write(output, Format.Channels);
             Master.Process(output, Format.Channels);
         }
         Interlocked.Increment(ref _renderCount);

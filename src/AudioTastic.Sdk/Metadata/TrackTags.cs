@@ -13,7 +13,8 @@ public sealed record TrackTags(
     int? DiscNumber = null,
     int? Year = null,
     string? Genre = null,
-    TimeSpan? Duration = null)
+    TimeSpan? Duration = null,
+    ReplayGainInfo? ReplayGain = null)
 {
     /// <summary>"Artist – Title", or the title alone; null when there is no title.</summary>
     public string? DisplayName =>
@@ -31,5 +32,15 @@ public sealed record TrackTags(
         DiscNumber ?? other.DiscNumber,
         Year ?? other.Year,
         Genre ?? other.Genre,
-        Duration ?? other.Duration);
+        Duration ?? other.Duration,
+        ReplayGain ?? other.ReplayGain);
+}
+
+/// <summary>
+/// PB-03: ReplayGain values from tags (REPLAYGAIN_* in ID3/Vorbis/APE/MP4; Opus R128_* converted to the ReplayGain
+/// reference of -18 LUFS). Gains in dB, peaks as linear sample values (1.0 = full scale).
+/// </summary>
+public sealed record ReplayGainInfo(double? TrackGainDb = null, double? TrackPeak = null, double? AlbumGainDb = null, double? AlbumPeak = null)
+{
+    public bool IsEmpty => TrackGainDb is null && AlbumGainDb is null;
 }

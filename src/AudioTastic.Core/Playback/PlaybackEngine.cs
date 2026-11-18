@@ -44,6 +44,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private int _orderVersion = -1;
     private volatile PlaybackState _state = PlaybackState.Stopped;
     private TrackInfo? _track;
+    private IReplayGainProvider? _gainProvider;
+    private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
     private AudioFormat _sourceFormat = new(48_000, EngineChannels);
     private bool _canSeek;
@@ -133,6 +135,33 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public event EventHandler<PlaybackPositionEventArgs>? PositionChanged;
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackError;
     public event EventHandler<EventArgs>? PlayModeChanged;
+
+    /// <summary>PB-03: <see cref="ReplayGain"/> changed (new track, analysis finished, settings changed).</summary>
+    public event EventHandler<EventArgs>? ReplayGainChanged;
+
+    /// <summary>PB-03: the gain applied to the current track, or null when none.</summary>
+    public ReplayGainDecision? ReplayGain => _replayGain;
+
+    /// <summary>CO-07: recent peaks of the mixed signal (live waveform for streams).</summary>
+    public PeakTap Peaks => _graph.Peaks;
+
+    /// <summary>PB-03: decides the gain per track; set once after construction (null: no ReplayGain).</summary>
+    public IReplayGainProvider? ReplayGainProvider
+    {
+        get => _gainProvider;
+        set
+        {
+            if (_gainProvider is not null)
+            {
+                _gainProvider.GainChanged -= OnGainChanged;
+            }
+            _gainProvider = value;
+            if (value is not null)
+            {
+                value.GainChanged += OnGainChanged;
+            }
+        }
+    }
 
     /// <summary>CO-03: shuffle; saved across restarts.</summary>
     public bool Shuffle
@@ -352,6 +381,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             var metadata = source as IStreamMetadata ?? (source as IStreamMetadataSource)?.StreamMetadata;
             var track = BuildTrack(entry, source, metadata);
             DetachStreamMetadata();
+            ApplyReplayGain(entry); // before the deck starts, so the track begins at its own level
             try
             {
                 await StartSourceAsync(source).ConfigureAwait(false);
@@ -706,6 +736,57 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     }
 
     private void ApplyGain() => _graph.Master.TargetGain = _muted ? 0f : GainStage.VolumeToGain(_volume);
+
+    /// <summary>PB-03: asks the provider and sets deck A's gain (ramped, 10 ms).</summary>
+    private void ApplyReplayGain(PlaylistEntry entry)
+    {
+        ReplayGainDecision? decision = null;
+        try
+        {
+            decision = _gainProvider?.GetGain(_playlist, entry);
+        }
+#pragma warning disable CA1031 // ReplayGain is optional: a failure plays the track unchanged.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "ReplayGain could not be determined for {Path}", entry.Path);
+        }
+        _graph.DeckA.Gain.TargetGain = decision?.Linear ?? 1f;
+        if (decision != _replayGain)
+        {
+            _replayGain = decision;
+            if (decision is not null)
+            {
+                _logger.LogInformation("ReplayGain {Gain:+0.00;-0.00} dB ({Source}, linear {Linear:0.000})", decision.GainDb, decision.Source, decision.Linear);
+            }
+            Raise(ReplayGainChanged, EventArgs.Empty);
+        }
+    }
+
+    private void OnGainChanged(object? sender, ReplayGainChangedEventArgs e)
+    {
+        if (_disposed || _entry is not { } entry || (e.Path is not null && !string.Equals(e.Path, entry.Path, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunAsync(() =>
+                {
+                    if (ReferenceEquals(_entry, entry) && _state != PlaybackState.Stopped)
+                    {
+                        ApplyReplayGain(entry);
+                    }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        });
+    }
 
     private void ScheduleSave()
     {

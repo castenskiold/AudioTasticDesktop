@@ -100,6 +100,15 @@ public interface IPlayerController
     /// <summary>Raised when <see cref="Shuffle"/> or <see cref="Repeat"/> changes.</summary>
     event EventHandler<EventArgs>? PlayModeChanged;
 
+    /// <summary>PB-03: the ReplayGain applied to the current track, or null.</summary>
+    ReplayGainDecision? ReplayGain { get; }
+
+    /// <summary>PB-03: raised when <see cref="ReplayGain"/> changes.</summary>
+    event EventHandler<EventArgs>? ReplayGainChanged;
+
+    /// <summary>CO-07: recent peaks of the mixed signal (live waveform for streams).</summary>
+    PeakTap Peaks { get; }
+
     /// <summary>Plays <paramref name="entry"/> of <paramref name="playlist"/>, which becomes the playing playlist.</summary>
     Task PlayAsync(Playlist playlist, PlaylistEntry entry);
 

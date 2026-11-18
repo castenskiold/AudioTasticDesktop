@@ -38,6 +38,64 @@ public sealed class PlaybackEngineTests : IDisposable
         TempFiles.Touch(SyntheticFactory.PathFor(name, rate, seconds, channels));
 
     [Fact]
+    public async Task ReplayGain_from_the_provider_sets_the_deck_gain_and_follows_updates()
+    {
+        // PB-03: the gain is applied before the track starts and updated when the provider says it changed.
+        var provider = new FakeGainProvider { Decision = new ReplayGainDecision(-6, 0.5f, ReplayGainSource.TrackTag) };
+        _engine.ReplayGainProvider = provider;
+        var changes = 0;
+        _engine.ReplayGainChanged += (_, _) => Interlocked.Increment(ref changes);
+
+        await _engine.OpenAsync([Track("one", seconds: 5)]);
+
+        Assert.Equal(0.5f, _engine.Graph.DeckA.Gain.TargetGain);
+        Assert.Equal(ReplayGainSource.TrackTag, _engine.ReplayGain!.Source);
+        Assert.Equal(1, changes);
+
+        provider.Decision = new ReplayGainDecision(3, 1.41f, ReplayGainSource.TrackAnalysis);
+        provider.Raise(_engine.CurrentEntry!.Path);
+        await Wait.UntilAsync(() => _engine.ReplayGain?.Source == ReplayGainSource.TrackAnalysis);
+        Assert.Equal(1.41f, _engine.Graph.DeckA.Gain.TargetGain);
+
+        provider.Decision = null; // e.g. ReplayGain switched off
+        provider.Raise(null);
+        await Wait.UntilAsync(() => _engine.ReplayGain is null);
+        Assert.Equal(1f, _engine.Graph.DeckA.Gain.TargetGain);
+        Assert.Equal(3, changes);
+
+        provider.Decision = new ReplayGainDecision(-1, 0.9f, ReplayGainSource.TrackTag);
+        provider.Raise("some other file.flac"); // not the playing file: ignored
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.Null(_engine.ReplayGain);
+    }
+
+    [Fact]
+    public void Peak_tap_records_min_and_max_per_10_ms()
+    {
+        var tap = new AudioTastic.Core.Audio.PeakTap();
+        tap.Configure(1000); // 10 frames per pair
+        var samples = new float[40]; // 20 stereo frames: two pairs
+        samples[3] = 0.8f;
+        samples[30] = -0.5f;
+        tap.Write(samples, 2);
+
+        var min = new float[10];
+        var max = new float[10];
+        Assert.Equal(2, tap.ReadLatest(min, max));
+        Assert.Equal(0.8f, max[0]);
+        Assert.Equal(-0.5f, min[1]);
+        Assert.Equal(2, tap.Written);
+    }
+
+    private sealed class FakeGainProvider : IReplayGainProvider
+    {
+        public ReplayGainDecision? Decision { get; set; }
+        public event EventHandler<ReplayGainChangedEventArgs>? GainChanged;
+        public ReplayGainDecision? GetGain(AudioTastic.Core.Playlists.Playlist playlist, AudioTastic.Core.Playlists.PlaylistEntry entry) => Decision;
+        public void Raise(string? path) => GainChanged?.Invoke(this, new ReplayGainChangedEventArgs(path));
+    }
+
+    [Fact]
     public async Task Stream_title_changes_update_the_current_track()
     {
         // FM-10: a live stream starts with the station name; ICY titles replace it while it plays.
