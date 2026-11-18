@@ -7,7 +7,7 @@ namespace AudioTastic.Data.Settings;
 public sealed class AppSettings
 {
     /// <summary>Current schema version. Increase it and add a migration in <see cref="SettingsMigrations"/> when the shape changes incompatibly.</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -228,7 +228,7 @@ public sealed class InterfaceSettings
     public bool AlwaysOnTop { get; set; }
 
     /// <summary>UI-05: keep the mini player above other windows.</summary>
-    public bool MiniPlayerAlwaysOnTop { get; set; } = true;
+    public bool MiniPlayerAlwaysOnTop { get; set; } // off by default (Anders, 18 Nov 2026)
 
     /// <summary>UI-06: scroll the title when it does not fit.</summary>
     public bool ScrollTitle { get; set; } = true;

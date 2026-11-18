@@ -11,6 +11,16 @@ internal static class SettingsMigrations
     {
         // 0 -> 1: files written before versioning existed had no schemaVersion; nothing else changed.
         [0] = _ => { },
+
+        // 1 -> 2 (Anders, 18 Nov 2026): the mini player is no longer always on top by default; switch the old default off
+        // once (the Options menu's "Always on top" turns it back on).
+        [1] = root =>
+        {
+            if (root["interface"] is JsonObject ui)
+            {
+                ui["miniPlayerAlwaysOnTop"] = false;
+            }
+        },
     };
 
     /// <summary>Migrates <paramref name="root"/> in place up to <see cref="AppSettings.CurrentSchemaVersion"/>.</summary>

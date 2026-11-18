@@ -71,7 +71,21 @@ public sealed class SettingsStoreTests
         File.WriteAllText(file, """{ "general": { "logLevel": "Warning" } }""");
         var store = new SettingsStore(file);
         Assert.Equal(LogLevelSetting.Warning, store.Current.General.LogLevel);
-        Assert.Contains("\"schemaVersion\": 1", File.ReadAllText(file), StringComparison.Ordinal);
+        Assert.Contains($"\"schemaVersion\": {AppSettings.CurrentSchemaVersion}", File.ReadAllText(file), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version_1_mini_player_always_on_top_is_switched_off_once()
+    {
+        using var dir = new TempDir();
+        var file = dir.Combine("settings.json");
+        File.WriteAllText(file, """{ "schemaVersion": 1, "interface": { "miniPlayerAlwaysOnTop": true, "alwaysOnTop": true } }""");
+        var store = new SettingsStore(file);
+        Assert.False(store.Current.Interface.MiniPlayerAlwaysOnTop);
+        Assert.True(store.Current.Interface.AlwaysOnTop); // the main window's own choice is kept
+
+        store.Update(SettingsGroup.Interface, s => s.Interface.MiniPlayerAlwaysOnTop = true);
+        Assert.True(new SettingsStore(file).Current.Interface.MiniPlayerAlwaysOnTop); // the user's later choice stays
     }
 
     [Fact]
