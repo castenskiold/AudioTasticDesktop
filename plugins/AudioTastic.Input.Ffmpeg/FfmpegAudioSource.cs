@@ -12,11 +12,12 @@ namespace AudioTastic.Input.Ffmpeg;
 /// <item>Seeking: <c>av_seek_frame</c> to a point before the target (with pre-roll for lossy codecs), then decode and
 /// discard up to the exact target frame. Positions come from frame timestamps relative to the first decoded frame.</item>
 /// <item>FM-10: http(s) URLs open with ICY metadata requested; the now-playing title (icy_metadata_packet) and station
-/// name (icy-name) are exposed through <see cref="IStreamMetadata"/>.</item>
+/// name (icy-name) are read here and exposed to the player by <see cref="LiveStreamSource"/>. This class does not
+/// implement <see cref="IStreamMetadata"/> itself: the engine treats such sources as live streams (no length).</item>
 /// </list>
 /// Not thread-safe; used from one decoder thread.
 /// </summary>
-public sealed unsafe class FfmpegAudioSource : IAudioSource, IStreamMetadata
+public sealed unsafe class FfmpegAudioSource : IAudioSource
 {
     /// <summary>FM-10: identifies the player to radio servers.</summary>
     public const string UserAgent = "AudioTastic/0.4";

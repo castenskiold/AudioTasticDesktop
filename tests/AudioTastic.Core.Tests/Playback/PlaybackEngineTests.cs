@@ -129,13 +129,28 @@ public sealed class PlaybackEngineTests : IDisposable
         await engine.StopAsync();
     }
 
-    private sealed class FakeRadio() : IAudioSource, IStreamMetadata
+    [Fact]
+    public async Task Files_keep_their_duration_even_when_the_source_offers_stream_metadata()
+    {
+        // Regression (P4): only sources without a length are treated as live streams.
+        var file = new FakeRadio(lengthFrames: 44_100 * 3);
+        using var output = new FakeAudioOutput();
+        using var engine = new PlaybackEngine([new FakeRadioFactory(file)], output, _settings, NullLogger<PlaybackEngine>.Instance);
+
+        await engine.OpenAsync(["http://radio.test/file.mp3"]);
+
+        Assert.Equal(TimeSpan.FromSeconds(3), engine.Duration);
+        Assert.NotEqual("Test FM", engine.CurrentTrack!.Title);
+        await engine.StopAsync();
+    }
+
+    private sealed class FakeRadio(long? lengthFrames = null) : IAudioSource, IStreamMetadata
     {
         private readonly SyntheticSource _signal = new(44_100, 2, long.MaxValue);
 
         public AudioStreamInfo Info => _signal.Info;
         public AudioFormat Format => _signal.Format;
-        public long? LengthFrames => null;
+        public long? LengthFrames => lengthFrames;
         public long PositionFrames => _signal.PositionFrames;
         public bool CanSeek => false;
         public IReadOnlyDictionary<string, string> Tags => new Dictionary<string, string>();

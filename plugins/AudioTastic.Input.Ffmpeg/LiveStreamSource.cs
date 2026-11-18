@@ -65,8 +65,8 @@ internal sealed class LiveStreamSource : IAudioSource, IStreamMetadata
     public bool CanSeek => false;
     public IReadOnlyDictionary<string, string> Tags { get; }
 
-    public string? StreamTitle => (_current as IStreamMetadata)?.StreamTitle;
-    public string? StationName => (_current as IStreamMetadata)?.StationName;
+    public string? StreamTitle => (_current as FfmpegAudioSource)?.StreamTitle;
+    public string? StationName => (_current as FfmpegAudioSource)?.StationName;
     public event EventHandler<string?>? StreamTitleChanged;
 
     /// <summary>True while waiting for the buffer to fill (start, stall or reconnect).</summary>
@@ -259,7 +259,7 @@ internal sealed class LiveStreamSource : IAudioSource, IStreamMetadata
     private void Attach(IAudioSource source)
     {
         _current = source;
-        if (source is IStreamMetadata metadata)
+        if (source is FfmpegAudioSource metadata)
         {
             metadata.StreamTitleChanged += OnTitleChanged;
             if (metadata.StreamTitle is not null)
@@ -271,7 +271,7 @@ internal sealed class LiveStreamSource : IAudioSource, IStreamMetadata
 
     private void Detach(IAudioSource source)
     {
-        if (source is IStreamMetadata metadata)
+        if (source is FfmpegAudioSource metadata)
         {
             metadata.StreamTitleChanged -= OnTitleChanged;
         }

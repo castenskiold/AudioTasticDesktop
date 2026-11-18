@@ -378,7 +378,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 continue;
             }
 
-            var metadata = source as IStreamMetadata ?? (source as IStreamMetadataSource)?.StreamMetadata;
+            // FM-10: only sources without a length are live streams (a file's decoder may carry metadata members too).
+            var metadata = source.LengthFrames is null ? source as IStreamMetadata ?? (source as IStreamMetadataSource)?.StreamMetadata : null;
             var track = BuildTrack(entry, source, metadata);
             DetachStreamMetadata();
             ApplyReplayGain(entry); // before the deck starts, so the track begins at its own level

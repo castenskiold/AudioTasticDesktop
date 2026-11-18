@@ -35,6 +35,15 @@ public sealed class StreamTests
     }
 
     [Fact]
+    public void Files_are_not_live_streams()
+    {
+        // Regression (P4): a file's source must not look like a stream, or the engine drops its duration and seeking.
+        using var source = new FfmpegSourceFactory().Open(TestMedia.Require("sine1k.flac.flac"));
+        Assert.IsNotAssignableFrom<IStreamMetadata>(source);
+        Assert.NotNull(source.LengthFrames);
+    }
+
+    [Fact]
     public void Live_stream_reports_station_and_title_and_plays()
     {
         using var server = new IcyServer(TestMedia.Require("sine1k.mp3.mp3"), ["Artist - Song"]);
