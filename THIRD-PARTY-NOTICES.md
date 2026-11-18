@@ -34,6 +34,7 @@ When you add a package or native library, add it here in the same pull request.
 | FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build | LGPL-2.1-or-later | Decoding (from P1), encoding (P11, P13) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
 | SoundTouch, SoundTouchDLL | LGPL-2.1 | Time-stretch | P0 pipeline / P6 use |
+| Freeverb design by Jezar at Dreampoint (algorithm only; our own code) | Public domain | Reverb in the DSP chain (EQ-05) | P7 |
 | libopenmpt 0.8.10 | BSD-3-Clause (parts BSL-1.0) | Tracker modules in the libopenmpt plugin (FM-07) | P4 |
 | openmpt-mpg123 (mpg123, shipped with libopenmpt on Windows) | LGPL-2.1 (separate, replaceable DLL) | MP3-compressed samples inside modules | P4 |
 | openmpt-ogg, openmpt-vorbis (libogg, libvorbis, shipped with libopenmpt on Windows) | BSD-3-Clause | Vorbis-compressed samples inside modules | P4 |

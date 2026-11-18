@@ -35,6 +35,7 @@ Useful switches:
 - Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played.
 - Internet radio: Ctrl+L (Open URL) takes stream URLs and `.m3u`/`.pls` links.
 - Winamp keys work: Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings.
+- Alt+G equalizer; Ctrl+Shift+K visualisation plugin window.
 - Playback extras: Q queues the selected rows (play next), Shift+V stops after the current track, [ sets A-B repeat
   (markers on the waveform can be dragged); Main menu › Playback › Speed… and Main menu › Sleep timer….
 
@@ -45,6 +46,8 @@ Useful switches:
 - OptimFROG (x64).
 
 **Waveform and loudness:** the strip under the display is a waveform seek bar (click or drag to seek). ReplayGain (Settings › Playback) uses tags or a background EBU R128 analysis; "RG" shows while a gain is applied.
+
+**Equalizer and effects:** Alt+G opens the equalizer (10 bands or parametric, presets, Winamp .eqf import, auto EQ per file or genre); its DSP button opens the chain with compressor, limiter, reverb and stereo widening. The display shows a spectrum or oscilloscope (click to switch).
 
 **Playback engine:** gapless playback, short fades on pause/stop/seek, session and per-file resume (Settings › Playback), and exclusive bit-perfect output with 16/24/32-bit formats and DoP (Settings › Output).
 

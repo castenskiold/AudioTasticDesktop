@@ -90,8 +90,8 @@ The host creates **every public, non-abstract class that implements `IPlugin` an
 | `IGeneralPlugin` | background features using `IPlayerApi` (scrobblers, loggers, ...) | runs while enabled | P4 |
 | `IUiPanelPlugin` | a window with your own Avalonia control | Main menu › Windows | P4 |
 | `IOutputPlugin` | new output devices (`IAudioOutput`) | Settings › Output | P6 |
-| `IDspPlugin` | effects in the DSP chain (`IDspEffect`) | Equalizer & DSP | P7 |
-| `IVisualisationPlugin` | spectrum, scope or full-screen visuals | Main menu › Visualisation | P7 |
+| `IDspPlugin` | effects in the DSP chain (`IDspEffect`) | DSP chain window (EQ › DSP, Settings › Equalizer & DSP) | P7 |
+| `IVisualisationPlugin` | spectrum, scope or full-screen visuals | Main menu › Visualisation (Ctrl+Shift+K) | P7 |
 | `ICastTargetPlugin` | new kinds of cast devices | device picker | P11 (contract still growing) |
 
 Plugins of types not hosted yet already load, initialise and show in the plugin manager. The player starts using them in the phase listed.
@@ -117,7 +117,19 @@ Plugins of types not hosted yet already load, initialise and show in the plugin 
 
 ### Writing an effect (DSP plugin)
 
-`IDspEffect.Process` runs **on the audio thread**. It must not allocate, lock, block, do I/O or throw. Allocate buffers when the effect is created. To receive settings from other threads, use volatile fields (see `samples/GainDsp`). From P7, an effect that keeps exceeding its time budget is disabled.
+`IDspEffect.Process` runs **on the audio thread**. It must not allocate, lock, block, do I/O or throw. Allocate buffers when the effect is created. To receive settings from other threads, use volatile fields (see `samples/GainDsp`).
+
+- Each enabled DSP plugin instance adds one effect to the DSP chain (Settings › Equalizer & DSP › DSP chain), named by `IDspPlugin.Name`. New effects are added **switched off** at the end of the chain; the user switches them on and orders them.
+- `CreateEffect(format)` is called for each new output format (interleaved float, usually stereo); the previous effect is disposed first. `Reset()` is called after seeks and new tracks.
+- An exception from `Process` or `Reset` bypasses the effect until the next format change and counts as a fault (see *Faults*).
+- **Time budget:** an effect may use at most 10 % of real time, measured over each second of audio. Every second over budget counts as a fault, so an effect that stays too slow is switched off after three seconds.
+- While DSD is sent as DoP (bit-perfect), the whole chain is bypassed.
+
+### Writing a visualisation
+
+- `IVisualisationPlugin.Name` appears in Main menu › Visualisation; Ctrl+Shift+K opens the first visualisation plugin (or closes the open one).
+- The player calls `Create()` and then `CreateView()` on the UI thread; the view must be an Avalonia `Control` and is shown in its own window.
+- `OnAudio(samples, format)` is called about 60 times a second on the UI thread with the newest 2,048 stereo frames after the DSP chain (silence while paused). Copy what you need; the span is reused. Exceptions count as faults and close the window.
 
 ### UI: settings pages, panels, visualisations
 

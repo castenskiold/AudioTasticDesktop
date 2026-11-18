@@ -97,7 +97,11 @@ public interface IOutputPlugin : IPlugin
     IAudioOutput CreateOutput();
 }
 
-/// <summary>PG-01 DSP: effects in the DSP chain (EQ-05). Hosted from P7.</summary>
+/// <summary>
+/// PG-01 DSP: one effect in the DSP chain (EQ-05), added switched off; the user orders and enables it.
+/// <see cref="CreateEffect"/> is called for each output format. Time budget: at most 10 % of real time per second
+/// of audio, or the plugin is disabled (PG-03).
+/// </summary>
 public interface IDspPlugin : IPlugin
 {
     string Name { get; }
@@ -118,7 +122,7 @@ public interface IDspEffect : IDisposable
     void Reset();
 }
 
-/// <summary>PG-01 Visualisation: spectrum/scope/full-screen visuals (UI-07). Hosted from P7.</summary>
+/// <summary>PG-01 Visualisation: spectrum/scope/full-screen visuals (UI-07) in their own window (Main menu › Visualisation).</summary>
 public interface IVisualisationPlugin : IPlugin
 {
     string Name { get; }

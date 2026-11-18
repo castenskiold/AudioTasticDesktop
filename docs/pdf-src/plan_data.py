@@ -346,7 +346,14 @@ PROGRESS = {
                open=["Exclusive mode on a local sound card (Anders tested over Remote Desktop, whose audio has no exclusive mode); macOS hog mode and Linux ALSA hw: rely on miniaudio's exclusive mode and are untested.",
                      "Output plugins are hosted (listed in Settings › Output, guarded, safe to switch off; covered by tests with a test plugin); Anders checks them by hand once a real output plugin exists.",
                      "Tray entry for the sleep timer comes in P10; macOS/Linux."]),
-    "P7": dict(status="Next", date="", outcome=[], open=[]),
+    "P7": dict(status="Done on Windows", date="18 Nov 2026",
+               outcome=["DSP chain between the deck mix and the volume (no allocations or locks on the audio thread, bypassed for DoP) with our own equalizer, compressor, look-ahead limiter, reverb and stereo widening; every built-in effect together uses 2.5 % of one core at 96 kHz (exit criterion: under 5 %).",
+                        "Graphic EQ (Winamp's ten bands, preamp, automatic headroom) and parametric EQ (six filter types, up to ten bands): the measured response is within 0.1 dB of the calculated curve (exit criterion, tests at 44.1 and 96 kHz).",
+                        "Skinned equalizer window docked with the player, parametric editor and band table, presets (built-in, user, Winamp .eqf/.q1 import), auto EQ per file and genre, DSP chain window; DSP plugins in the chain with a 10 % time budget.",
+                        "Spectrum analyser and oscilloscope in the main window and a window for visualisation plugins, drawn on the UI thread from a lock-free post-DSP tap (the audio thread only copies samples).",
+                        "Checked by Anders: equalizer window, presets, parametric editor, DSP chain, spectrum/scope, and the GainDsp and PeakMeter sample plugins."],
+               open=["macOS/Linux.", "VST3 effects and room correction join the chain in P12 (EQ-06, EQ-07)."]),
+    "P8": dict(status="Next", date="", outcome=[], open=[]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

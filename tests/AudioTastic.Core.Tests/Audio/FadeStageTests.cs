@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace AudioTastic.Core.Tests.Audio;
 
 /// <summary>PB-02: fade ramps (linear in dB) and the engine's fades on pause, resume, stop and seek.</summary>
+// Timing-sensitive (the fake device must render on time): kept away from the CPU-heavy DSP timing test.
+[Collection(nameof(DspTimingTests))]
 public sealed class FadeStageTests
 {
     [Fact]

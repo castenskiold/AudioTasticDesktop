@@ -53,6 +53,7 @@ Add `"$schema": "https://audiotastic.app/schemas/skin-1.json"` (or a relative pa
 | `windows.main` | The main window. Required. |
 | `windows.mini` | The mini player (UI-05). If it is missing, the default skin's mini player is used. |
 | `windows.playlist` | The playlist window (PL-01, regions PW1–PW6). Resizable. If it is missing, the default skin's is used. |
+| `windows.equalizer` | The equalizer window (EQ-01, regions EQ1–EQ4). If it is missing, the default skin's is used. |
 
 ### Windows
 
@@ -77,8 +78,8 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `rect` | — | A rectangle: `fill`, `stroke`, `strokeWidth`, `cornerRadius`. Decoration and panels. |
 | `image` | — | A picture: `image`, and `color` for `currentColor` in SVG. |
 | `text` | — | Static `text` with `font`, `fontSize`, `color`, `align`, `letterSpacing`. |
-| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand`; in the playlist window also `hide` (close the playlist), `plAdd`, `plRemove`, `plSelect`, `plSort`, `plList` (PW5 menus) | A push button. `playPause` is in the `active` state while playing, so `images.active` can show a pause icon. |
-| `toggle` | `shuffle`, `repeat`, `mute`, `equalizer`, `playlist`, `crossfade`, `cast` | An on/off button. `repeat` uses the `alternate` state for repeat-track. Toggles for features not built yet are drawn `disabled`. |
+| `button` | `previous`, `play`, `pause`, `playPause`, `stop`, `next`, `open`, `menu`, `minimize`, `close`, `miniPlayer`, `expand`; in the playlist window also `hide` (close the playlist), `plAdd`, `plRemove`, `plSelect`, `plSort`, `plList` (PW5 menus); in the equalizer window `hide`, `eqPresets` (presets menu, EQ-02) and `eqDsp` (DSP chain window, EQ-05) | A push button. `playPause` is in the `active` state while playing, so `images.active` can show a pause icon. |
+| `toggle` | `shuffle`, `repeat`, `mute`, `equalizer`, `playlist`, `crossfade`, `cast`; in the equalizer window `eqOn`, `eqAuto` (EQ-03), `eqParam` (EQ-04) | An on/off button. `repeat` uses the `alternate` state for repeat-track. Toggles for features not built yet are drawn `disabled`. |
 | `slider` | `volume`, `seek` | A horizontal slider: `trackColor`, `fillColor`, `thumbColor`, `thumbSize`, `trackThickness`. |
 | `time` | none, or `duration` | Without bind: elapsed/remaining time (CO-06); click to toggle; it blinks while paused. With `duration`: the track length. `font`, `fontSize`, `color`, `align`. |
 | `marquee` | — | Scrolling "Artist – Title (duration)" (UI-06). `font`, `fontSize`, `color`, `speed` (px/s). |
@@ -86,7 +87,10 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `indicators` | `state` (optional) | Format indicators and badges (UI-06): bitrate, kHz, channels, and `RG` when ReplayGain is applied (PB-03). With `"bind": "state"` the element shows the player-state badges instead: `OUT` (output rate differs from the file, PB-05), speed such as `1.25×` (PB-06), `A-B` (PB-08), `STOP AFTER` (PB-09), `SLEEP 30 MIN` (PB-10). A skin without a state element shows those badges at the start of its format row. `font`, `fontSize`, `color`, `stroke`, `spacing`. |
 | `dragArea` | — | Dragging moves the window, together with the windows docked to it. Double-click toggles the mini player. |
 | `art` | — | Album art thumbnail (MW2). Shows the logo until album art (MD-02) arrives. |
-| `visualisation` | — | Area reserved for the spectrum and oscilloscope (UI-07, phase P7). |
+| `visualisation` | — | Spectrum analyser or oscilloscope of the audio after the DSP chain (UI-07, MW6); clicking cycles spectrum → oscilloscope → off. Bars and the scope line use `fillColor`, peak caps `thumbColor`, the idle baseline `trackColor`. |
+| `eqSlider` | `preamp`, `band0` … `band9` | A vertical ±12 dB slider for the preamp or one of the ten bands (60 Hz … 16 kHz). Drag, wheel (0.5 dB), double-click resets. Hidden in parametric mode. `trackColor`, `fillColor` (from 0 dB to the value), `thumbColor`, `thumbSize`. |
+| `eqCurve` | — | The equalizer's response curve (EQ3): `fillColor` for the curve (dimmed while the EQ is off), `trackColor` for the 0 dB line, `color`/`font`/`fontSize` for the preset name. |
+| `eqParametric` | — | The parametric editor (EQ-04), shown instead of the sliders in parametric mode; place it over them, after them in the element list. `fill` (its opaque background), `trackColor` (grid), `fillColor` (curve), `thumbColor` (band points), `color`/`font`/`fontSize` (labels). |
 | `playlistTabs` | — | Playlist tabs (PW2) as pills. Takes `font`, `spacing`, and per-state `strokes`/`fills`/`colors` (`active` = the tab shown). |
 | `playlistSearch` | — | Search field (PW3). Takes `font`, `fontSize`, `color`, `stroke`, `fill`, `cornerRadius`; `text` is the placeholder. |
 | `playlistList` | — | Track list (PW4). `font`, `fontSize` and `rowHeight` set the text and rows. `color` is for rows, `mutedColor` for numbers, durations and the scroll bar, `playingColor` for the playing row and its bar, `selectionColor` for selected rows. |
