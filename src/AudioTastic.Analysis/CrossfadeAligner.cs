@@ -20,6 +20,13 @@ public sealed class CrossfadeAligner(IEnumerable<IAudioSourceFactory> factories)
     /// <summary>How closely each half of the overlap must agree with the whole (output seconds).</summary>
     private const double Agreement = 0.008;
 
+    /// <summary>
+    /// How far before the detected kick the beat may lie (s). Blind listening tests on Anders's tracks put the beat
+    /// 0 to 125 ms before the click the kick detector picks; an off-beat hi-hat (half a beat away) stays outside below
+    /// 200 BPM.
+    /// </summary>
+    private const double Lead = 0.150;
+
     /// <summary>How far the averaged transient must stand above the median of the beat (a factor).</summary>
     private const double Prominence = 1.5;
 
@@ -99,7 +106,7 @@ public sealed class CrossfadeAligner(IEnumerable<IAudioSourceFactory> factories)
         var kick = (int)Math.Round((Wrap(attack - from, period) + (period / 2)) * e.Rate);
         var median = high.Order().ElementAt(width / 2);
         var peak = kick;
-        for (var i = kick - (int)(0.070 * e.Rate); i <= kick + (int)(0.020 * e.Rate); i++)
+        for (var i = kick - (int)(Lead * e.Rate); i <= kick + (int)(0.020 * e.Rate); i++)
         {
             if (high[At(i)] > high[At(peak)])
             {
