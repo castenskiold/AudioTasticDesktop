@@ -280,10 +280,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         return PlayIndexCoreAsync(index);
     });
 
-    public Task PauseAsync() => RunAsync(() =>
+    public Task PauseAsync() => RunAsync(async () =>
     {
         if (_state == PlaybackState.Playing)
         {
+            var fades = _settings.Current.Playback.Fades;
+            await FadeOutAsync(fades.OnPause ? fades.PauseMilliseconds : 0).ConfigureAwait(false);
             _graph.Paused = true;
             SetState(PlaybackState.Paused);
         }
@@ -291,7 +293,6 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             Resume();
         }
-        return Task.CompletedTask;
     });
 
     public Task StopAsync() => RunAsync(StopCoreAsync);
@@ -452,6 +453,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             source = new ResamplingSource(source, _graph.Format.SampleRate); // PB-05: device cannot do the track's rate
         }
         _graph.Paused = false;
+        _graph.Fade.Snap(true); // a new track starts at full level (after a stop fade)
         _sourceFormat = source.Format;
         _canSeek = source.CanSeek;
         await _deck.LoadAsync(source).ConfigureAwait(false);
@@ -508,6 +510,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private async Task StopCoreAsync()
     {
+        var fades = _settings.Current.Playback.Fades;
+        await FadeOutAsync(fades.OnStop ? fades.StopMilliseconds : 0).ConfigureAwait(false);
         await CancelPreloadAsync().ConfigureAwait(false);
         await StopOutputAsync().ConfigureAwait(false);
         _graph.Paused = false;
@@ -526,14 +530,48 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             frame = Math.Min(frame, _sourceFormat.TimeToFrames(duration));
         }
+        var fades = _settings.Current.Playback.Fades;
+        var fade = fades.OnSeek && _state == PlaybackState.Playing ? fades.SeekMilliseconds : 0;
+        await FadeOutAsync(fade).ConfigureAwait(false);
         await _deck.SeekAsync(frame).ConfigureAwait(false);
+        if (fade > 0)
+        {
+            _graph.Fade.FadeIn(fade);
+        }
         Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
     }
 
     private void Resume()
     {
-        _graph.Paused = false;
+        var fades = _settings.Current.Playback.Fades;
+        if (fades.OnPause && fades.PauseMilliseconds > 0)
+        {
+            _graph.Fade.FadeIn(fades.PauseMilliseconds, fromSilence: true); // PB-02: fade in on resume
+            _graph.Paused = false;
+        }
+        else
+        {
+            _graph.Fade.Snap(true);
+            _graph.Paused = false;
+        }
         SetState(PlaybackState.Playing);
+    }
+
+    /// <summary>PB-02: fades the output out and waits until it is silent (no-op when not playing or 0 ms).</summary>
+    private async Task FadeOutAsync(int milliseconds)
+    {
+        if (milliseconds <= 0 || _state != PlaybackState.Playing || !_output.IsRunning)
+        {
+            return;
+        }
+        _graph.Fade.FadeOut(Math.Clamp(milliseconds, 0, 2000));
+        var deadline = Environment.TickCount64 + milliseconds + _settings.Current.Output.BufferMilliseconds + 500; // ends early when silent
+        while (!_graph.Fade.IsSilent && Environment.TickCount64 < deadline)
+        {
+            await Task.Delay(5).ConfigureAwait(false);
+        }
+        // Let the device play out what is already in its buffer.
+        await Task.Delay(_settings.Current.Output.BufferMilliseconds).ConfigureAwait(false);
     }
 
     private async Task StopOutputAsync()

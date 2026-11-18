@@ -38,6 +38,9 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     /// <summary>CO-07: peaks of the mixed decks before the master volume (live waveform for streams).</summary>
     public PeakTap Peaks { get; } = new();
 
+    /// <summary>PB-02 / PB-10: fades on pause, stop, seek and the sleep timer, after the master volume.</summary>
+    public FadeStage Fade { get; } = new();
+
     /// <summary>CO-05: master volume and mute, applied after mixing (after the DSP chain from P7).</summary>
     public GainStage Master { get; } = new();
 
@@ -85,6 +88,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
         }
         Master.Configure(format.SampleRate);
         Peaks.Configure(format.SampleRate);
+        Fade.Configure(format.SampleRate);
         DeckA.Gain.Configure(format.SampleRate);
         DeckB.Gain.Configure(format.SampleRate);
     }
@@ -117,6 +121,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
             }
             Peaks.Write(output, Format.Channels);
             Master.Process(output, Format.Channels);
+            Fade.Process(output, Format.Channels);
         }
         Interlocked.Increment(ref _renderCount);
     }
