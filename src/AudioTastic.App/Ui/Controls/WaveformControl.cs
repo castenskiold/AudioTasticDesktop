@@ -32,6 +32,8 @@ public sealed class WaveformControl : Control, IDisposable
     private double? _dragPosition;
     private bool _live;
     private bool _canSeek;
+    private double? _mixA;    // XF: the crossfade overlap, 0-1
+    private double? _mixB;
     private double? _loopA;   // 0-1
     private double? _loopB;
     private int _dragMarker;   // 0 = none, 1 = A, 2 = B
@@ -52,6 +54,17 @@ public sealed class WaveformControl : Control, IDisposable
 
     /// <summary>PB-08: the A or B marker was dragged; (A, B) as fractions 0–1.</summary>
     public event EventHandler<(double A, double B)>? LoopChanged;
+
+    /// <summary>XF-01/02: shades the crossfade overlap (fractions 0–1), or nothing with nulls.</summary>
+    public void SetMix(double? a, double? b)
+    {
+        if (a != _mixA || b != _mixB)
+        {
+            _mixA = a;
+            _mixB = b;
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>PB-08: shows the A-B loop (fractions 0–1; B null while only A is set).</summary>
     public void SetLoop(double? a, double? b)
@@ -114,6 +127,18 @@ public sealed class WaveformControl : Control, IDisposable
         else
         {
             RenderWaveform(context, w, h);
+        }
+        if (_mixA is { } ma && _mixB is { } mb && mb > ma)
+        {
+            // XF: the overlap region, lightly shaded, with a thin line where the mix starts.
+            using (context.PushOpacity(0.12))
+            {
+                context.FillRectangle(_thumb, new Rect(ma * w, 0, Math.Max(1, (mb - ma) * w), h));
+            }
+            using (context.PushOpacity(0.5))
+            {
+                context.FillRectangle(_thumb, new Rect(Math.Min(ma * w, w - 1), 0, 0.5, h));
+            }
         }
         if (_loopA is { } la)
         {

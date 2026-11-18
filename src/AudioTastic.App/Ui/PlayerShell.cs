@@ -46,6 +46,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private bool _playlistBeforeMini;
     private bool _equalizerBeforeMini;
     private readonly EqualizerController _eq;
+    private bool _crossfadeOn;
     private readonly PlaylistController _playlists;
     private readonly PluginHost _plugins;
     private Skin? _fallbackSkin;
@@ -79,6 +80,24 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PlayerShell>();
         Player = new PlayerViewModel(engine, settings, analysis, sleep);
+        // XF: the XF button and the IO/BM badge follow Settings › Crossfading.
+        var xf = settings.Current.Crossfading;
+        _crossfadeOn = xf.Enabled;
+        Player.SetCrossfade(xf);
+        settings.Changed += (_, e) =>
+        {
+            if (e.Group == SettingsGroup.Crossfading)
+            {
+                var c = e.Settings.Crossfading;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _crossfadeOn = c.Enabled;
+                    Player.SetCrossfade(c);
+                    _main?.Refresh();
+                    _mini?.Refresh();
+                });
+            }
+        };
         // EQ toggles (main window EQ, equalizer ON/AUTO/PARAM) follow the equalizer state.
         equalizer.Changed += (_, _) =>
         {
@@ -210,6 +229,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "hide" when window == _playlist: SetPlaylistVisible(false); break;
             case "hide" when window == _equalizer: SetEqualizerVisible(false); break;
             case "equalizer": SetEqualizerVisible(!_equalizer!.IsVisible); break; // EQ-01: Alt+G, EQ toggle
+            case "crossfade": // XF (MW10)
+                _settings.Update(SettingsGroup.Crossfading, s => s.Crossfading.Enabled = !s.Crossfading.Enabled);
+                break;
             case "eqOn": _eq.ToggleOn(); break;
             case "eqAuto": _eq.ToggleAuto(); break;
             case "eqParam": _eq.ToggleParametric(); break;
@@ -257,7 +279,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void BeginDrag(Control source, PointerPressedEventArgs e) => _snap.BeginDrag(source, e);
 
-    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam";
+    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam" or "crossfade";
 
     private void ShowDialog(Window dialog)
     {
@@ -283,6 +305,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         "eqOn" => _eq.IsOn,
         "eqAuto" => _eq.IsAuto,
         "eqParam" => _eq.IsParametric,
+        "crossfade" => _crossfadeOn,
         _ => false,
     };
 

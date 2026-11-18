@@ -65,6 +65,19 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>XF-01/02: the planned overlap on the current track (shaded on the waveform), or null.</summary>
+    public (TimeSpan Start, TimeSpan End)? CrossfadeRegion { get => _crossfadeRegion; private set => Set(ref _crossfadeRegion, value); }
+    private (TimeSpan Start, TimeSpan End)? _crossfadeRegion;
+    private string? _crossfadeBadge;
+
+    /// <summary>XF: the crossfade switch and mode changed (Settings or the XF button).</summary>
+    public void SetCrossfade(CrossfadingSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _crossfadeBadge = settings.Enabled ? (settings.Mode == CrossfadeMode.BeatMatch ? "BM" : "IO") : null;
+        UpdateIndicators();
+    }
+
     /// <summary>PB-08: the A-B loop (markers on the waveform).</summary>
     public AbLoop? AbLoop { get => _abLoop; private set => Set(ref _abLoop, value); }
 
@@ -190,8 +203,12 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
             SleepMode.AfterTime => (int)Math.Ceiling(_sleep.Remaining?.TotalMinutes ?? 0),
             _ => 0,
         };
+        var crossfade = _player.Crossfade;
+        CrossfadeRegion = crossfade is { MixStart: { } start, MixEnd: { } end } ? (start, end) : null;
         var badges = new PlayerBadges(_player.Speed, _player.AbLoop?.B is not null, _player.StopAfterCurrent, sleepMinutes,
-            _track is not null && output is { } o && o.DeviceRate > 0 && o.DeviceRate != _track.Stream.SampleRate);
+            _track is not null && output is { } o && o.DeviceRate > 0 && o.DeviceRate != _track.Stream.SampleRate,
+            _crossfadeBadge,
+            crossfade is { Mixing: true, FromBpm: { } from, ToBpm: { } to } ? (from, to) : null);
         var indicators = DisplayText.Indicators(_track, _player.ReplayGain);
         if (!indicators.SequenceEqual(Indicators))
         {

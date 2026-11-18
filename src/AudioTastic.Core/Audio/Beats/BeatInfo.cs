@@ -6,18 +6,28 @@ namespace AudioTastic.Core.Audio.Beats;
 public readonly record struct BeatBreak(double Start, double End);
 
 /// <summary>
+/// AN-02: where the kick sits against the grid in one section of the track (32 beats from <see cref="Start"/> s):
+/// <see cref="Offset"/> seconds (positive = later than the grid). Only clear measurements (within ±50 ms) are kept.
+/// </summary>
+public readonly record struct PhaseCorrection(double Start, double Offset);
+
+/// <summary>
 /// AN-02: a track's tempo analysis: a constant-tempo beat grid (<see cref="Bpm"/>, <see cref="FirstBeat"/>), how well
 /// the grid fits (<see cref="Confidence"/>), where phrases start (every 8 beats from <see cref="PhraseOffset"/>), where
 /// the beat (the drums) starts and ends (<see cref="BeatStart"/>, <see cref="BeatEnd"/>; intro and outro lie outside),
-/// and the breaks in between. Times are in track seconds (from the start of the file, or of the CUE track).
+/// the breaks in between, and per-section corrections of the kick's position (<see cref="Corrections"/>). Times are in
+/// track seconds (from the start of the file, or of the CUE track).
 /// </summary>
 public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, int PhraseOffset, double Duration, IReadOnlyList<BeatBreak> Breaks,
-    double BeatStart = 0, double BeatEnd = 0)
+    double BeatStart = 0, double BeatEnd = 0, IReadOnlyList<PhaseCorrection>? Corrections = null)
 {
-    private const byte FormatVersion = 1;
+    private const byte FormatVersion = 2;
 
     /// <summary>Beats per phrase (XF-02 mixes on multiples of 8 beats).</summary>
     public const int PhraseBeats = 8;
+
+    /// <summary>Beats per correction section.</summary>
+    public const int CorrectionBeats = 32;
 
     /// <summary>Seconds per beat.</summary>
     public double Period => 60.0 / Bpm;
@@ -56,6 +66,21 @@ public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, i
     /// <summary>The first break starting at or after <paramref name="time"/>.</summary>
     public BeatBreak? BreakAfter(double time) => Breaks.Where(b => b.Start >= time).Select(b => (BeatBreak?)b).FirstOrDefault();
 
+    /// <summary>
+    /// XF-02: how far the kick sits from the grid around <paramref name="time"/> (s): the correction of the section
+    /// containing it, else of the nearest section within one section length, else 0.
+    /// </summary>
+    public double LocalOffset(double time)
+    {
+        if (Corrections is not { Count: > 0 } corrections)
+        {
+            return 0;
+        }
+        var length = CorrectionBeats * Period;
+        var best = corrections.MinBy(c => Math.Abs(time - (c.Start + (length / 2))));
+        return Math.Abs(time - (best.Start + (length / 2))) <= length ? best.Offset : 0;
+    }
+
     public byte[] Serialize()
     {
         using var stream = new MemoryStream();
@@ -74,6 +99,13 @@ public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, i
             {
                 w.Write(b.Start);
                 w.Write(b.End);
+            }
+            var corrections = Corrections ?? [];
+            w.Write(corrections.Count);
+            foreach (var c in corrections)
+            {
+                w.Write(c.Start);
+                w.Write(c.Offset);
             }
         }
         return stream.ToArray();
@@ -101,13 +133,26 @@ public sealed record BeatInfo(double Bpm, double FirstBeat, double Confidence, i
             {
                 breaks[i] = new BeatBreak(r.ReadDouble(), r.ReadDouble());
             }
-            return new BeatInfo(bpm, first, confidence, phrase, duration, breaks, beatStart, beatEnd);
+            var corrections = new PhaseCorrection[r.ReadInt32()];
+            for (var i = 0; i < corrections.Length; i++)
+            {
+                corrections[i] = new PhaseCorrection(r.ReadDouble(), r.ReadDouble());
+            }
+            return new BeatInfo(bpm, first, confidence, phrase, duration, breaks, beatStart, beatEnd, corrections);
         }
         catch (EndOfStreamException)
         {
             return null;
         }
     }
+
+    /// <summary>AN-02: the grid moved by <paramref name="seconds"/> (a per-file nudge; the corrections stay relative).</summary>
+    public BeatInfo Nudged(double seconds) => seconds == 0 ? this : this with
+    {
+        FirstBeat = FirstBeat + seconds,
+        BeatStart = BeatStart + seconds,
+        BeatEnd = BeatEnd + seconds,
+    };
 }
 
 /// <summary>

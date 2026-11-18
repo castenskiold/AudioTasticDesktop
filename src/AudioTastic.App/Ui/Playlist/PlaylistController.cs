@@ -26,6 +26,7 @@ public sealed class PlaylistController : IDisposable
     private readonly ILogger<PlaylistController> _logger;
     private readonly IEnumerable<IAudioSourceFactory> _factories;
     private readonly Analysis.AnalysisService? _analysis;
+    private readonly Analysis.BeatInfoService? _beats;
 
     /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
     public string? AnalysisStatus => _analysis?.Status is { Total: > 0 } s ? $"Analysing {s.Done + 1}/{s.Total}" : null;
@@ -36,8 +37,9 @@ public sealed class PlaylistController : IDisposable
 
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
         IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
-        Analysis.AnalysisService? analysis = null)
+        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null)
     {
+        _beats = beats;
         _analysis = analysis;
         if (analysis is not null)
         {
@@ -349,6 +351,7 @@ public sealed class PlaylistController : IDisposable
                 }
             }, selection.Any(HasResumePosition)),
             Item("Show in folder", () => _platform.OpenFolder(Path.GetDirectoryName(first!.Path)!), first is { IsUrl: false }),
+            Item("Adjust beat grid…", () => _ = AdjustBeatGridAsync(source, first!), _beats is not null && first is { IsUrl: false, Start: null }),
             new Separator(),
             Item("Remove", RemoveSelected, selection.Count > 0),
             Item("Crop", CropToSelection, selection.Count > 0));
@@ -368,6 +371,26 @@ public sealed class PlaylistController : IDisposable
     }
 
     public void Dispose() => _attached.Changed -= OnActiveChanged;
+
+    /// <summary>
+    /// AN-02: moves a file's beat grid by a few milliseconds when the kick detection is a little off (beat matching
+    /// then aligns on the corrected beats). Negative = earlier.
+    /// </summary>
+    private async Task AdjustBeatGridAsync(Control source, PlaylistEntry entry)
+    {
+        if (_beats is null || TopLevel.GetTopLevel(source) is not Window owner)
+        {
+            return;
+        }
+        var current = _beats.GetNudge(entry.Path);
+        var text = await InputWindow.ShowAsync(owner, "Adjust beat grid",
+            $"Move the beat grid of {entry.DisplayName} by (milliseconds, negative = earlier; 0 removes the adjustment):",
+            current.ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+        if (text is not null && double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ms))
+        {
+            _beats.SetNudge(entry.Path, Math.Clamp(ms, -250, 250));
+        }
+    }
 
     // ---- dialogs --------------------------------------------------------------------------------------
 

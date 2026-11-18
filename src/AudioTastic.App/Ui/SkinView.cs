@@ -245,6 +245,15 @@ public sealed class SkinView : Border, IDisposable
                     wave.Update(shown ? _vm.Waveform : null, shown ? _vm.WaveformProgress : null,
                         canSeek ? _vm.Position / _vm.Duration!.Value : 0, canSeek, shown && _vm.IsLive, _vm.Player.Peaks,
                         _vm.State == PlaybackState.Playing);
+                    if (canSeek && _vm.CrossfadeRegion is { } mix)
+                    {
+                        var total = _vm.Duration!.Value;
+                        wave.SetMix(mix.Start / total, Math.Min(1, mix.End / total));
+                    }
+                    else
+                    {
+                        wave.SetMix(null, null);
+                    }
                     if (canSeek && _vm.AbLoop is { } loop)
                     {
                         var d = _vm.Duration!.Value;

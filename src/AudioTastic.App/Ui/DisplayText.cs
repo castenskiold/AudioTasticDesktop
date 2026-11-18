@@ -10,7 +10,10 @@ namespace AudioTastic.App.Ui;
 /// <param name="StopAfterCurrent">PB-09.</param>
 /// <param name="SleepMinutes">PB-10: minutes left (0 = at the end of the track/playlist); null when off.</param>
 /// <param name="Out">PB-05: the output runs at another rate than the source.</param>
-public sealed record PlayerBadges(double Speed, bool AbLoop, bool StopAfterCurrent, int? SleepMinutes, bool Out);
+/// <param name="Crossfade">XF: "IO" or "BM" while crossfading is on, else null.</param>
+/// <param name="MixBpm">XF-02: the BPM readout during a beat-matched mix, e.g. (153, 150): from → to.</param>
+public sealed record PlayerBadges(double Speed, bool AbLoop, bool StopAfterCurrent, int? SleepMinutes, bool Out,
+    string? Crossfade = null, (double From, double To)? MixBpm = null);
 
 /// <summary>Text shown by the player: time display (CO-06), scrolling title (UI-06) and format indicators (UI-06).</summary>
 public static class DisplayText
@@ -114,6 +117,14 @@ public static class DisplayText
         if (b.SleepMinutes is { } minutes)
         {
             list.Add(minutes > 0 ? string.Create(CultureInfo.InvariantCulture, $"SLEEP {minutes} MIN") : "SLEEP"); // PB-10
+        }
+        if (b.Crossfade is { } mode)
+        {
+            list.Add(mode); // XF: IO = Intro/Outro, BM = beat matching
+        }
+        if (b.MixBpm is { } bpm)
+        {
+            list.Add(string.Create(CultureInfo.InvariantCulture, $"{bpm.From:0.#} → {bpm.To:0.#} BPM")); // XF-02 / XF-04
         }
         return list;
     }

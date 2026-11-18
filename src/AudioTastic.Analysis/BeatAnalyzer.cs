@@ -14,7 +14,7 @@ public sealed class BeatAnalyzer : IAnalyzer
 {
     public const string KindName = "beats";
     public string Kind => KindName;
-    public int DataVersion => 1;
+    public int DataVersion => 2; // 2: per-section phase corrections
 
     public IAnalysisRun Start(AudioFormat format, long? lengthFrames) => new Run(format);
 
@@ -261,6 +261,13 @@ public static class BeatDetector
             (beatStart, beatEnd, inner) = Sections(lowPerBeat);
         }
 
+        // Per-section corrections: where the kick sits against the final grid in each 32-beat drum section. Only clear
+        // measurements (within ±50 ms) are kept; bigger ones are another event (a 16th, the off-beat), not the kick.
+        var corrections = SectionOffsets(click, thump, envelopeRate, periodSeconds, firstBeat, beatStart, beatEnd, inner)
+            .Where(c => Math.Abs(c.Offset) <= 0.050)
+            .Select(c => new PhaseCorrection(c.Start, c.Offset))
+            .ToList();
+
         // 4. Confidence.
         var confidence = Confidence(onset, period);
 
@@ -269,7 +276,30 @@ public static class BeatDetector
         var phraseOffset = PhraseOffset(lowPerBeat, accent);
         var breaks = inner.Select(r => new BeatBreak(BeatSeconds(r.Start), BeatSeconds(r.End))).ToList();
         return new BeatInfo(bpmFinal, firstBeat, confidence, phraseOffset, duration, breaks,
-            BeatSeconds(beatStart), Math.Min(duration, BeatSeconds(beatEnd)));
+            BeatSeconds(beatStart), Math.Min(duration, BeatSeconds(beatEnd)), corrections);
+    }
+
+    /// <summary>The kick attack relative to the grid (s, folded to ±half a beat) per 32-beat drum section (no breaks).</summary>
+    private static List<(double Start, double Offset)> SectionOffsets(float[] click, float[] thump, double envelopeRate, double period, double firstBeat,
+        int beatStart, int beatEnd, List<(int Start, int End)> breaks)
+    {
+        var window = BeatInfo.CorrectionBeats;
+        var result = new List<(double, double)>();
+        for (var k = beatStart; k + window <= beatEnd; k += window)
+        {
+            var start = k;
+            if (breaks.Any(b => b.Start < start + window && b.End > start))
+            {
+                continue;
+            }
+            var t = firstBeat + (k * period);
+            if (KickAttack(click, thump, envelopeRate, period, t, t, t + (window * period)) is { } attack)
+            {
+                var d = attack - t;
+                result.Add((t, d - (Math.Round(d / period) * period)));
+            }
+        }
+        return result;
     }
 
     /// <summary>Per-beat low-band energy and the onset accent on each beat, for the grid (firstBeat, period).</summary>
@@ -303,22 +333,7 @@ public static class BeatDetector
     private static double? DrumPhase(float[] click, float[] thump, double envelopeRate, double period, double firstBeat,
         int beatStart, int beatEnd, List<(int Start, int End)> breaks)
     {
-        const int window = 32;
-        var offsets = new List<double>();
-        for (var k = beatStart; k + window <= beatEnd; k += window)
-        {
-            var start = k;
-            if (breaks.Any(b => b.Start < start + window && b.End > start))
-            {
-                continue;
-            }
-            var t = firstBeat + (k * period);
-            if (KickAttack(click, thump, envelopeRate, period, t, t, t + (window * period)) is { } attack)
-            {
-                var d = attack - t;
-                offsets.Add(d - (Math.Round(d / period) * period));
-            }
-        }
+        var offsets = SectionOffsets(click, thump, envelopeRate, period, firstBeat, beatStart, beatEnd, breaks).Select(s => s.Offset).ToList();
         if (offsets.Count < 3)
         {
             return null;

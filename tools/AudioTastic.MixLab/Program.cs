@@ -44,6 +44,8 @@ switch (args[0])
 int Analyze(string[] rest)
 {
     var labelsPath = Option(ref rest, "--labels");
+    var showWindows = rest.Contains("--windows");
+    rest = [.. rest.Where(a => a != "--windows")];
     var files = rest.SelectMany(p => Directory.Exists(p)
             ? Directory.EnumerateFiles(p).Where(f => new FfmpegSourceFactory().CanOpen(f)).Order(StringComparer.OrdinalIgnoreCase)
             : (IEnumerable<string>)[p])
@@ -63,6 +65,19 @@ int Analyze(string[] rest)
             $"{name,-45} {info.Bpm,8:0.000} BPM  first beat {info.FirstBeat,7:0.000} s  confidence {info.Confidence,5:0.00}  phrase +{info.PhraseOffset}  " +
             $"kick {kickMedian * 1000:+0.0;-0.0} ms (spread {kickSpread * 1000:0.0})  beat {info.BeatStart:0.0}-{info.BeatEnd:0.0} s  " +
             $"breaks {string.Join(", ", info.Breaks.Select(b => $"{b.Start:0.0}-{b.End:0.0}"))}  ({timer.Elapsed.TotalSeconds:0.0} s)");
+        if (showWindows)
+        {
+            // Per 32 beats: where the kick sits against the grid (ms).
+            var parts = new List<string>();
+            for (var t = info.BeatTime(info.BeatAtOrAfter(info.BeatStart)); t + (32 * info.Period) <= info.BeatEnd; t += 32 * info.Period)
+            {
+                if (BeatDetector.KickAttack(run.ClickEnvelope, run.ThumpEnvelope, run.EnvelopeRate, info.Period, t, t, t + (32 * info.Period)) is { } a)
+                {
+                    parts.Add(string.Create(culture, $"{t:0}s:{Wrap(a - t, info.Period) * 1000:+0;-0}"));
+                }
+            }
+            Console.WriteLine("    " + string.Join("  ", parts));
+        }
         if (labels.TryGetValue(name, out var label))
         {
             labelled++;
@@ -293,7 +308,19 @@ int Clicks(string[] rest)
     return 0;
 }
 
-static BeatInfo AnalyzeFile(string path) => AnalyzeFileWithRun(path).Info;
+static BeatInfo AnalyzeFile(string path)
+{
+    // A "nudgeMs" in labels.json next to the file moves its grid, like the app's per-file adjustment.
+    var info = AnalyzeFileWithRun(path).Info;
+    var labels = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "labels.json");
+    if (File.Exists(labels) &&
+        JsonSerializer.Deserialize<Dictionary<string, Label>>(File.ReadAllText(labels), new JsonSerializerOptions(JsonSerializerDefaults.Web)) is { } all &&
+        all.TryGetValue(Path.GetFileName(path), out var label) && label.NudgeMs is { } nudge)
+    {
+        info = info.Nudged(nudge / 1000);
+    }
+    return info;
+}
 
 static (BeatInfo Info, BeatAnalyzer.Run Run) AnalyzeFileWithRun(string path)
 {
@@ -372,7 +399,7 @@ static string? Option(ref string[] args, string name)
     return value;
 }
 
-internal sealed record Label(double Bpm);
+internal sealed record Label(double Bpm, double? NudgeMs = null);
 
 internal sealed record Render(float[] Samples, int Rate, long Underruns);
 

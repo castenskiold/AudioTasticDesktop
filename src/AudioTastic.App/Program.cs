@@ -79,6 +79,7 @@ internal static class Program
                 // P5 analysis (AN-01), waveforms (CO-07) and ReplayGain (PB-03).
                 .AddSingleton<AudioTastic.Analysis.AnalysisService>()
                 .AddSingleton<AudioTastic.Analysis.ReplayGainService>()
+                .AddSingleton<AudioTastic.Analysis.BeatInfoService>()
                 .AddSingleton<AudioTastic.App.Ui.AnalysisCoordinator>()
                 .AddSingleton<AudioTastic.App.Ui.Playlist.PlaylistController>()
                 // EQ-01..EQ-05: DSP chain, presets, auto EQ and the equalizer window's controller.
@@ -105,6 +106,9 @@ internal static class Program
             plugins.PluginUnloading += (_, record) => dsp.RemovePlugin(record.Id);
             plugins.PluginsChanged += (_, _) => dsp.RefreshPlugins();
             _ = services.GetRequiredService<AudioTastic.Core.Playback.AutoEqService>(); // EQ-03 listens from the start
+
+            // AN-02 / XF-02: the engine asks the analysis for beats when it plans a beat-matched transition.
+            services.GetRequiredService<PlaybackEngine>().BeatProvider = services.GetRequiredService<AudioTastic.Analysis.BeatInfoService>();
 
             // PB-03: the engine asks the ReplayGain service for each track's gain.
             services.GetRequiredService<PlaybackEngine>().ReplayGainProvider = services.GetRequiredService<AudioTastic.Analysis.ReplayGainService>();

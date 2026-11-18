@@ -1,5 +1,6 @@
 using AudioTastic.Analysis;
 using AudioTastic.Core.Playback;
+using AudioTastic.Data.Settings;
 
 namespace AudioTastic.App.Ui;
 
@@ -14,11 +15,13 @@ public sealed class AnalysisCoordinator : IDisposable
     private readonly PlaybackEngine _engine;
     private readonly AnalysisService _analysis;
     private readonly ReplayGainService _replayGain;
+    private readonly SettingsStore? _settings;
     private readonly Lock _lock = new();
     private AnalysisTarget? _target;
 
-    public AnalysisCoordinator(PlaybackEngine engine, AnalysisService analysis, ReplayGainService replayGain)
+    public AnalysisCoordinator(PlaybackEngine engine, AnalysisService analysis, ReplayGainService replayGain, SettingsStore? settings = null)
     {
+        _settings = settings;
         _engine = engine;
         _analysis = analysis;
         _replayGain = replayGain;
@@ -87,10 +90,28 @@ public sealed class AnalysisCoordinator : IDisposable
     {
         var playlist = _engine.PlayingPlaylist;
         var entries = playlist.Entries;
+        // AN-02: with crossfading on, the beats of the current and next track are needed for beat matching, and with
+        // "analyse in background" those of the following tracks too (up to 200 ahead).
+        var xf = _settings?.Current.Crossfading;
+        var beats = xf is { Enabled: true } ? AnalysisKinds.Beats : AnalysisKinds.None;
+        if (beats != AnalysisKinds.None && index >= 0 && index < entries.Length && entries[index] is { IsUrl: false } current)
+        {
+            _analysis.Request(AnalysisTarget.For(current), beats, AnalysisPriority.Current);
+        }
         if (index + 1 < entries.Length && entries[index + 1] is { IsUrl: false } next)
         {
-            _analysis.Request(AnalysisTarget.For(next), AnalysisKinds.Waveform, AnalysisPriority.Next);
+            _analysis.Request(AnalysisTarget.For(next), AnalysisKinds.Waveform | beats, AnalysisPriority.Next);
             _replayGain.Prefetch(playlist, next);
+        }
+        if (xf is { Enabled: true, AnalyseInBackground: true })
+        {
+            for (var i = index + 2; i < Math.Min(entries.Length, index + 200); i++)
+            {
+                if (entries[i] is { IsUrl: false } later)
+                {
+                    _analysis.Request(AnalysisTarget.For(later), AnalysisKinds.Beats, AnalysisPriority.Background);
+                }
+            }
         }
     }
 

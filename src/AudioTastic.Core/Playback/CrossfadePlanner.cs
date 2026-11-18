@@ -164,6 +164,13 @@ public static class CrossfadePlanner
             return false;
         }
 
+        // Align the kicks where the mix happens: each track's kick can sit a little off its grid in some sections
+        // (AN-02 corrections). The incoming entry moves so its kick meets the outgoing kick at the mix start:
+        // entry + its offset - outgoing offset (scaled to the incoming tempo).
+        var deltaOut = outBeats.LocalOffset(mixStart);
+        var deltaIn = inBeats.LocalOffset(incomingStart);
+        incomingStart = Math.Max(0, incomingStart + deltaIn - (deltaOut * incomingSpeed / outgoing.Speed));
+
         // XF-04: tempo return after the outgoing track is silent: at the next break, or gradually.
         TempoReturnMode? tempoReturn = Math.Abs(incomingSpeed - incoming.Speed) < 1e-9 ? null : settings.TempoReturn;
         double? returnAt = null;

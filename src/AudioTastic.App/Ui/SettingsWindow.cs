@@ -87,7 +87,7 @@ public sealed class SettingsWindow : Window
                 OutputPage(panel);
                 break;
             case SettingsGroup.Crossfading:
-                Note(panel, "DJ-style crossfading (Intro/Outro and beat matching) arrives in phase P8.");
+                CrossfadingPage(panel);
                 break;
             case SettingsGroup.Metadata:
                 Note(panel, "Album art, online lookup and lyrics arrive in phase P9.");
@@ -361,6 +361,45 @@ public sealed class SettingsWindow : Window
             }
         };
         return box;
+    }
+
+    /// <summary>XF-01..XF-04 (Required Features 4.4): Intro/Outro and beat matching.</summary>
+    private void CrossfadingPage(StackPanel panel)
+    {
+        var xf = _settings.Current.Crossfading;
+        void X(Action<CrossfadingSettings> change) => _settings.Update(SettingsGroup.Crossfading, s => change(s.Crossfading));
+
+        Check(panel, "Crossfade between tracks (the XF button in the main window)", xf.Enabled, v => X(c => c.Enabled = v));
+        var mode = new ComboBox
+        {
+            ItemsSource = new[] { "Intro/Outro: the tracks fade into each other", "Beat matching: tempo and beats matched, like a DJ" },
+            SelectedIndex = (int)xf.Mode,
+            Width = 360,
+        };
+        mode.SelectionChanged += (_, _) => X(c => c.Mode = (CrossfadeMode)Math.Max(0, mode.SelectedIndex));
+        Row(panel, "Mode", mode, "The main window shows IO or BM while crossfading is on.");
+        Row(panel, "Overlap (seconds)", Number(xf.OverlapSeconds, 0.5, 30, 0.5m, v => X(c => c.OverlapSeconds = v), "0.0"),
+            "Intro/Outro: how long the tracks overlap; at the end the old track is silent and the new one at full volume. " +
+            "Beat matching: how long both play at full volume (after the fade-in) before the first track is cut or faded out.");
+        Check(panel, "Bring the new track's bass in gradually (from low to normal over its fade-in)", xf.BassFadeIn, v => X(c => c.BassFadeIn = v));
+
+        Heading(panel, "Beat matching");
+        Row(panel, "Start mixing before the beat ends (seconds)", Number(xf.MixBeforeBeatEndSeconds, 0, 180, 1, v => X(c => c.MixBeforeBeatEndSeconds = v)),
+            "The beat end is where the drums of the playing track stop (its outro is not counted). The mix starts on the phrase boundary (8 beats) at or before this point.");
+        Row(panel, "Mix the new track in after its beat starts (seconds)", Number(xf.MixInAfterBeatStartSeconds, 0, 180, 1, v => X(c => c.MixInAfterBeatStartSeconds = v)),
+            "The beat start is where the new track's drums come in (its intro is skipped). It enters on the phrase boundary at or after this point.");
+        Row(panel, "Fade-in (seconds)", Number(xf.FadeInSeconds, 0.5, 30, 0.5m, v => X(c => c.FadeInSeconds = v), "0.0"));
+        var end = new ComboBox { ItemsSource = new[] { "Cut: the first track stops at once", "Fade out" }, SelectedIndex = (int)xf.EndBehaviour, Width = 360 };
+        end.SelectionChanged += (_, _) => X(c => c.EndBehaviour = (CrossfadeEnd)Math.Max(0, end.SelectedIndex));
+        Row(panel, "When the overlap ends", end);
+        Row(panel, "Fade-out (seconds)", Number(xf.FadeOutSeconds, 0.1, 60, 0.5m, v => X(c => c.FadeOutSeconds = v), "0.0"), "Only with Fade out.");
+        Row(panel, "Tempo limit (%)", Number(xf.TempoLimitPercent, 1, 20, 1, v => X(c => c.TempoLimitPercent = v)),
+            "The largest tempo change (half and double time are tried too). Tracks further apart, or without a reliable beat analysis, use Intro/Outro.");
+        var tempoReturn = new ComboBox { ItemsSource = new[] { "Cut back at the next break", "Gradually" }, SelectedIndex = (int)xf.TempoReturn, Width = 360 };
+        tempoReturn.SelectionChanged += (_, _) => X(c => c.TempoReturn = (TempoReturnMode)Math.Max(0, tempoReturn.SelectedIndex));
+        Row(panel, "Back to the new track's own tempo", tempoReturn, "After the first track has ended. Without a break later in the track, it returns gradually.");
+        Row(panel, "Tempo return (seconds)", Number(xf.TempoReturnSeconds, 1, 120, 1, v => X(c => c.TempoReturnSeconds = v)), "Only with Gradually.");
+        Check(panel, "Analyse BPM, beats and breaks of the playlist in the background", xf.AnalyseInBackground, v => X(c => c.AnalyseInBackground = v));
     }
 
     /// <summary>EQ-01..EQ-05: equalizer and DSP chain shortcuts, and the auto EQ rules (EQ-03).</summary>
