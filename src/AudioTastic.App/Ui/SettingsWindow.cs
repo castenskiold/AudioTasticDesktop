@@ -102,7 +102,7 @@ public sealed class SettingsWindow : Window
                 Note(panel, "Hotkeys, tray, file associations and the context menu arrive in phase P10.");
                 break;
             case SettingsGroup.EqualizerDsp:
-                Note(panel, "The equalizer, presets and DSP chain arrive in phase P7; VST3 and room correction in P12.");
+                EqualizerDspPage(panel);
                 break;
             case SettingsGroup.Plugins:
                 panel.Children.Add(new PluginManagerPage(_plugins, _paths, _platform, _logger));
@@ -340,6 +340,102 @@ public sealed class SettingsWindow : Window
         var theme = new ComboBox { ItemsSource = new[] { "Follow the system", "Dark", "Light" }, SelectedIndex = (int)ui.DialogTheme, Width = 200 };
         theme.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.Interface, s => s.Interface.DialogTheme = (DialogTheme)Math.Max(0, theme.SelectedIndex));
         Row(panel, "Dialogs theme", theme, "Settings and dialogs. Player windows use the skin.");
+
+        // UI-07: the visualisation in the main window (MW6).
+        var vis = new ComboBox { ItemsSource = new[] { "Spectrum analyser", "Oscilloscope", "Off" }, SelectedIndex = (int)ui.Visualisation, Width = 200 };
+        vis.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.Interface, s => s.Interface.Visualisation = (VisualisationType)Math.Max(0, vis.SelectedIndex));
+        Row(panel, "Visualisation", vis, "Clicking the visualisation in the main window also switches it. Plugin visualisations: Main menu › Visualisation (Ctrl+Shift+K).");
+        Row(panel, "Spectrum bars", Number(ui.SpectrumBars, 8, 64, 1, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.SpectrumBars = (int)v)));
+        Row(panel, "Peak fall speed (heights per second)", Number(ui.PeakFallSpeed, 0.1, 5, 0.1m, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.PeakFallSpeed = v), "0.0"));
+        Row(panel, "Frame rate (fps)", Number(ui.VisualisationFps, 15, 60, 5, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.VisualisationFps = (int)v)));
+    }
+
+    private static NumericUpDown Number(double value, double min, double max, decimal step, Action<double> changed, string format = "0")
+    {
+        var box = new NumericUpDown { Minimum = (decimal)min, Maximum = (decimal)max, Increment = step, Value = (decimal)value, FormatString = format, Width = 140 };
+        box.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                changed((double)v);
+            }
+        };
+        return box;
+    }
+
+    /// <summary>EQ-01..EQ-05: equalizer and DSP chain shortcuts, and the auto EQ rules (EQ-03).</summary>
+    private void EqualizerDspPage(StackPanel panel)
+    {
+        var dsp = _settings.Current.EqualizerDsp;
+        var equalizer = new Button { Content = "Open equalizer (Alt+G)" };
+        equalizer.Click += (_, _) => _shell.ShowEqualizer();
+        var chain = new Button { Content = "DSP chain…" };
+        chain.Click += (_, _) => _shell.Equalizer.OpenDspChain(this);
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { equalizer, chain } });
+        Note(panel, "The DSP chain runs the equalizer, compressor, stereo widening, reverb, limiter and plugin effects in the order you set, before the volume. " +
+                    "VST3 effects and room correction come in a later phase.");
+
+        Heading(panel, "Auto EQ");
+        Check(panel, "Load a preset automatically when a track starts (AUTO in the equalizer)", dsp.AutoEq,
+            v => _settings.Update(SettingsGroup.EqualizerDsp, s => s.EqualizerDsp.AutoEq = v));
+        Note(panel, "A preset assigned to the file wins over one assigned to its genre. Assign them from the equalizer's PRESETS menu " +
+                    "while the track plays, or add genre rules here.");
+        var rules = new StackPanel { Spacing = 4 };
+        void ShowRules()
+        {
+            rules.Children.Clear();
+            foreach (var (genre, preset) in _settings.Current.EqualizerDsp.GenrePresets.OrderBy(p => p.Key, StringComparer.CurrentCultureIgnoreCase))
+            {
+                var remove = new Button { Content = "Remove", Padding = new Thickness(8, 2) };
+                Avalonia.Automation.AutomationProperties.SetName(remove, $"Remove the rule for {genre}");
+                var key = genre;
+                remove.Click += (_, _) =>
+                {
+                    _settings.Update(SettingsGroup.EqualizerDsp, s => s.EqualizerDsp.GenrePresets.Remove(key));
+                    ShowRules();
+                };
+                rules.Children.Add(new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = $"{genre}  →  {preset}", Width = 260, VerticalAlignment = VerticalAlignment.Center },
+                        remove,
+                    },
+                });
+            }
+            if (rules.Children.Count == 0)
+            {
+                rules.Children.Add(new TextBlock { Text = "No genre rules yet.", Foreground = Brushes.Gray });
+            }
+        }
+        ShowRules();
+        Row(panel, "Genre rules", rules);
+        var genreBox = new TextBox { PlaceholderText = "Genre, e.g. Rock", Width = 160 };
+        Avalonia.Automation.AutomationProperties.SetName(genreBox, "Genre");
+        var presetBox = new ComboBox { ItemsSource = _shell.Equalizer.Presets.All.Select(p => p.Name).ToList(), SelectedIndex = 0, Width = 180 };
+        Avalonia.Automation.AutomationProperties.SetName(presetBox, "Preset");
+        var add = new Button { Content = "Add rule" };
+        add.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(genreBox.Text) || presetBox.SelectedItem is not string preset)
+            {
+                return;
+            }
+            var genre = genreBox.Text.Trim();
+            _settings.Update(SettingsGroup.EqualizerDsp, s =>
+            {
+                foreach (var key in s.EqualizerDsp.GenrePresets.Keys.Where(k => string.Equals(k, genre, StringComparison.OrdinalIgnoreCase)).ToList())
+                {
+                    s.EqualizerDsp.GenrePresets.Remove(key);
+                }
+                s.EqualizerDsp.GenrePresets[genre] = preset;
+            });
+            genreBox.Text = string.Empty;
+            ShowRules();
+        };
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { genreBox, presetBox, add } });
     }
 
     private void GeneralPage(StackPanel panel)

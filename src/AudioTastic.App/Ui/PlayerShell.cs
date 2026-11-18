@@ -7,6 +7,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using AudioTastic.App.Skins;
+using AudioTastic.App.Ui.Controls;
+using AudioTastic.App.Ui.Equalizer;
 using AudioTastic.App.Ui.Playlist;
 using AudioTastic.Core.Diagnostics;
 using AudioTastic.Core.Playback;
@@ -40,7 +42,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private SkinnedWindow? _main;
     private SkinnedWindow? _mini;
     private SkinnedWindow? _playlist;
+    private SkinnedWindow? _equalizer;
     private bool _playlistBeforeMini;
+    private bool _equalizerBeforeMini;
+    private readonly EqualizerController _eq;
     private readonly PlaylistController _playlists;
     private readonly PluginHost _plugins;
     private Skin? _fallbackSkin;
@@ -50,9 +55,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        AnalysisCoordinator analysis, SleepTimerService sleep, ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ILoggerFactory loggerFactory)
     {
         _sleep = sleep;
+        _eq = equalizer;
         // PB-10: the timer stopped playback; close the app when Settings › Playback says so.
         sleep.Finished += (_, _) => Dispatcher.UIThread.Post(() =>
         {
@@ -73,6 +79,13 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PlayerShell>();
         Player = new PlayerViewModel(engine, settings, analysis, sleep);
+        // EQ toggles (main window EQ, equalizer ON/AUTO/PARAM) follow the equalizer state.
+        equalizer.Changed += (_, _) =>
+        {
+            _main?.Refresh();
+            _equalizer?.Refresh();
+        };
+        equalizer.Message += (_, text) => Player.ShowNotice(text);
         _plugins.PluginDisabled += OnPluginDisabled;
         _playlists.Message += (_, text) => Player.ShowNotice(text);
         _playlists.StopAfterCurrentRequested += (_, _) => Execute("stopAfterCurrent", _main!);
@@ -89,6 +102,12 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public SkinManager Skins => _skins;
     public PlaybackEngine Engine => _engine;
 
+    /// <summary>EQ-01..EQ-05: the equalizer window's controller (also used by Settings › Equalizer &amp; DSP).</summary>
+    public EqualizerController Equalizer => _eq;
+
+    /// <summary>Shows the equalizer window (Settings › Equalizer &amp; DSP).</summary>
+    public void ShowEqualizer() => SetEqualizerVisible(true);
+
     /// <summary>UI-08: drawing scale of the player windows (player size × double size).</summary>
     public double Scale => Math.Clamp(UiSettings.PlayerScale, 50, 400) / 100.0 * (UiSettings.DoubleSize ? 2 : 1);
 
@@ -102,14 +121,25 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _main = new SkinnedWindow("main", this);
         _mini = new SkinnedWindow("mini", this);
         _playlist = new SkinnedWindow("playlist", this) { ShowInTaskbar = false };
+        _equalizer = new SkinnedWindow("equalizer", this) { ShowInTaskbar = false };
         _snap.Register(_main, isMain: true);
         _snap.Register(_mini);
         _snap.Register(_playlist);
+        _snap.Register(_equalizer);
         _snap.DragCompleted += (_, _) => SavePositions();
         BuildWindows();
         Restore(_main, UiSettings.MainWindow);
         Restore(_mini, UiSettings.MiniPlayerWindow);
         Restore(_playlist, UiSettings.PlaylistWindow);
+        Restore(_equalizer, UiSettings.EqualizerWindow);
+        _equalizer.Closing += (_, e) =>
+        {
+            if (!_exiting)
+            {
+                e.Cancel = true; // Alt+F4 on the equalizer hides it
+                SetEqualizerVisible(false);
+            }
+        };
         if (UiSettings.PlaylistSize is { } size)
         {
             _playlist.Width = size.Width * Scale;
@@ -178,6 +208,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "openUrl": _ = OpenUrlAsync(window); break;
             case "playlist": SetPlaylistVisible(!_playlist!.IsVisible); break;
             case "hide" when window == _playlist: SetPlaylistVisible(false); break;
+            case "hide" when window == _equalizer: SetEqualizerVisible(false); break;
+            case "equalizer": SetEqualizerVisible(!_equalizer!.IsVisible); break; // EQ-01: Alt+G, EQ toggle
+            case "eqOn": _eq.ToggleOn(); break;
+            case "eqAuto": _eq.ToggleAuto(); break;
+            case "eqParam": _eq.ToggleParametric(); break;
+            case "eqPresets": _eq.ShowPresetsMenu(source, window); break;
+            case "eqDsp": _eq.OpenDspChain(window); break;
+            case "visPlugin": ToggleVisualisationPlugin(); break; // UI-07: Ctrl+Shift+K
             case "search":
                 SetPlaylistVisible(true);
                 _playlists.FocusSearch();
@@ -219,7 +257,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void BeginDrag(Control source, PointerPressedEventArgs e) => _snap.BeginDrag(source, e);
 
-    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist";
+    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam";
 
     private void ShowDialog(Window dialog)
     {
@@ -227,13 +265,26 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _ = dialog.ShowDialog(owner);
     }
 
-    public Control? CreateElement(Skin skin, SkinElement element) => PlaylistViews.Create(skin, element, _playlists);
+    public Control? CreateElement(Skin skin, SkinElement element) => element.Type switch
+    {
+        "visualisation" => new VisualisationView(skin, element, _engine.Graph.Visualisation, _settings), // UI-07
+        "eqSlider" or "eqCurve" or "eqParametric" => EqualizerViews.Create(skin, element, _eq), // EQ-01, EQ-04
+        _ => PlaylistViews.Create(skin, element, _playlists),
+    };
 
     /// <summary>Files dropped on a player window: added to the active playlist; on the main window or mini player they play (PL-04).</summary>
     public void DropFiles(IReadOnlyList<string> paths, Window window) =>
         _ = _playlists.AddAsync(paths, play: window != _playlist);
 
-    public bool IsToggleOn(string bind) => bind == "playlist" && _playlist?.IsVisible == true;
+    public bool IsToggleOn(string bind) => bind switch
+    {
+        "playlist" => _playlist?.IsVisible == true,
+        "equalizer" => _equalizer?.IsVisible == true,
+        "eqOn" => _eq.IsOn,
+        "eqAuto" => _eq.IsAuto,
+        "eqParam" => _eq.IsParametric,
+        _ => false,
+    };
 
     public void ShowDeviceMenu(Control source)
     {
@@ -287,6 +338,16 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
             _playlist!.Build(_fallbackSkin, _fallbackSkin.Window("playlist")!, scale);
         }
+        if (skin.Window("equalizer") is { } equalizer)
+        {
+            _equalizer!.Build(skin, equalizer, scale);
+        }
+        else
+        {
+            // A skin without an equalizer window uses the default skin's (skin-format.md).
+            _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
+            _equalizer!.Build(_fallbackSkin, _fallbackSkin.Window("equalizer")!, scale);
+        }
     }
 
     /// <summary>UI-01: shows or hides the playlist window (PL toggle, Alt+E, Windows menu); the choice is saved.</summary>
@@ -322,6 +383,65 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
     }
 
+    /// <summary>EQ-01: shows or hides the equalizer window (EQ toggle, Alt+G, Windows menu); the choice is saved.</summary>
+    private void SetEqualizerVisible(bool visible)
+    {
+        if (visible == _equalizer!.IsVisible)
+        {
+            return;
+        }
+        if (visible)
+        {
+            if (UiSettings.EqualizerWindow is null)
+            {
+                PlaceEqualizerBelowMain();
+            }
+            _equalizer.Show(_main!);
+        }
+        else
+        {
+            SavePositions();
+            _equalizer.Hide();
+        }
+        _settings.Update(SettingsGroup.Interface, s => s.Interface.EqualizerVisible = visible);
+        _main!.Refresh();
+        _mini!.Refresh();
+    }
+
+    /// <summary>
+    /// First time: dock the equalizer below the main window (Winamp's order); a playlist docked there moves down
+    /// to make room.
+    /// </summary>
+    private void PlaceEqualizerBelowMain()
+    {
+        var main = WindowSnapManager.Bounds(_main!);
+        _equalizer!.WindowStartupLocation = WindowStartupLocation.Manual;
+        _equalizer.Position = new PixelPoint(main.X, main.Bottom);
+        if (_playlist!.IsVisible && Math.Abs(_playlist.Position.Y - main.Bottom) <= 2 && Math.Abs(_playlist.Position.X - main.X) <= 2)
+        {
+            var height = (int)Math.Round((_skins.Current.Window("equalizer")?.Height ?? 116) * Scale * _main!.DesktopScaling);
+            _playlist.Position = new PixelPoint(_playlist.Position.X, main.Bottom + height);
+        }
+    }
+
+    /// <summary>UI-07: Ctrl+Shift+K opens the first visualisation plugin (or closes the open one).</summary>
+    private void ToggleVisualisationPlugin()
+    {
+        if (VisualisationPluginWindow.Current is { } open)
+        {
+            open.Close();
+            return;
+        }
+        if (_plugins.Instances<IVisualisationPlugin>() is [var plugin, ..])
+        {
+            VisualisationPluginWindow.Open(_main!.IsVisible ? _main : _mini!, _plugins, plugin, _engine.Graph.Visualisation);
+        }
+        else
+        {
+            Player.ShowNotice("No visualisation plugin is installed (Settings › Plugins).");
+        }
+    }
+
     /// <summary>First run: dock the playlist window directly below the main window.</summary>
     private void PlacePlaylistBelowMain()
     {
@@ -342,11 +462,20 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         if (toMini)
         {
             _playlistBeforeMini = _playlist!.IsVisible;
+            _equalizerBeforeMini = _equalizer!.IsVisible;
             _playlist.Hide();
+            _equalizer.Hide();
         }
-        else if (_playlistBeforeMini)
+        else
         {
-            ShowPlaylist();
+            if (_equalizerBeforeMini)
+            {
+                _equalizer!.Show(_main!);
+            }
+            if (_playlistBeforeMini)
+            {
+                ShowPlaylist();
+            }
         }
         _main!.Refresh();
         _mini.Refresh();
@@ -394,6 +523,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _main.Refresh();
             _mini!.Refresh();
             _playlist!.Refresh();
+            _equalizer!.Refresh();
         });
     }
 
@@ -419,6 +549,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         var playlist = _playlist!.Position;
         var playlistSize = new WindowSize(_playlist.Width / Scale, _playlist.Height / Scale);
         var playlistVisible = _playlist.IsVisible;
+        var equalizer = _equalizer!.Position;
+        var equalizerVisible = _equalizer.IsVisible;
         var mainKnown = _main.IsVisible || UiSettings.MainWindow is null;
         var miniKnown = _mini.IsVisible || UiSettings.MiniPlayerWindow is null;
         _settings.Update(SettingsGroup.Interface, s =>
@@ -436,6 +568,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 s.Interface.PlaylistWindow = new WindowPlacement(playlist.X, playlist.Y);
                 s.Interface.PlaylistSize = playlistSize;
             }
+            if (equalizerVisible)
+            {
+                s.Interface.EqualizerWindow = new WindowPlacement(equalizer.X, equalizer.Y);
+            }
         });
     }
 
@@ -450,6 +586,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _settingsWindow?.Close();
         _playlists.Service.Flush();
         _playlist?.Close();
+        _equalizer?.Close();
+        VisualisationPluginWindow.Current?.Close();
         _main?.Close();
         _mini?.Close();
         _desktop?.Shutdown();
@@ -470,6 +608,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         if (UiSettings.PlaylistWindow is null)
         {
             PlacePlaylistBelowMain();
+        }
+        if (UiSettings.EqualizerVisible && _main.IsVisible)
+        {
+            _equalizer!.Show(_main);
         }
         if (UiSettings.PlaylistVisible && _main.IsVisible)
         {
@@ -776,14 +918,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 },
                 Item(_sleep.Mode is null ? "Sleep timer…" : $"Sleep timer… ({SleepTimerWindow.Describe(_sleep)})", "sleepTimer", check: _sleep.Mode is not null ? true : null),
                 Item("Cast to…", enabled: false),
-                Item("Visualisation", enabled: false),
+                new MenuItem { Header = "Visualisation", ItemsSource = VisualisationItems() },
                 new MenuItem
                 {
                     Header = "Windows",
                     ItemsSource = (object[])
                     [
-                        Item("Equalizer", enabled: false),
-                        Item("Playlist", enabled: false),
+                        Item("Equalizer", "equalizer", check: _equalizer!.IsVisible),
+                        Item("Playlist", "playlist", check: _playlist!.IsVisible),
                         Item("Art & Lyrics", enabled: false),
                         Item("Mini player", "miniPlayer", check: _mini.IsVisible),
                         .. PanelItems(),
@@ -802,6 +944,40 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             },
         };
         menu.Open(source);
+    }
+
+    /// <summary>UI-07: Main menu › Visualisation: the built-in MW6 view and the visualisation plugins.</summary>
+    private List<object> VisualisationItems()
+    {
+        var current = UiSettings.Visualisation;
+        MenuItem Builtin(string header, VisualisationType type)
+        {
+            var item = new MenuItem { Header = header, ToggleType = MenuItemToggleType.Radio, IsChecked = current == type };
+            item.Click += (_, _) => _settings.Update(SettingsGroup.Interface, s => s.Interface.Visualisation = type);
+            return item;
+        }
+        var items = new List<object> { Builtin("Spectrum", VisualisationType.Spectrum), Builtin("Oscilloscope", VisualisationType.Oscilloscope), Builtin("Off", VisualisationType.Off) };
+        var plugins = _plugins.Instances<IVisualisationPlugin>();
+        items.Add(new Separator());
+        if (plugins.Count == 0)
+        {
+            items.Add(new MenuItem { Header = "No visualisation plugins installed", IsEnabled = false });
+        }
+        foreach (var plugin in plugins)
+        {
+            var name = plugin.GetType().Name;
+            _plugins.Guard(_plugins.RecordOf(plugin)!, () => name = plugin.Name);
+            var item = new MenuItem { Header = $"Open {name}" };
+            item.Click += (_, _) => VisualisationPluginWindow.Open(_main!.IsVisible ? _main : _mini!, _plugins, plugin, _engine.Graph.Visualisation);
+            items.Add(item);
+        }
+        if (VisualisationPluginWindow.Current is not null)
+        {
+            var close = new MenuItem { Header = "Close visualisation", InputGesture = KeyGesture.Parse("Ctrl+Shift+K") };
+            close.Click += (_, _) => VisualisationPluginWindow.Current?.Close();
+            items.Add(close);
+        }
+        return items;
     }
 
     private async void Run(Func<Task> command)

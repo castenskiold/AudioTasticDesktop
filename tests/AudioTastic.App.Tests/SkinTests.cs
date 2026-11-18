@@ -76,6 +76,33 @@ public sealed class SkinTests : IDisposable
     }
 
     [Fact]
+    public void Default_skin_has_an_equalizer_window_with_preamp_and_ten_bands()
+    {
+        using var source = new EmbeddedSkinSource(typeof(SkinManager).Assembly);
+
+        var eq = SkinLoader.Load(source).Windows.Equalizer;
+
+        Assert.NotNull(eq);
+        Assert.Equal(["preamp", .. Enumerable.Range(0, 10).Select(i => $"band{i}")], eq.Elements.Where(e => e.Type == "eqSlider").Select(e => e.Bind));
+        Assert.Contains(eq.Elements, e => e.Type == "eqCurve");
+        Assert.Contains(eq.Elements, e => e.Type == "eqParametric");
+        Assert.Equal(["eqOn", "eqAuto", "eqParam"], eq.Elements.Where(e => e.Type == "toggle").Select(e => e.Bind));
+    }
+
+    [Fact]
+    public void Equalizer_slider_needs_a_known_bind()
+    {
+        var folder = WriteSkinFolder("bad-eq", json =>
+        {
+            var elements = json["windows"]!["equalizer"]!["elements"]!.AsArray();
+            elements.Add(JsonNode.Parse("""{ "type": "eqSlider", "bind": "band10", "x": 0, "y": 0, "width": 10, "height": 10 }"""));
+        });
+
+        var ex = Assert.Throws<SkinException>(() => SkinLoader.Load(new DirectorySkinSource(folder)));
+        Assert.Contains(ex.Errors, e => e.Contains("bind must be one of preamp", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Default_skin_resolves_named_colours()
     {
         using var skin = Manager().Load(SkinManager.DefaultSkinId);

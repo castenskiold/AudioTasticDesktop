@@ -31,7 +31,8 @@ public static class KeyMap
         [(Key.V, KeyModifiers.Shift)] = "stopAfterCurrent",
         [(Key.OemOpenBrackets, KeyModifiers.None)] = "abRepeat",
         [(Key.Q, KeyModifiers.None)] = "queue",
-        // Reserved for later phases: Alt+G/L windows (EQ, AL), Ctrl+E tags, Alt+3 file info.
+        [(Key.K, KeyModifiers.Control | KeyModifiers.Shift)] = "visPlugin",
+        // Reserved for later phases: Alt+L window (AL), Ctrl+E tags, Alt+3 file info.
         [(Key.G, KeyModifiers.Alt)] = "equalizer",
         [(Key.E, KeyModifiers.Alt)] = "playlist",
     };

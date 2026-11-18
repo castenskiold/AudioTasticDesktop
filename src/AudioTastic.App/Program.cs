@@ -81,6 +81,14 @@ internal static class Program
                 .AddSingleton<AudioTastic.Analysis.ReplayGainService>()
                 .AddSingleton<AudioTastic.App.Ui.AnalysisCoordinator>()
                 .AddSingleton<AudioTastic.App.Ui.Playlist.PlaylistController>()
+                // EQ-01..EQ-05: DSP chain, presets, auto EQ and the equalizer window's controller.
+                .AddSingleton(sp => new AudioTastic.Core.Audio.Dsp.DspService(sp.GetRequiredService<PlaybackEngine>().Graph,
+                    sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<ILogger<AudioTastic.Core.Audio.Dsp.DspService>>()))
+                .AddSingleton(sp => new AudioTastic.Core.Audio.Dsp.EqPresetStore(sp.GetRequiredService<AppPaths>().PresetsFolder))
+                .AddSingleton(sp => new AudioTastic.Core.Playback.AutoEqService(sp.GetRequiredService<PlaybackEngine>(), sp.GetRequiredService<SettingsStore>(),
+                    sp.GetRequiredService<AudioTastic.Core.Audio.Dsp.EqPresetStore>(), sp.GetRequiredService<AudioTastic.Data.Cache.CacheStore>(),
+                    sp.GetRequiredService<ILogger<AudioTastic.Core.Playback.AutoEqService>>()))
+                .AddSingleton<AudioTastic.App.Ui.Equalizer.EqualizerController>()
                 .AddSingleton<AudioTastic.App.Ui.PlayerShell>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
@@ -90,6 +98,13 @@ internal static class Program
             var plugins = services.GetRequiredService<PluginHost>();
             plugins.AttachPlayer(services.GetRequiredService<PlayerApi>());
             plugins.LoadAll();
+
+            // EQ-05 / PG-01: DSP plugins' effects join the chain; a plugin's effects leave it before the plugin unloads.
+            var dsp = services.GetRequiredService<AudioTastic.Core.Audio.Dsp.DspService>();
+            dsp.SetPluginEffects(() => PluginEffects(plugins));
+            plugins.PluginUnloading += (_, record) => dsp.RemovePlugin(record.Id);
+            plugins.PluginsChanged += (_, _) => dsp.RefreshPlugins();
+            _ = services.GetRequiredService<AudioTastic.Core.Playback.AutoEqService>(); // EQ-03 listens from the start
 
             // PB-03: the engine asks the ReplayGain service for each track's gain.
             services.GetRequiredService<PlaybackEngine>().ReplayGainProvider = services.GetRequiredService<AudioTastic.Analysis.ReplayGainService>();
@@ -108,6 +123,23 @@ internal static class Program
     }
 
     /// <summary>Avalonia configuration; also used by the XAML previewer.</summary>
+    /// <summary>EQ-05 / PG-01: one chain effect per enabled DSP plugin instance; faults go to the plugin host (PG-03).</summary>
+    private static List<AudioTastic.Core.Audio.Dsp.PluginEffect> PluginEffects(PluginHost host)
+    {
+        var effects = new List<AudioTastic.Core.Audio.Dsp.PluginEffect>();
+        foreach (var plugin in host.Instances<AudioTastic.Sdk.Plugins.IDspPlugin>())
+        {
+            if (host.RecordOf(plugin) is not { } record)
+            {
+                continue;
+            }
+            var name = record.Manifest.Name;
+            host.Guard(record, () => name = string.IsNullOrWhiteSpace(plugin.Name) ? record.Manifest.Name : plugin.Name.Trim());
+            effects.Add(new AudioTastic.Core.Audio.Dsp.PluginEffect(record.Id, name, plugin.CreateEffect, ex => host.ReportFault(record, ex)));
+        }
+        return effects;
+    }
+
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UsePlatformDetect()

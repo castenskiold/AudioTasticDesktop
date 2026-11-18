@@ -40,6 +40,9 @@ public sealed class SkinWindows
     public SkinWindowDefinition? Main { get; set; }
     public SkinWindowDefinition? Mini { get; set; }
     public SkinWindowDefinition? Playlist { get; set; }
+
+    /// <summary>EQ-01: the equalizer window (EQ1–EQ4); skins without one use the default skin's.</summary>
+    public SkinWindowDefinition? Equalizer { get; set; }
 }
 
 public sealed class SkinWindowDefinition

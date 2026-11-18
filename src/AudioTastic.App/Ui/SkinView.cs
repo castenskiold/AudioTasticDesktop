@@ -334,10 +334,6 @@ public sealed class SkinView : Border, IDisposable
                     IsHitTestVisible = false,
                 };
 
-            case "visualisation":
-                // UI-07 (P7).
-                return new Border { IsHitTestVisible = false };
-
             case "resizeGrip":
             {
                 var grip = new Border { Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.BottomRightCorner) };

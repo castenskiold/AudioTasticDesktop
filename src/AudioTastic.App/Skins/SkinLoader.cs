@@ -25,9 +25,10 @@ public static partial class SkinLoader
     public static readonly IReadOnlyDictionary<string, string[]> Binds = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["button"] = ["previous", "play", "pause", "playPause", "stop", "next", "open", "menu", "minimize", "close", "miniPlayer", "expand",
-            "hide", "plAdd", "plRemove", "plSelect", "plSort", "plList"],
-        ["toggle"] = ["shuffle", "repeat", "mute", "equalizer", "playlist", "crossfade", "cast"],
+            "hide", "plAdd", "plRemove", "plSelect", "plSort", "plList", "eqPresets", "eqDsp"],
+        ["toggle"] = ["shuffle", "repeat", "mute", "equalizer", "playlist", "crossfade", "cast", "eqOn", "eqAuto", "eqParam"],
         ["slider"] = ["volume", "seek"],
+        ["eqSlider"] = ["preamp", "band0", "band1", "band2", "band3", "band4", "band5", "band6", "band7", "band8", "band9"],
     };
 
     /// <summary>Element types whose <c>bind</c> is optional, with the allowed values.</summary>
@@ -128,7 +129,7 @@ public static partial class SkinLoader
             }
         }
 
-        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini), ("playlist", skin.Windows.Playlist) })
+        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini), ("playlist", skin.Windows.Playlist), ("equalizer", skin.Windows.Equalizer) })
         {
             if (window is null)
             {
