@@ -61,7 +61,10 @@ xf=[
 ("Intro/Outro: behaviour","The current track fades out while the next track fades in over it."),
 ("Intro/Outro: overlap duration","Seconds. How long the tracks overlap. At the end the current track is fully faded out and the new track is at full volume."),
 ("Beat matching: behaviour","The tempo (BPM) of the incoming track is adjusted to match the BPM of the playing track, and the beats are lined up so the two play in time."),
+("Beat matching: fade-in","Seconds. The incoming track fades in over this time instead of appearing at full volume; its bass starts low and rises to the normal level as it fades in (bass fade-in can be switched off). The overlap at full volume follows the fade-in."),
 ("Beat matching: overlap duration","Seconds. How long both tracks play together at full volume before the first track is turned down or cut off."),
+("Beat matching: mix before beat end","Seconds. The beat start and beat end of each track are detected (where its steady drums begin and stop, intro and outro not counted). The mix starts this many seconds before the playing track's beat ends, on a phrase boundary."),
+("Beat matching: mix in after beat start","Seconds. The incoming track enters this many seconds after its own beat starts, on a phrase boundary."),
 ("Beat matching: end behaviour","<b>Cut</b>: the first track stops at once when the overlap ends. <b>Fade out</b>: it fades out over a further period."),
 ("Beat matching: fade-out duration","Optional, seconds. Length of the fade-out. Only used when end behaviour is <b>Fade out</b>."),
 ("Beat matching: tempo limit","Percent (e.g. &plusmn;8%). Largest tempo change allowed. If the tracks are further apart, that transition uses Intro/Outro instead."),
@@ -239,4 +242,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.9  ·  18 November 2026", story, short_title="Required Features  ·  v1.9")
+ "Version 1.10  ·  18 November 2026", story, short_title="Required Features  ·  v1.10")

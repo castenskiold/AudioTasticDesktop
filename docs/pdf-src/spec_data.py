@@ -155,36 +155,40 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
 
 S("DJ-style crossfading", "When the current track nears its end, the next track starts and the two are mixed like a DJ set. All settings are in Settings › Crossfading. The XF button (MW10) switches crossfading on/off; a badge shows the mode (IO = Intro/Outro, BM = Beat matching).", [
 ("XF-01", "Intro/Outro mode",
- "The current track fades out while the next track fades in over it. The overlap starts 'Overlap seconds' before the end of the current track; at the end of the overlap the current track is silent and the new track is at full volume. Uses equal-power curves so the loudness stays even. If either track is shorter than twice the overlap, the overlap is shortened to fit.",
+ "The current track fades out while the next track fades in over it. The overlap starts 'Overlap seconds' before the end of the current track; at the end of the overlap the current track is silent and the new track is at full volume. Uses equal-power curves so the loudness stays even. If either track is shorter than twice the overlap, the overlap is shortened to fit. With 'Bass fade-in' on, the new track's bass (below 200 Hz) starts 24 dB lower and rises to normal over the overlap.",
  "MW10: XF button and IO badge. Waveform (MW7) shows the overlap region as a shaded area at the end of the track.",
- "<b>Components:</b> CrossfadeController in Core; MixerGraph with two decks (A/B) each with its own GainStage, summed before the DSP chain. "
+ "<b>Components:</b> CrossfadePlanner (pure planning, unit-tested) and PlaybackEngine in Core; MixerGraph with two decks (A/B), each with its own GainStage (ReplayGain), DeckEnvelope (fade) and BassRamp (low shelf), summed before the DSP chain. The incoming deck starts at an exact frame of the outgoing deck (MixerGraph.NextStartFrame). "
  "<b>Depends on:</b> PB-01 preloading, PB-03 (gain applied per deck so both tracks are normalised).",
- "Overlap duration (seconds, 0.5–30, default 8)."),
+ "Overlap duration (seconds, 0.5–30, default 8); Bass fade-in (on/off, default on)."),
 ("XF-02", "Beat matching mode",
- "Changes the tempo of the incoming track (keeping its pitch) to the BPM of the playing track and lines up the beats, then both play together at full volume for 'Overlap seconds'. When the overlap ends, the first track either stops at once (Cut) or fades out over 'Fade-out seconds' (Fade out). The mix point is chosen on a phrase boundary (multiple of 8 beats) near the end of the current track.",
- "MW10: XF button and BM badge. During a mix, MW5 shows both BPMs (e.g. 124 → 124).",
+ "Changes the tempo of the incoming track (keeping its pitch) to the BPM of the playing track and lines up the beats. The incoming track fades in over 'Fade-in seconds' (equal-power; with 'Bass fade-in' its bass starts 24 dB lower and rises to normal over the fade-in), then both play together at full volume for 'Overlap seconds'. When the overlap ends, the first track either stops at once (Cut, a 10 ms ramp) or fades out over 'Fade-out seconds' (Fade out). "
+ "<b>Mix point:</b> the phrase boundary (8 beats) at or before 'Mix before beat end' seconds before the playing track's beat end (shifted earlier if the fade-in, overlap and fade-out would not fit); the incoming track enters on the phrase boundary at or after 'Mix in after beat start' seconds past its own beat start. After a seek past the mix point, the next phrase at least 3 s ahead is used. "
+ "<b>Alignment:</b> the beat grids place the incoming track, corrected by both grids' local phase corrections over the full-volume overlap. Then the audio of the overlap itself is measured (CrossfadeAligner): in each track the high-band envelope is averaged over all beats there, the kick is found with the analyser's kick detector, and the beat is the strongest transient from 150 ms before that kick to 20 ms after it. The incoming entry moves by the difference (up to half a beat) when both halves of the overlap agree; otherwise the grids decide. Blind listening tests on Anders's tracks chose this point over the click alone and over the low thump.",
+ "MW10: XF button and BM badge. During a mix, MW5 shows both BPMs (e.g. 150 → 153). The waveform (MW7) shades the mix region. Playlist row menu: 'Adjust beat grid…' moves a file's beat grid by ±250 ms (stored per file) when the automatic alignment is wrong for it.",
  "<b>Libraries:</b> SoundTouch for tempo change with pitch kept (TimeStretchStage, shared with PB-06). "
- "<b>Components:</b> BeatMatcher (aligns beat grids from AN-02, computes tempo ratio and start offset with sample accuracy); CrossfadeController. "
- "<b>Depends on:</b> AN-02 (BPM, beat grid, break positions must be analysed before the mix; if analysis is missing, falls back to Intro/Outro).",
- "Overlap duration (seconds); End behaviour (Cut / Fade out); Fade-out duration (seconds, optional, only for Fade out)."),
+ "<b>Components:</b> CrossfadePlanner (tempo ratio, mix point, entry point and grid alignment, unit-tested); ICrossfadeAligner / CrossfadeAligner (Analysis; decodes the overlap of both files off the audio thread when the transition is planned); PlaybackEngine (preload, per-deck speed, envelopes, exact start frame; plans again if the mix point passes while aligning). "
+ "<b>Depends on:</b> AN-02 (BPM, beat grid, beat start/end and breaks; the engine waits for the analysis while there is time, otherwise this transition uses Intro/Outro). Beat matching needs 'keep pitch' (PB-06) or speed 1.0×. "
+ "<b>Tools:</b> tools/AudioTastic.MixLab renders transitions offline through the real engine, prints the measured alignment and writes click tracks for listening tests.",
+ "Fade-in duration (seconds, 0.5–30, default 8); Bass fade-in (on/off, default on); Overlap duration (seconds, 0.5–30, default 8); End behaviour (Cut / Fade out, default Fade out); Fade-out duration (seconds, default 4, only for Fade out); Mix before beat end (seconds, default 30); Mix in after beat start (seconds, default 0)."),
 ("XF-03", "Tempo limit",
- "Sets the largest tempo change beat matching may apply. If the needed change is bigger than the limit, that transition uses Intro/Outro instead. Half/double-time matches (e.g. 70 vs 140 BPM) are considered before giving up.",
- "No UI apart from the setting.", "<b>Components:</b> BeatMatcher decision step.", "Tempo limit (percent, 1–20, default 8)."),
+ "Sets the largest tempo change beat matching may apply. If the needed change is bigger than the limit, that transition uses Intro/Outro instead. Half/double-time matches (e.g. 70 vs 140 BPM) are considered before giving up. Beat matching also needs analysis confidence of at least 0.5 for both tracks; below that it uses Intro/Outro.",
+ "No UI apart from the setting; the log names the reason for each fallback.", "<b>Components:</b> CrossfadePlanner decision step (tempo factors 1, 2 and ½).", "Tempo limit (percent, 1–20, default 8)."),
 ("XF-04", "Tempo return",
  "After the first track has ended, the new track goes back to its original BPM. 'Cut at next break': jumps to the original tempo at the next detected break, where the change is least noticeable. 'Gradual': changes smoothly over 'Tempo return seconds'. If no break is found, it falls back to Gradual, or switches at the next phrase boundary.",
  "MW5 BPM readout shows the tempo moving back.",
- "<b>Components:</b> TempoReturnController driving TimeStretchStage (ramped setTempo calls every 20 ms for Gradual). "
+ "<b>Components:</b> PlaybackEngine tempo timer driving the deck's TimeStretchSource (ramped every 20 ms for Gradual; a per-deck speed override keeps the playing speed setting apart). "
  "<b>Depends on:</b> AN-02 break detection.",
- "Tempo return (Cut at next break / Gradual); Tempo return duration (seconds, optional, only for Gradual)."),
+ "Tempo return (Cut at next break / Gradual, default Gradual); Tempo return duration (seconds, 1–120, default 16, only for Gradual)."),
 ("AN-01", "Background analysis queue",
  "Shared job queue for waveform (CO-07), loudness (PB-03) and BPM/beat/break analysis (AN-02). Prioritises the current and next tracks, runs at low priority with a configurable number of worker threads, and skips files whose cached results are still valid.",
  "Optional status text in the playlist bottom bar (PW6): 'Analysing 3/120'.",
  "<b>Components:</b> AnalysisService in AudioTastic.Analysis: a priority queue (current, next, background) with merged requests and dedicated worker threads; one decode per file feeds every requested analyser; the current track's job runs at normal priority, others below normal; results in CacheStore (SQLite via Microsoft.Data.Sqlite), CUE virtual tracks cached separately.", "Settings › General: analysis threads (default 2)."),
 ("AN-02", "Track analysis: BPM, beat grid and breaks",
- "Analyses each track once and stores its BPM, beat positions (grid with first-beat offset), phrase boundaries and break positions (sections with a clear drop in energy or no drums). Runs in the background for the current playlist, starting with the next tracks to play.",
- "Background only. File info dialog (MD-05) shows BPM. Optional BPM column in PW4.",
- "<b>Components (own C# code; no GPL aubio):</b> onset detection (spectral flux on FFT frames, FftSharp/NWaves), tempo estimation (autocorrelation of the onset curve, 60–200 BPM), beat tracking (dynamic programming), break detection (low-frequency energy and onset density below threshold for at least 4 bars). "
- "<b>Cache:</b> SQLite (same key as waveforms). <b>Depends on:</b> AN-01.", "Settings › Crossfading: analyse in background (on/off), CPU priority."),
+ "Analyses each track once and stores its BPM, beat grid (first beat and period), local phase corrections per 32 beats, phrase boundaries (8 beats), beat start and beat end (where the steady drums begin and stop) and breaks (16 beats or more with little low-frequency energy). Runs in the background for the current playlist, the current and next tracks first.",
+ "Background only. File info dialog (MD-05) shows BPM (P9). Playlist row menu: 'Adjust beat grid…' (a per-file nudge, ±250 ms).",
+ "<b>Components (own C# code; no GPL aubio):</b> BeatAnalyzer (AN-01 analyser kind 'beats', data version 3) and BeatDetector: the signal is decimated to about 11 kHz; log spectral flux onsets; tempo by autocorrelation with a prior around 130 BPM, refined by folding; phase from the kick (a click in the high band across which the low band rises), first over the whole track, then as the most common offset per 32 beats inside the drum sections; confidence from dynamic-programming beat tracking; phrase offset from low-frequency rises and accents. "
+ "The beat start and end come from low-frequency energy and then move to where the groove is steady: each beat's low-band pattern over its four 16ths must match the median of the next 16 beats in at least 14 (intros whose low hits wander across the 16ths do not count). "
+ "<b>Cache:</b> SQLite kind 'beats' (same key as waveforms); the nudge is kind 'beatnudge'. <b>Depends on:</b> AN-01.", "Settings › Crossfading: analyse in background (on/off)."),
 ])
 
 S("Playlists", "Everything shown in the playlist window (PW).", [
@@ -268,7 +272,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
  "<b>Assets:</b> assets/branding/audiotastic.ico (Windows, set as ApplicationIcon), audiotastic.icns (macOS bundle), png/audiotastic-*.png (Linux hicolor icon theme and Avalonia Window.Icon). "
  "<b>About dialog:</b> lists THIRD-PARTY-NOTICES.md content.", None),
 ("UI-05", "Mini player",
- "Collapses the whole player to one compact two-row window (not a title bar). Top row: logo (main menu), scrolling title, expand button. Bottom row: elapsed time, seek bar, track length, previous / play-pause (a circle that shows pause while playing) / stop / next, shuffle and playlist toggles, and a speaker icon (click mutes, mouse wheel changes the volume). Other windows are hidden while the mini player is shown and restored when expanding. Can be set to stay on top.",
+ "Collapses the whole player to one compact two-row window (not a title bar). Top row: logo (main menu), scrolling title, expand button. Bottom row: elapsed time, seek bar, track length, previous / play-pause (a circle that shows pause while playing) / stop / next, shuffle and playlist toggles, and a speaker icon (click mutes, mouse wheel changes the volume). Other windows are hidden while the mini player is shown and restored when expanding. Can be set to stay on top (off by default).",
  "Toggle: title bar button in MW1, double-click the main window title bar, or Ctrl+W (Winamp's windowshade key).",
  "<b>Components:</b> MiniPlayerWindow (separate skin section in skin.json); WindowSnapManager remembers the full layout.", "Settings › Interface: always on top for mini player and/or main window."),
 ("UI-06", "Scrolling title and format indicators",
