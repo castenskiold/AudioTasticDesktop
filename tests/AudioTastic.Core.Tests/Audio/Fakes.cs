@@ -139,11 +139,11 @@ internal sealed class FakeAudioOutput : IAudioOutput
 
     public void Open(AudioDeviceInfo? device, AudioFormat format, OutputOptions options, IAudioRenderer renderer)
     {
+        Close(); // like MiniaudioOutput: the old device is closed before the new one is opened
         if (options.Exclusive && RefuseExclusive)
         {
             throw new InvalidOperationException("Exclusive mode refused (test).");
         }
-        Close();
         OpenOptions.Add(options);
         IsExclusive = options.Exclusive;
         SampleFormat = options.SampleFormat;

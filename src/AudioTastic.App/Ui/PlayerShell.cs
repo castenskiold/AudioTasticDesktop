@@ -74,6 +74,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _logger = loggerFactory.CreateLogger<PlayerShell>();
         Player = new PlayerViewModel(engine, settings, analysis, sleep);
         _plugins.PluginDisabled += OnPluginDisabled;
+        _playlists.Message += (_, text) => Player.ShowNotice(text);
+        _playlists.StopAfterCurrentRequested += (_, _) => Execute("stopAfterCurrent", _main!);
+        sleep.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+            Player.ShowNotice(sleep.Mode is null ? "Sleep timer off" : $"Sleep timer: {SleepTimerWindow.Describe(sleep)}"));
     }
 
     /// <summary>PG-03: a plugin that kept failing was switched off; say so in the main window.</summary>
@@ -189,8 +193,18 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "miniPlayer": case "expand": case "titleDoubleClick": ToggleMiniPlayer(); break;
             case "doubleSize": _settings.Update(SettingsGroup.Interface, s => s.Interface.DoubleSize = !s.Interface.DoubleSize); break;
             case "settings": ShowSettings(); break;
-            case "abRepeat": Run(player.AbRepeatAsync); break; // PB-08: [ sets A, then B, then clears
-            case "stopAfterCurrent": player.StopAfterCurrent = !player.StopAfterCurrent; break; // PB-09
+            case "abRepeat":
+                // PB-08: [ sets A, then B, then clears.
+                Player.ShowNotice(player.AbLoop is null ? "A-B repeat: A set, press [ again for B"
+                    : player.AbLoop.B is null ? "A-B repeat: looping A to B (drag the markers on the waveform; [ clears)" : "A-B repeat off");
+                Run(player.AbRepeatAsync);
+                break;
+            case "stopAfterCurrent":
+                // PB-09: Shift+V. The setter runs on the engine's queue, so the new value is the opposite of the old one.
+                var stopAfter = !player.StopAfterCurrent;
+                player.StopAfterCurrent = stopAfter;
+                Player.ShowNotice(stopAfter ? "Stop after current: on (playback stops when this track ends)" : "Stop after current: off");
+                break;
             case "queue": _playlists.QueueSelection(); break; // PB-09: Q
             case "clearQueue": player.Queue.Clear(); break;
             case "speed": ShowDialog(new SpeedWindow(player)); break; // PB-06

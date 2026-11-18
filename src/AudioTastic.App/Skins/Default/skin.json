@@ -48,6 +48,7 @@
         { "type": "visualisation", "x": 64, "y": 56, "width": 88, "height": 14 },
         { "type": "marquee", "x": 160, "y": 28, "width": 156, "height": 12, "font": "body", "color": "@text", "speed": 25 },
         { "type": "indicators", "x": 160, "y": 45, "width": 156, "height": 10, "font": "badge", "color": "@text", "stroke": "@dim", "spacing": 3 },
+        { "type": "indicators", "bind": "state", "x": 160, "y": 58, "width": 156, "height": 10, "font": "badge", "color": "@text", "stroke": "@dim", "spacing": 3 },
 
         { "type": "rect", "x": 8, "y": 78, "width": 314, "height": 26, "fill": "@bg", "stroke": "@line", "strokeWidth": 1, "cornerRadius": 4 },
         { "type": "waveform", "x": 12, "y": 80, "width": 306, "height": 22,

@@ -43,7 +43,7 @@ public static class DisplayText
     }
 
     /// <summary>UI-06 / MW5: codec, bit depth (lossless), bitrate, sample rate and channels.</summary>
-    public static IReadOnlyList<string> Indicators(TrackInfo? track, ReplayGainDecision? replayGain = null, PlayerBadges? badges = null)
+    public static IReadOnlyList<string> Indicators(TrackInfo? track, ReplayGainDecision? replayGain = null)
     {
         if (track is null)
         {
@@ -87,28 +87,33 @@ public static class DisplayText
         {
             list.Add("RG"); // PB-03: a ReplayGain / loudness gain is applied
         }
-        if (badges is { } b)
+        return list;
+    }
+
+    /// <summary>P6 state badges (second indicator row): OUT, speed, A-B, STOP, sleep timer.</summary>
+    public static IReadOnlyList<string> StateBadges(PlayerBadges b)
+    {
+        ArgumentNullException.ThrowIfNull(b);
+        var list = new List<string>();
+        if (b.Out)
         {
-            if (b.Out)
-            {
-                list.Add("OUT"); // PB-05: the output rate differs from the source
-            }
-            if (Math.Abs(b.Speed - 1) > 1e-6)
-            {
-                list.Add(string.Create(CultureInfo.InvariantCulture, $"{b.Speed:0.0#}×")); // PB-06
-            }
-            if (b.AbLoop)
-            {
-                list.Add("A-B"); // PB-08
-            }
-            if (b.StopAfterCurrent)
-            {
-                list.Add("STOP"); // PB-09
-            }
-            if (b.SleepMinutes is { } minutes)
-            {
-                list.Add(minutes > 0 ? string.Create(CultureInfo.InvariantCulture, $"☾ {minutes}") : "☾"); // PB-10
-            }
+            list.Add("OUT"); // PB-05: the output rate differs from the source
+        }
+        if (Math.Abs(b.Speed - 1) > 1e-6)
+        {
+            list.Add(string.Create(CultureInfo.InvariantCulture, $"{b.Speed:0.0#}×")); // PB-06
+        }
+        if (b.AbLoop)
+        {
+            list.Add("A-B"); // PB-08
+        }
+        if (b.StopAfterCurrent)
+        {
+            list.Add("STOP AFTER"); // PB-09
+        }
+        if (b.SleepMinutes is { } minutes)
+        {
+            list.Add(minutes > 0 ? string.Create(CultureInfo.InvariantCulture, $"SLEEP {minutes} MIN") : "SLEEP"); // PB-10
         }
         return list;
     }

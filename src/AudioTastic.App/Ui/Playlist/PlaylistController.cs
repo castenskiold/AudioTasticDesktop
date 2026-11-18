@@ -148,11 +148,22 @@ public sealed class PlaylistController : IDisposable
 
     public void Queue(IReadOnlyList<PlaylistEntry> entries)
     {
-        if (entries.Count > 0)
+        if (entries.Count == 0)
         {
-            _engine.Queue.Enqueue(Active, entries);
+            return;
         }
+        _engine.Queue.Enqueue(Active, entries);
+        var count = _engine.Queue.Count;
+        Message?.Invoke(this, entries.Count == 1
+            ? $"Queued: {entries[0].DisplayName} (plays next; [n] in the playlist is its place in the queue, {count} queued)"
+            : $"Queued {entries.Count} tracks (they play next, in order; {count} queued)");
     }
+
+    /// <summary>The row menu's "Stop after this track" (the shell toggles it and confirms).</summary>
+    public event EventHandler? StopAfterCurrentRequested;
+
+    /// <summary>A short confirmation for the main window's title area.</summary>
+    public event EventHandler<string>? Message;
 
     /// <summary>PB-09: removes the entries from the queue.</summary>
     public void Unqueue(IEnumerable<PlaylistEntry> entries)
@@ -325,7 +336,7 @@ public sealed class PlaylistController : IDisposable
             Item("Play next (queue)  Q", QueueSelection, selection.Count > 0),
             Item("Remove from queue", () => Unqueue(selection), queued),
             Item(_engine.StopAfterCurrent && isPlaying ? "✓ Stop after this track" : "Stop after this track",
-                () => _engine.StopAfterCurrent = !_engine.StopAfterCurrent, isPlaying),
+                () => StopAfterCurrentRequested?.Invoke(this, EventArgs.Empty), isPlaying),
             Item("File info…", null),
             Item("Edit tags…", null),
             Item("Look up online…", null),

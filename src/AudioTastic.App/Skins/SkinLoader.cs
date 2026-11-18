@@ -34,6 +34,7 @@ public static partial class SkinLoader
     public static readonly IReadOnlyDictionary<string, string[]> OptionalBinds = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["time"] = ["duration"],
+        ["indicators"] = ["state"], // P6: the second row with OUT, speed, A-B, STOP AFTER, SLEEP
     };
 
     private static readonly Lazy<JsonSchema> Schema = new(() =>

@@ -47,6 +47,15 @@ public sealed class DisplayTextTests
         Assert.Empty(DisplayText.Indicators(null));
     }
 
+    [Fact]
+    public void State_badges_show_output_speed_loop_stop_and_sleep()
+    {
+        Assert.Empty(DisplayText.StateBadges(new PlayerBadges(1.0, false, false, null, false)));
+        Assert.Equal(["OUT", "1.25×", "A-B", "STOP AFTER", "SLEEP 30 MIN"],
+            DisplayText.StateBadges(new PlayerBadges(1.25, true, true, 30, true)));
+        Assert.Equal(["SLEEP"], DisplayText.StateBadges(new PlayerBadges(1.0, false, false, 0, false))); // end of track/playlist
+    }
+
     private static AudioStreamInfo Stream(string codec, bool lossless, int bits, int rate = 44_100, int channels = 2, long bitrate = 0) =>
         new(codec, rate, channels, bits, bitrate, lossless);
 }

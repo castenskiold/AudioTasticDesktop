@@ -117,6 +117,25 @@ public sealed class GaplessTests : IDisposable
         await _engine.StopAsync();
     }
 
+    [Fact]
+    public async Task When_exclusive_mode_is_refused_the_track_is_heard_in_shared_mode()
+    {
+        // Anders's P6 check: on a device without exclusive mode (Remote Desktop audio) the fallback was silent.
+        _output.DeviceFormats.Add(new DeviceFormat(OutputSampleFormat.S24, 2, 44_100, true));
+        _output.RefuseExclusive = true;
+        await _engine.OpenAsync([Track("a", 44_100, 5), Track("b", 44_100, 5)]); // playing in shared mode
+        await Wait.UntilAsync(() => _engine.Position > TimeSpan.FromSeconds(0.3), 10_000);
+
+        _settings.Update(SettingsGroup.Output, s => s.Output.Exclusive = true); // switched in Settings while playing
+        await _engine.PlayIndexAsync(1); // then another track is started
+        var before = _output.Captured.Length;
+        await Wait.UntilAsync(() => _engine.Position > TimeSpan.FromSeconds(0.5), 10_000);
+
+        Assert.False(_output.IsExclusive);
+        Assert.Contains(_output.Captured.AsSpan(before).ToArray(), v => v != 0);
+        await _engine.StopAsync();
+    }
+
     private static int FindStart(float[] captured)
     {
         for (var i = 0; i + 1 < captured.Length; i += 2)

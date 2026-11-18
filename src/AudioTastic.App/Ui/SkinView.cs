@@ -58,6 +58,8 @@ public sealed class SkinView : Border, IDisposable
     private static readonly Lazy<Avalonia.Media.Imaging.Bitmap> Logo = new(() =>
         Avalonia.Media.Imaging.Bitmap.DecodeToWidth(Avalonia.Platform.AssetLoader.Open(new Uri("avares://AudioTastic/Assets/logo.png")), 256));
 
+    private readonly bool _hasStateRow; // the skin has an indicators element with "bind": "state"
+
     public SkinView(Skin skin, SkinWindowDefinition window, ISkinHost host, double scale)
     {
         _host = host;
@@ -74,6 +76,7 @@ public sealed class SkinView : Border, IDisposable
         ClipToBounds = true;
 
         var canvas = new AnchorPanel(window.Width - (2 * window.BorderWidth), window.Height - (2 * window.BorderWidth));
+        _hasStateRow = window.Elements.Any(x => x.Type == "indicators" && x.Bind == "state");
         foreach (var element in window.Elements)
         {
             if (Create(skin, element, scale) is { } control)
@@ -290,14 +293,19 @@ public sealed class SkinView : Border, IDisposable
             case "indicators":
             {
                 var bar = new IndicatorBar(skin, e);
-                IReadOnlyList<string>? shown = null;
+                IReadOnlyList<string>? shownFormat = null;
+                IReadOnlyList<string>? shownState = null;
+                var stateRow = e.Bind == "state";
                 _updates.Add(() =>
                 {
-                    if (!ReferenceEquals(shown, _vm.Indicators))
+                    if (ReferenceEquals(shownFormat, _vm.Indicators) && ReferenceEquals(shownState, _vm.StateIndicators))
                     {
-                        shown = _vm.Indicators;
-                        bar.SetItems(shown);
+                        return;
                     }
+                    shownFormat = _vm.Indicators;
+                    shownState = _vm.StateIndicators;
+                    // A skin without a state row gets the state badges first, so they are never clipped.
+                    bar.SetItems(stateRow ? shownState : _hasStateRow ? shownFormat : [.. shownState, .. shownFormat]);
                 });
                 return bar;
             }

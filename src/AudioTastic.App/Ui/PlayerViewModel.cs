@@ -89,6 +89,10 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     public string Title { get => _title; private set => Set(ref _title, value); }
     public IReadOnlyList<string> Indicators { get => _indicators; private set => Set(ref _indicators, value); }
 
+    /// <summary>P6 state badges (OUT, speed, A-B, STOP AFTER, SLEEP), shown in their own row when the skin has one.</summary>
+    public IReadOnlyList<string> StateIndicators { get => _stateIndicators; private set => Set(ref _stateIndicators, value); }
+    private IReadOnlyList<string> _stateIndicators = [];
+
     /// <summary>Last error message (unplayable file, lost device), cleared on the next track.</summary>
     public string? Status { get => _status; private set => Set(ref _status, value); }
 
@@ -139,6 +143,19 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>Shows a message in the title area until the next track starts.</summary>
     public void ShowMessage(string message) => Status = message;
 
+    /// <summary>A short confirmation (Q, Shift+V, [, sleep timer) shown in the title area for 4 seconds.</summary>
+    public void ShowNotice(string message)
+    {
+        Status = message;
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (Status == message)
+            {
+                Status = null;
+            }
+        }, TimeSpan.FromSeconds(4));
+    }
+
     public void Dispose()
     {
         _player.StateChanged -= OnStateChanged;
@@ -175,10 +192,15 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         };
         var badges = new PlayerBadges(_player.Speed, _player.AbLoop?.B is not null, _player.StopAfterCurrent, sleepMinutes,
             _track is not null && output is { } o && o.DeviceRate > 0 && o.DeviceRate != _track.Stream.SampleRate);
-        var indicators = DisplayText.Indicators(_track, _player.ReplayGain, badges);
+        var indicators = DisplayText.Indicators(_track, _player.ReplayGain);
         if (!indicators.SequenceEqual(Indicators))
         {
             Indicators = indicators;
+        }
+        var state = DisplayText.StateBadges(badges);
+        if (!state.SequenceEqual(StateIndicators))
+        {
+            StateIndicators = state;
         }
     }
 
