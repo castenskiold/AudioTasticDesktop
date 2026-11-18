@@ -14,7 +14,8 @@ AudioTastic uses a few native (C/C++) libraries and assets. They are **never com
 | libopenmpt 0.8.10 (+ mpg123 LGPL, ogg/vorbis BSD, zlib on Windows) | BSD-3-Clause | P4 (FM-07) | `fetch_libopenmpt.py` (Windows x64/arm64, official package, SHA-256 pinned) → `out/libopenmpt/`; `build_libopenmpt_unix.sh <rid>` (Linux/macOS from source, untested until CI) |
 | OptimFROG Libraries 5.100 | closed-source freeware (policy exception, bundled) | P4 (FM-06) | `fetch_optimfrog.py` (win-x64, linux-x64, osx-x64 only; HTTP + SHA-1 from the Internet Archive) → `out/optimfrog/` |
 | GeneralUser GS v2.0.3 SoundFont (asset, not code) | GeneralUser GS License v2.0 | P4 (FM-08) | `fetch_soundfont.py` (SHA-256 pinned) → `downloads/soundfont/` |
-| VST3 host shim, ASIO shim | MIT (VST3 SDK), Steinberg ASIO licence | P6 / P12 | Added in those phases |
+| VST3 host shim | MIT (VST3 SDK) | P12 | Added in that phase |
+| ASIO shim | Steinberg ASIO licence (free, proprietary) | optional, deferred | Only if ASIO is revisited |
 
 Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64`.
 

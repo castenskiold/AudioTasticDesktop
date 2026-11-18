@@ -67,7 +67,7 @@ story.append(T.table([
     ("Ordering principles", "Infrastructure first; the risky audio core early; shared building blocks (two-deck mixer, skin engine, plugin SDK, analysis queue) before the features that use them; native C++ work late and isolated; every phase leaves a working, releasable app."),
     ("Phases", f"{len(PD.PHASES)} phases, P0–P{len(PD.PHASES)-1}. Each phase lists its features, extra tasks, prerequisites, deliverables, exit criteria and risks. A phase is closed only when its exit criteria pass on Windows, macOS and Linux."),
     ("Progress", "Built and verified on Windows first; the macOS/Linux checks and CI follow once the GitHub repository exists (decided 17 November 2026). Section 3 shows each phase's status and outcome."),
-    ("Split features", "A few features are built in two parts in different phases (e.g. PB-04 shared mode in P1, exclusive mode and ASIO in P6). The part is named in the task text; appendix A shows every feature's phase."),
+    ("Split features", "A few features are built in two parts in different phases (e.g. PB-04 shared mode in P1, exclusive mode in P6). The part is named in the task text; appendix A shows every feature's phase."),
     ("Sizes", "Relative effort only: S (small), M (medium), L (large), XL (extra large). No calendar dates are set; the order matters, not the duration."),
     ("Flexibility", "Phases P9–P13 depend only loosely on each other and can be reordered if priorities change; P0–P8 should be built in order."),
 ], head=("Topic", "Details")))
@@ -96,7 +96,7 @@ story.append(T.table(prog, head=("Phase", "Status", "Outcome"), widths=(15, 30, 
 
 # ---------------------------------------------------------------- 4
 story += T.h1("4. External prerequisites")
-story.append(P("Accounts, licences, hardware and files to arrange outside the code, with the phase that first needs them. Start the slow ones (Apple Developer enrolment, ASIO licence) a phase early."))
+story.append(P("Accounts, licences, hardware and files to arrange outside the code, with the phase that first needs them. Start the slow ones (e.g. Apple Developer enrolment) a phase early."))
 story.append(Spacer(1, 6))
 ext = []
 for p in PD.PHASES:
@@ -176,5 +176,5 @@ story.append(idx)
 
 T.build("AudioTastic_Implementation_Plan.pdf", "Implementation Plan",
         "Build order, prerequisites and exit criteria for every feature",
-        "Version 1.4  ·  18 November 2026  ·  Based on Feature Specification v1.7", story, short_title="Implementation Plan  ·  v1.4")
+        "Version 1.5  ·  18 November 2026  ·  Based on Feature Specification v1.8", story, short_title="Implementation Plan  ·  v1.5")
 print("built")

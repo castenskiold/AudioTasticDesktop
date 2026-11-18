@@ -1,7 +1,7 @@
 # Builds the small native libraries AudioTastic needs on every platform (phase P0 pipeline):
 #   - miniaudio (public domain / MIT-0): audio output (PB-04), used from P1
 #   - SoundTouch (LGPL-2.1, shared library + C wrapper): time-stretch (PB-06, XF-02), used from P6
-# libopenmpt (FM-07) is added in P4; VST3/ASIO shims in P6/P12.
+# libopenmpt (FM-07) is fetched/built by its own scripts (P4); the VST3 shim comes in P12 (ASIO is optional and deferred).
 #
 #   cmake -S native -B native/build/<rid> -DCMAKE_BUILD_TYPE=Release -DAT_RID=<rid>
 #   cmake --build native/build/<rid> --config Release

@@ -235,7 +235,7 @@ class Pipeline(Flowable):
         self.box(168, 29, bw, bh, "Crossfade mixer", "XF-01 / XF-02", True)
         self.box(252, 29, bw, bh, "DSP chain", "EQ · effects · VST3")
         self.box(336, 29, bw, bh, "Volume", "gain stage")
-        self.box(self.aw - 64, 8, 64, bh, "Output", "miniaudio / ASIO")
+        self.box(self.aw - 64, 8, 64, bh, "Output", "miniaudio")
         self.box(self.aw - 64, 50, 64, bh, "Cast", "stream server")
         self.box(252, 84, bw, 26, "Visualisation", "FFT tap")
         self.arrow(64, 23, 84, 40); self.arrow(64, 65, 84, 50)
@@ -344,9 +344,9 @@ story.append(T.table([
     ("AudioTastic.Metadata", "TagService (TagLibSharp, FFmpeg fallback, cached), TagLoader (background tag reading), ArtService, LyricsService, OnlineLookupService."),
     ("AudioTastic.Casting", "CastService, Chromecast/DLNA/AirPlay targets, discovery, StreamServer, Transcoder, remote control API."),
     ("AudioTastic.Data", "SettingsStore (JSON), CacheStore (SQLite), AppPaths (normal / portable)."),
-    ("AudioTastic.Platform (+ .Windows / .MacOS / .Linux)", "Interfaces and per-OS implementations: media controls, hotkeys, taskbar, shell integration, notifications, CD drive, ASIO."),
+    ("AudioTastic.Platform (+ .Windows / .MacOS / .Linux)", "Interfaces and per-OS implementations: media controls, hotkeys, taskbar, shell integration, notifications, CD drive."),
     ("AudioTastic.NativeBridge", "32-bit helper process for native Winamp plugins (Windows only)."),
-    ("native/ (C/C++, CMake)", "miniaudio with a small flat C shim used by the .NET output code; SoundTouch; later libopenmpt, the VST3 host shim and the ASIO shim, built per platform. FFmpeg is fetched as LGPL builds."),
+    ("native/ (C/C++, CMake)", "miniaudio with a small flat C shim used by the .NET output code; SoundTouch; libopenmpt and later the VST3 host shim, built per platform. FFmpeg is fetched as LGPL builds."),
     ("plugins/", "Built-in plugins written against the SDK: FFmpeg decoder, libopenmpt, MIDI, visualisations, DSP effects, cast targets."),
 ], head=("Project", "Responsibility"), widths=(52, 118)))
 story += T.h2("3.1 Audio pipeline")
@@ -418,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.7  ·  18 November 2026", story, short_title="Feature Specification  ·  v1.7")
+        "Version 1.8  ·  18 November 2026", story, short_title="Feature Specification  ·  v1.8")
 print("built")

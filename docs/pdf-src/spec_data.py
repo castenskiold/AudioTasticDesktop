@@ -115,13 +115,13 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
  "<b>Components:</b> LoudnessAnalyzer (AN-01 queue; keeps every block's energy so album loudness is exact); ReplayGainService decides the gain (tags first, then analysis, reference −18 LUFS; Auto = album gain when a neighbouring playlist entry is from the same album); the engine applies it to the deck's GainStage before the track starts. Optionally writes analysed values back to tags (off by default). ReplayGain is off by default.",
  "Settings › Playback: mode, pre-amp for tagged files (dB), pre-amp for untagged files (dB), analyse untagged files (on/off), prevent clipping (on/off), write tags (on/off)."),
 ("PB-04", "Output device selection and exclusive mode",
- "Chooses which audio device plays the sound and how. Shared mode (default) mixes with other apps. Exclusive / bit-perfect mode sends the audio unchanged to the device (no OS mixer, no resampling, volume at 100 %). ASIO gives low-latency output on Windows. The device list updates when devices are plugged in or removed; if the selected device disappears, playback falls back to the default device.",
+ "Chooses which audio device plays the sound and how. Shared mode (default) mixes with other apps. Exclusive / bit-perfect mode sends the audio unchanged to the device (no OS mixer, no resampling, volume at 100 %). (ASIO output on Windows is optional and deferred; it may be revisited later.) The device list updates when devices are plugged in or removed; if the selected device disappears, playback falls back to the default device.",
  "Settings › Output. Right-click the volume slider (MW9) for a quick device menu.",
  "<b>Libraries:</b> miniaudio (public domain/MIT-0) through a small own C shim (native/miniaudio, flat API with opaque handles) and P/Invoke: WASAPI shared/exclusive (Windows), CoreAudio (macOS), ALSA/PulseAudio/PipeWire (Linux). "
  "<b>Exclusive per platform:</b> WASAPI exclusive (miniaudio share mode exclusive); macOS 'hog mode' needs own CoreAudio interop (not in miniaudio); Linux opens an ALSA hw: device directly. "
- "<b>ASIO " + "[Windows only]" + ":</b> a small native C++ shim around the Steinberg ASIO SDK, using Steinberg's free ASIO licence (not the GPLv3 option, which would make the app GPL). "
+ "<b>ASIO (optional, deferred 18 Nov 2026; may be revisited):</b> if revisited, a small native C++ shim around the Steinberg ASIO SDK using Steinberg's free proprietary ASIO licence (not the GPLv3 option, which would make the app GPL) [Windows only]. "
  "<b>Components:</b> IOutputDevice in Core; output plugins (PG-01) can add further outputs.",
- "Settings › Output: device, mode (Shared / Exclusive / ASIO), buffer size (ms), output bit depth."),
+ "Settings › Output: device, mode (Shared / Exclusive), buffer size (ms), output bit depth."),
 ("PB-05", "High-resolution audio",
  "Plays 24-bit and 32-bit (integer and float) audio at sample rates up to 384 kHz without forced resampling, when the device supports it. The pipeline is 32-bit float internally; output is converted to the device's best format.",
  "MW5 shows the source format (e.g. 24/192) and an 'OUT' indicator if the output rate differs from the source.",

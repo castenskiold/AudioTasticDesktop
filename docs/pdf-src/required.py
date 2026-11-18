@@ -44,7 +44,7 @@ sections=[
 ("Gapless playback",f"No silence between consecutive tracks. {GS}"),
 ("Fade on pause/stop/seek",f"Short fades instead of abrupt cuts on pause, stop and seek. Separate from DJ-style crossfading. {GS}"),
 ("ReplayGain / loudness normalisation",f"Track and album gain from tags, or on-the-fly EBU R128 analysis. {GS}"),
-("Output device selection",f"Choose output device. Exclusive / bit-perfect output where the platform allows it: WASAPI exclusive (Windows), CoreAudio exclusive (macOS), direct ALSA hw device (Linux). ASIO for low latency {WO}. {GS}"),
+("Output device selection",f"Choose output device. Exclusive / bit-perfect output where the platform allows it: WASAPI exclusive (Windows), CoreAudio exclusive (macOS), direct ALSA hw device (Linux). ASIO is optional and deferred (section 17). {GS}"),
 ("High-resolution audio",f"24/32-bit playback up to 384 kHz without forced resampling. {GS}"),
 ("Playback speed / pitch",f"Speed adjustment with or without keeping the pitch. {GS}"),
 ("Resume position",f"Remembers the last track and position on restart; per-file resume for long files. {GS}"),
@@ -165,7 +165,7 @@ for t,rows in sections2:
 
 gs=[
 ("Playback","Gapless, fade on pause/stop/seek, ReplayGain/normalisation mode, playback speed/pitch, resume position, stop after current, sleep timer."),
-("Output","Output device, exclusive/bit-perfect mode, ASIO (Windows), high-resolution output (bit depth, sample rate, no resampling)."),
+("Output","Output device, exclusive/bit-perfect mode, high-resolution output (bit depth, sample rate, no resampling)."),
 ("Crossfading","Mode (Intro/Outro or Beat matching) and all settings in section 5."),
 ("Metadata","Album art on/off, online lookup on/off (and which services), lyrics on/off."),
 ("Casting and network","Chromecast, DLNA/UPnP, AirPlay, streaming server (port, transcoding), discovery, remote control, scrobbling accounts, Discord Rich Presence."),
@@ -189,7 +189,7 @@ lic=[
 tech=[
 ("UI","<b>Avalonia 12</b> (MIT). Custom-drawn controls for skins, waveform and visualisations; built-in tray icon support. SVG skins via Svg.Controls.Skia.Avalonia (MIT); skin validation via NJsonSchema (MIT)."),
 ("Decoding","<b>FFmpeg</b> (LGPL build) via the FFmpeg.AutoGen bindings (MIT). Covers WAV, FLAC, MP3, AIFF, APE, AAC, WV, Vorbis, Opus, ALAC, WMA, DSD (to PCM), Musepack, TTA, Shorten, streams. Also encoding for conversion and cast transcoding."),
-("Output","<b>miniaudio</b> (public domain / MIT-0) via own P/Invoke bindings over a small C shim: WASAPI (shared/exclusive), CoreAudio, ALSA/PulseAudio/PipeWire. ASIO via the Steinberg ASIO SDK (free; now also available under GPLv3) {WO}."),
+("Output","<b>miniaudio</b> (public domain / MIT-0) via own P/Invoke bindings over a small C shim: WASAPI (shared/exclusive), CoreAudio, ALSA/PulseAudio/PipeWire. (ASIO via the Steinberg ASIO SDK only if the deferred ASIO option is revisited.)"),
 ("Tracker / MIDI","libopenmpt (BSD); MeltySynth (MIT) with the bundled GeneralUser GS SoundFont (permissive licence); users can choose their own SF2."),
 ("Time-stretch","SoundTouch (LGPL, dynamically linked) for tempo change with pitch kept."),
 ("BPM, beats, breaks","Own C# implementation (onset detection, tempo estimation, energy-based break detection). Avoids aubio (GPL)."),
@@ -234,10 +234,11 @@ later=[
 ("Localisation","Not included."),
 ("VST2","Not included (VST3 only)."),
 ("AirPlay 2","Not included for now (original AirPlay only)."),
+("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
 ]
 story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome")),Spacer(1,6),
  *HH1("17. Out of scope / deferred"),table(later,head=("Feature","Status"))])]
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.7  ·  17 November 2026", story, short_title="Required Features  ·  v1.7")
+ "Version 1.8  ·  18 November 2026", story, short_title="Required Features  ·  v1.8")

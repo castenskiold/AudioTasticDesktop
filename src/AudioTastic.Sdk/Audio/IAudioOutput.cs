@@ -23,7 +23,7 @@ public sealed class AudioOutputLostEventArgs(string reason) : EventArgs
 }
 
 /// <summary>
-/// PB-04 / PG-01: an audio output (miniaudio in the app; output plugins implement it too). Exclusive mode and ASIO come in P6.
+/// PB-04 / PG-01: an audio output (miniaudio in the app; output plugins implement it too). Exclusive mode comes in P6 (ASIO is optional and deferred).
 /// </summary>
 public interface IAudioOutput : IDisposable
 {

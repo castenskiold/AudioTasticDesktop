@@ -183,7 +183,7 @@ public sealed class SettingsWindow : Window
             var chosen = device.SelectedIndex <= 0 ? null : devices[device.SelectedIndex];
             _ = _shell.Engine.SetOutputDeviceAsync(chosen);
         };
-        Row(panel, "Device", device, "Shared mode. Exclusive / bit-perfect output and ASIO arrive in phase P6. Right-click the volume slider for a quick device menu.");
+        Row(panel, "Device", device, "Shared mode. Exclusive / bit-perfect output arrives in phase P6. Right-click the volume slider for a quick device menu.");
 
         var buffer = new NumericUpDown { Minimum = 10, Maximum = 500, Increment = 5, Value = output.BufferMilliseconds, FormatString = "0", Width = 140 };
         buffer.ValueChanged += (_, e) =>
