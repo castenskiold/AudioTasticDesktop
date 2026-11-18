@@ -151,7 +151,10 @@ public sealed class DspTests
         using var dsp = new DspService(graph, settings);
         await graph.DeckA.LoadAsync(new SyntheticSource(48_000, 2, 48_000 * 10));
         var block = new float[256 * 2];
-        graph.Render(block); // warm up
+        for (var i = 0; i < 500; i++)
+        {
+            graph.Render(block); // warm up: past the JIT's tier-up, which can allocate when it is late under load
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 200; i++)

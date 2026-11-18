@@ -1,5 +1,6 @@
 using System.Runtime;
 using AudioTastic.Core.Audio;
+using AudioTastic.Core.Audio.Beats;
 using AudioTastic.Core.Audio.Output;
 using AudioTastic.Core.Playlists;
 using AudioTastic.Data.Settings;
@@ -67,6 +68,30 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private bool _endedNaturally;
     private bool _bitPerfect; // FM-05: a DoP track is playing: no gain, fades, speed or ReplayGain may touch it
     private IReplayGainProvider? _gainProvider;
+
+    // XF-01..XF-04 crossfading (all changed inside the gate, except the tempo timer which takes the gate itself).
+    private IBeatInfoProvider? _beatProvider;
+    private BeatInfo? _trackBeats;          // AN-02 analysis of the current track, null until it is known
+    private long _trackBeatsCheckedAt;
+    private CrossfadePlan? _plan;           // the transition planned for the armed incoming deck
+    private CrossfadePlan? _mixing;         // after the hand-over: the outgoing deck still sounds, or the tempo returns
+    private Deck? _fading;                  // the outgoing deck after the hand-over
+    private int _finishingFade;
+    private double? _deckSpeedOverride;     // XF-02: matched speed of _deck (null = the normal speed)
+    private double? _spareSpeedOverride;
+    private TempoReturnState? _tempoReturn;
+    private readonly Timer _tempoTimer;
+
+    /// <summary>XF-04: a running tempo return of the current deck.</summary>
+    private sealed class TempoReturnState(TempoReturnMode mode, double from, double to, double seconds, double? at)
+    {
+        public TempoReturnMode Mode { get; } = mode;
+        public double From { get; } = from;
+        public double To { get; } = to;
+        public double Seconds { get; } = seconds;
+        public double? At { get; } = at;
+        public double Elapsed { get; set; }
+    }
     private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
     private AudioFormat _sourceFormat = new(48_000, EngineChannels);
@@ -103,6 +128,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _output.OutputLost += OnOutputLost;
         _monitor = new Timer(_ => Monitor(), null, MonitorInterval, MonitorInterval);
         _saveTimer = new Timer(_ => SavePlaybackState(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _tempoTimer = new Timer(_ => TempoTick(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _settings.Changed += OnSettingsChanged;
 
         // Risk noted in the plan: keep blocking gen-2 collections away from the audio thread.
         GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
@@ -174,6 +201,32 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public OutputStatus? OutputStatus => _output.IsOpen && _output.Format is { } format
         ? new OutputStatus(_output.IsExclusive, _output.SampleFormat, format.SampleRate, _output.DeviceSampleRate)
         : null;
+
+    /// <summary>AN-02 / XF-02: beat analysis for beat matching (set by the app; without it crossfades use Intro/Outro).</summary>
+    public IBeatInfoProvider? BeatProvider
+    {
+        get => _beatProvider;
+        set => _beatProvider = value;
+    }
+
+    public CrossfadeStatus? Crossfade
+    {
+        get
+        {
+            if (_mixing is { } mixing)
+            {
+                var to = mixing.IncomingBpm is { } bpm ? bpm * (_deckSpeedOverride ?? NormalSpeed) : (double?)null;
+                return new CrossfadeStatus(mixing.Mode, null, null, mixing.OutgoingBpm, to, true);
+            }
+            if (_plan is { } plan)
+            {
+                var end = plan.MixStart + (plan.OutgoingTail * CurrentDeckSpeed);
+                return new CrossfadeStatus(plan.Mode, TimeSpan.FromSeconds(plan.MixStart), TimeSpan.FromSeconds(Math.Min(end, Duration?.TotalSeconds ?? end)),
+                    plan.OutgoingBpm, plan.MatchedBpm, false);
+            }
+            return null;
+        }
+    }
 
     /// <summary>PB-09: the "play next" queue.</summary>
     public QueueService Queue { get; } = new();
@@ -516,6 +569,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _disposed = true;
         _monitor.Dispose();
         _saveTimer.Dispose();
+        _tempoTimer.Dispose();
+        _settings.Changed -= OnSettingsChanged;
         SavePlaybackState();
         SaveResumePosition(finished: false);
         SaveSession();
@@ -612,6 +667,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _index = i;
             _entry = entry;
             _track = track;
+            _trackBeats = null; // XF: fetched again for the new track
+            _trackBeatsCheckedAt = 0;
             _lastUnderruns = 0;
             if (_abLoop is not null)
             {
@@ -787,6 +844,10 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         if (_track.Duration is { } duration)
         {
             frame = Math.Min(frame, _sourceFormat.TimeToFrames(duration));
+        }
+        if (_plan is not null || _fading is not null || _tempoReturn is not null)
+        {
+            await CancelPreloadAsync().ConfigureAwait(false); // XF: re-planned from the new position
         }
         var fades = _settings.Current.Playback.Fades;
         var fade = fades.OnSeek && _state == PlaybackState.Playing && !_bitPerfect ? fades.SeekMilliseconds : 0;
@@ -1016,6 +1077,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 }
             }
 
+            if (_fading is { } fading && (fading.HasEnded || fading.EnvelopeFinished || !fading.IsActive) &&
+                Interlocked.CompareExchange(ref _finishingFade, 1, 0) == 0)
+            {
+                _ = Task.Run(FinishFadeAsync); // XF: the outgoing track is silent now
+            }
+            FetchTrackBeats();
+
             var deck = _deck;
             var underruns = deck.Underruns;
             if (underruns > _lastUnderruns && state == PlaybackState.Playing)
@@ -1152,12 +1220,107 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private static readonly TimeSpan PreloadLead = TimeSpan.FromSeconds(10);
 
     private sealed record Preloaded(Playlist Playlist, int PlaylistVersion, int QueueVersion, PlaylistEntry Entry, int Index,
-        TrackInfo Track, ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek);
+        TrackInfo Track, ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek, BeatInfo? Beats = null);
+
+    /// <summary>
+    /// XF-01..XF-04: plans the transition to <paramref name="entry"/> (null when crossfading is off or it is too late:
+    /// then the track follows gaplessly). Seeks <paramref name="source"/> to the incoming entry point for beat matching.
+    /// <paramref name="startConsumed"/> is the outgoing deck's consumed-frame count at which the incoming deck starts.
+    /// </summary>
+    private CrossfadePlan? PlanCrossfade(PlaylistEntry entry, TrackInfo track, IAudioSource source, out long startConsumed, out BeatInfo? incomingBeats)
+    {
+        startConsumed = -1;
+        incomingBeats = null;
+        var xf = _settings.Current.Crossfading;
+        if (!xf.Enabled || _track?.Duration is not { } outDuration || track.Duration is not { } inDuration || _entry is null)
+        {
+            return null;
+        }
+        if (xf.Mode == CrossfadeMode.BeatMatch && _beatProvider is not null)
+        {
+            try
+            {
+                incomingBeats = _beatProvider.TryGet(entry);
+                _trackBeats ??= _beatProvider.TryGet(_entry);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                _logger.LogDebug(ex, "Beat analysis not available");
+            }
+        }
+        // Beat matching keeps the pitch; with "keep pitch" off and a speed other than 1.0 it would change it: Intro/Outro.
+        var pitchOk = _keepPitch || Math.Abs(_speed - 1) < 1e-9;
+        var outSpeed = CurrentDeckSpeed;
+        var plan = CrossfadePlanner.Plan(xf,
+            new CrossfadeTrack(outDuration.TotalSeconds, pitchOk ? _trackBeats : null, outSpeed),
+            new CrossfadeTrack(inDuration.TotalSeconds, pitchOk ? incomingBeats : null, NormalSpeed),
+            Position.TotalSeconds, source.CanSeek);
+        var (consumed, position) = _deck.Snapshot();
+        var mixFrame = _sourceFormat.TimeToFrames(TimeSpan.FromSeconds(plan.MixStart));
+        startConsumed = consumed + (long)Math.Round((mixFrame - position) / outSpeed);
+        if (startConsumed < consumed + (_graph.Format.SampleRate / 5))
+        {
+            _logger.LogInformation("Too late to crossfade into {Path}; it follows gaplessly", entry.Path);
+            startConsumed = -1;
+            return null;
+        }
+        if (plan.Mode == CrossfadeMode.BeatMatch)
+        {
+            source.Seek(source.Format.TimeToFrames(TimeSpan.FromSeconds(plan.IncomingStart)));
+        }
+        return plan;
+    }
 
     private bool ShouldPreload() =>
-        _preload is null && _graph.Next is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
-        _track?.Duration is { } duration && _settings.Current.Playback.Gapless &&
-        duration - Position <= PreloadLead && _entry is { IsUrl: false };
+        _preload is null && _graph.Next is null && _fading is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
+        _track?.Duration is { } duration && (_settings.Current.Playback.Gapless || _settings.Current.Crossfading.Enabled) &&
+        Position >= PreloadAt(duration) && _entry is { IsUrl: false };
+
+    /// <summary>
+    /// When to preload: 10 s before the end (gapless), or 10 s before the earliest mix start a crossfade may need
+    /// (Intro/Outro: the overlap before the end; beat matching: before the beat end minus the mix setting).
+    /// </summary>
+    private TimeSpan PreloadAt(TimeSpan duration)
+    {
+        var xf = _settings.Current.Crossfading;
+        var speed = CurrentDeckSpeed;
+        var start = duration.TotalSeconds;
+        if (xf.Enabled)
+        {
+            start -= Math.Clamp(xf.OverlapSeconds, 0.5, 30) * speed;
+            if (xf.Mode == CrossfadeMode.BeatMatch && _trackBeats is { } beats)
+            {
+                var beatEnd = beats.BeatEnd > 0 ? beats.BeatEnd : duration.TotalSeconds;
+                start = Math.Min(start, beatEnd - Math.Max(0, xf.MixBeforeBeatEndSeconds) - (BeatInfo.PhraseBeats * beats.Period));
+            }
+        }
+        return TimeSpan.FromSeconds(Math.Max(0, start - (PreloadLead.TotalSeconds * speed)));
+    }
+
+    /// <summary>The current deck's speed (matched tempo, or the normal speed).</summary>
+    private double CurrentDeckSpeed => _deckSpeedOverride ?? NormalSpeed;
+
+    private double NormalSpeed => _bitPerfect ? 1.0 : _speed;
+
+    /// <summary>AN-02: the current track's beats for beat matching (asked for every 2 s until known).</summary>
+    private void FetchTrackBeats()
+    {
+        var xf = _settings.Current.Crossfading;
+        if (_trackBeats is not null || !xf.Enabled || xf.Mode != CrossfadeMode.BeatMatch || _beatProvider is null ||
+            _entry is not { IsUrl: false } entry || Environment.TickCount64 - _trackBeatsCheckedAt < 2000)
+        {
+            return;
+        }
+        _trackBeatsCheckedAt = Environment.TickCount64;
+        try
+        {
+            _trackBeats = _beatProvider.TryGet(entry);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _logger.LogDebug(ex, "Beat analysis not available for {Path}", entry.Path);
+        }
+    }
 
     /// <summary>The entry that follows the current one at its end, without changing any state; null for none.</summary>
     private (Playlist Playlist, int Index)? PeekNext()
@@ -1285,10 +1448,35 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 }
                 _spare.Gain.TargetGain = gain?.Linear ?? 1f;
                 _spare.Gain.SnapToTarget();
+                var crossfade = PlanCrossfade(entry, track, source, out var startConsumed, out var incomingBeats);
+                _spareSpeedOverride = crossfade is { Mode: CrossfadeMode.BeatMatch } ? crossfade.IncomingSpeed : null;
+                ApplySpeed();
                 await _spare.LoadAsync(source, armed: true).ConfigureAwait(false);
-                _preload = new Preloaded(next.Playlist, next.Playlist.Version, Queue.Version, entry, next.Index, track, gain, source.Format, source.CanSeek);
+                _preload = new Preloaded(next.Playlist, next.Playlist.Version, Queue.Version, entry, next.Index, track, gain, source.Format, source.CanSeek,
+                    incomingBeats);
+                if (crossfade is not null)
+                {
+                    // XF-01/02: the envelopes (in each deck's own output frames) and the exact start of the incoming deck.
+                    var rate = _graph.Format.SampleRate;
+                    long Frames(double seconds) => (long)Math.Round(seconds * rate);
+                    _deck.Envelope = new DeckEnvelope(startConsumed + Frames(crossfade.OutgoingFadeStart), Frames(crossfade.OutgoingFadeLength), crossfade.OutgoingShape);
+                    _spare.Envelope = crossfade.IncomingFadeLength > 0 ? new DeckEnvelope(0, Frames(crossfade.IncomingFadeLength), EnvelopeShape.FadeIn) : null;
+                    _spare.BassRamp = crossfade.BassFadeLength > 0 ? new BassRamp(0, Frames(crossfade.BassFadeLength)) : null;
+                    _graph.NextStartFrame = startConsumed;
+                    _plan = crossfade;
+                    _logger.LogInformation("Crossfade planned ({Mode}) at {MixStart:0.00} s into {Path}{Fallback}", crossfade.Mode, crossfade.MixStart,
+                        _entry?.Path, crossfade.Fallback is null ? string.Empty : $" (beat matching not used: {crossfade.Fallback})");
+                }
+                else
+                {
+                    _graph.NextStartFrame = -1;
+                }
                 _graph.Next = _spare;
-                _logger.LogDebug("Preloaded {Path} for a gapless start", entry.Path);
+                _logger.LogDebug("Preloaded {Path} for a {Kind} start", entry.Path, crossfade is null ? "gapless" : "crossfaded");
+                if (crossfade is not null)
+                {
+                    Raise(PlayModeChanged, EventArgs.Empty);
+                }
             }).ConfigureAwait(false);
         }
         catch (ObjectDisposedException)
@@ -1310,12 +1498,156 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private async Task CancelPreloadAsync()
     {
         _graph.Next = null;
+        _graph.NextStartFrame = -1;
+        var hadCrossfade = _plan is not null || _fading is not null || _tempoReturn is not null;
+        _deck.Envelope = null; // XF: no scheduled fade-out without the incoming track
+        _plan = null;
+        _fading = null;        // XF: an outgoing deck still sounding is stopped (it is the spare deck)
+        _mixing = null;
+        _spareSpeedOverride = null;
+        StopTempoReturn(snap: true);
         if (_preload is not null || _spare.IsActive)
         {
             _preload = null;
             await _spare.UnloadAsync().ConfigureAwait(false);
         }
         _preloadSkipped = null;
+        ApplySpeed();
+        if (hadCrossfade)
+        {
+            Raise(PlayModeChanged, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>XF: the outgoing deck has faded out: unload it, then start the tempo return (XF-04).</summary>
+    private async Task FinishFadeAsync()
+    {
+        try
+        {
+            await RunAsync(async () =>
+            {
+                if (_fading is not { } fading)
+                {
+                    return;
+                }
+                _fading = null;
+                if (ReferenceEquals(fading, _spare))
+                {
+                    await _spare.UnloadAsync().ConfigureAwait(false);
+                }
+                _spareSpeedOverride = null;
+                if (_mixing is { TempoReturn: { } mode } mixing && _deckSpeedOverride is { } from)
+                {
+                    _tempoReturn = new TempoReturnState(mode, from, NormalSpeed, mixing.TempoReturnSeconds, mixing.TempoReturnAt);
+                    _tempoTimer.Change(TempoTickInterval, TempoTickInterval);
+                }
+                else
+                {
+                    _mixing = null;
+                }
+                Raise(PlayModeChanged, EventArgs.Empty);
+            }).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+#pragma warning disable CA1031 // Background continuation: log, never crash the process.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogError(ex, "Finishing a crossfade failed");
+        }
+        finally
+        {
+            Volatile.Write(ref _finishingFade, 0);
+        }
+    }
+
+    /// <summary>XF-04: the tempo return runs in 20 ms steps.</summary>
+    private static readonly TimeSpan TempoTickInterval = TimeSpan.FromMilliseconds(20);
+
+    private void TempoTick()
+    {
+        if (_disposed || !_gate.Wait(0))
+        {
+            return; // busy: next tick
+        }
+        try
+        {
+            if (_tempoReturn is not { } r || _state != PlaybackState.Playing)
+            {
+                return;
+            }
+            if (r.Mode == TempoReturnMode.CutAtNextBreak)
+            {
+                if (r.At is { } at && Position.TotalSeconds >= at)
+                {
+                    StopTempoReturn(snap: true); // XF-04: jump back at the break
+                    Raise(PlayModeChanged, EventArgs.Empty);
+                }
+                return;
+            }
+            r.Elapsed += TempoTickInterval.TotalSeconds;
+            var progress = Math.Min(1, r.Elapsed / r.Seconds);
+            if (progress >= 1)
+            {
+                StopTempoReturn(snap: true);
+                Raise(PlayModeChanged, EventArgs.Empty);
+                return;
+            }
+            _deckSpeedOverride = r.From + ((r.To - r.From) * progress);
+            ApplySpeed();
+            if ((int)(r.Elapsed / TempoTickInterval.TotalSeconds) % 25 == 0)
+            {
+                Raise(PlayModeChanged, EventArgs.Empty); // BPM readout, twice a second
+            }
+        }
+#pragma warning disable CA1031 // Timer callback: never let an exception escape.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogError(ex, "Tempo return failed");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>XF-04: ends the tempo return (with <paramref name="snap"/>, the current deck goes to its normal speed).</summary>
+    private void StopTempoReturn(bool snap)
+    {
+        _tempoTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        if (_tempoReturn is null && !snap)
+        {
+            return;
+        }
+        _tempoReturn = null;
+        if (snap)
+        {
+            _deckSpeedOverride = null;
+            if (_fading is null)
+            {
+                _mixing = null;
+            }
+            ApplySpeed();
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
+    {
+        if (e.Group != SettingsGroup.Crossfading)
+        {
+            return;
+        }
+        // XF: a planned transition follows the new settings (re-planned on the next monitor tick).
+        _ = Task.Run(() => RunAsync(async () =>
+        {
+            if (_plan is not null || (_preload is not null && _graph.Next is not null))
+            {
+                await CancelPreloadAsync().ConfigureAwait(false);
+            }
+        }));
     }
 
     /// <summary>After the mixer started the armed deck: make it the current one. Inside the gate.</summary>
@@ -1340,6 +1672,11 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         SaveResumePosition(finished: true);
         _endedNaturally = false;
         (_deck, _spare) = (_spare, _deck);
+        (_deckSpeedOverride, _spareSpeedOverride) = (_spareSpeedOverride, _deckSpeedOverride);
+        var crossfade = _plan;
+        _plan = null;
+        _trackBeats = p.Beats;
+        _trackBeatsCheckedAt = 0;
         _preload = null;
         if (Queue.Peek() is { } queued && ReferenceEquals(queued.Entry, p.Entry))
         {
@@ -1364,10 +1701,25 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _replayGain = p.Gain;
             Raise(ReplayGainChanged, EventArgs.Empty);
         }
-        await finished.UnloadAsync().ConfigureAwait(false);
-        ApplyFileSpeed(p.Entry);
+        if (crossfade is not null && finished.IsActive)
+        {
+            // XF: the outgoing track keeps playing under its envelope; the monitor unloads it once it is silent.
+            _fading = finished;
+            _mixing = crossfade;
+            _logger.LogInformation("Crossfade ({Mode}): playing {Path}", crossfade.Mode, p.Entry.Path);
+            Raise(PlayModeChanged, EventArgs.Empty);
+        }
+        else
+        {
+            await finished.UnloadAsync().ConfigureAwait(false);
+            _spareSpeedOverride = null;
+            _logger.LogInformation("Gapless: playing {Path}", p.Entry.Path);
+        }
+        if (_deckSpeedOverride is null)
+        {
+            ApplyFileSpeed(p.Entry); // a matched tempo wins until the tempo return
+        }
         SaveSession();
-        _logger.LogInformation("Gapless: playing {Path}", p.Entry.Path);
         Raise(TrackChanged, new TrackChangedEventArgs(p.Track, p.Index, p.Entry));
         return true;
     }
@@ -1376,9 +1728,10 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private void ApplySpeed()
     {
-        var speed = _bitPerfect ? 1.0 : _speed; // FM-05: DoP must not be time-stretched
-        _deck.SetSpeed(speed, _keepPitch);
-        _spare.SetSpeed(speed, _keepPitch);
+        var speed = NormalSpeed; // FM-05: DoP must not be time-stretched
+        // XF-02: a beat-matched deck plays at its matched tempo, always keeping the pitch.
+        _deck.SetSpeed(_deckSpeedOverride ?? speed, _deckSpeedOverride is null ? _keepPitch : true);
+        _spare.SetSpeed(_spareSpeedOverride ?? speed, _spareSpeedOverride is null ? _keepPitch : true);
     }
 
     /// <summary>PB-06: with "remember speed per file", a file starts at its saved speed (or 1.0).</summary>

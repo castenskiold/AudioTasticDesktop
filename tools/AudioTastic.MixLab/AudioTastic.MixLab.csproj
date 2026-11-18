@@ -8,6 +8,9 @@
     <CopyNativeLibraries>true</CopyNativeLibraries>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
     <ProjectReference Include="..\..\src\AudioTastic.Analysis\AudioTastic.Analysis.csproj" />
     <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />

@@ -6,8 +6,9 @@ namespace AudioTastic.Analysis;
 
 /// <summary>
 /// AN-02: BPM, beat grid, phrases and breaks (own code; no GPL aubio). The audio is mixed to mono and decimated to
-/// about 11 kHz; a 512-point FFT every ~5 ms gives an onset curve (log spectral flux) and the low-frequency energy
-/// (below 150 Hz). <see cref="BeatDetector"/> turns those into a <see cref="BeatInfo"/>.
+/// about 11 kHz. A 512-point FFT every ~5 ms gives the onset curve (log spectral flux, for the tempo) and the low-band
+/// energy (below 150 Hz, for sections). Two envelopes at about 2 kHz, the high-band "click" and the low-band power,
+/// locate the kick drum precisely. <see cref="BeatDetector"/> turns all of it into a <see cref="BeatInfo"/>.
 /// </summary>
 public sealed class BeatAnalyzer : IAnalyzer
 {
@@ -21,6 +22,10 @@ public sealed class BeatAnalyzer : IAnalyzer
     public sealed class Run : IAnalysisRun
     {
         public const int FftSize = 512;
+
+        /// <summary>Envelopes are kept for at most this long (the kick is located from the first hour).</summary>
+        private const double MaxEnvelopeSeconds = 3600;
+
         private readonly int _channels;
         private readonly int _decimation;
         private readonly int _hop;
@@ -32,13 +37,22 @@ public sealed class BeatAnalyzer : IAnalyzer
         private readonly int _fluxBins;
         private readonly int _lowBins;
         private readonly List<float> _onset = [];
-        private readonly List<float> _lowOnset = [];
         private readonly List<float> _low = [];
+        private readonly List<float> _clickEnvelope = [];
+        private readonly List<float> _thumpEnvelope = [];
+        private readonly int _pool;
+        private readonly double _lowPass;
         private double _accumulator;
         private int _accumulated;
         private long _written; // decimated samples
         private int _sinceHop;
         private long _inputFrames;
+        private float _lastSample;
+        private double _lp1;
+        private double _lp2;
+        private int _pooled;
+        private float _clickMax;
+        private double _thumpSum;
 
         public Run(AudioFormat format)
         {
@@ -54,6 +68,8 @@ public sealed class BeatAnalyzer : IAnalyzer
             var binHz = Rate / FftSize;
             _fluxBins = Math.Min(FftSize / 2, (int)(Math.Min(10000, Rate * 0.45) / binHz));
             _lowBins = Math.Max(1, (int)Math.Round(150 / binHz));
+            _pool = Math.Max(1, (int)Math.Round(Rate / 2000));
+            _lowPass = 1 - Math.Exp(-2 * Math.PI * 150 / Rate);
         }
 
         public int SourceRate { get; }
@@ -65,18 +81,25 @@ public sealed class BeatAnalyzer : IAnalyzer
         public double FramesPerSecond => Rate / _hop;
 
         /// <summary>Time (s) of onset frame 0: the centre of its window.</summary>
-        public double FrameOffset => (FftSize / 2.0 / Rate) + OnsetLatency;
+        public double FrameOffset => FftSize / 2.0 / Rate;
 
-        /// <summary>
-        /// Onset curve latency (s): a window "sees" a transient before its centre reaches it, so beat times are moved
-        /// later by this much (measured with synthetic kicks at 44.1–96 kHz).
-        /// </summary>
-        public const double OnsetLatency = 0.0165;
+        /// <summary>Samples per second of <see cref="ClickEnvelope"/> and <see cref="ThumpEnvelope"/> (about 2,000).</summary>
+        public double EnvelopeRate => Rate / _pool;
+
+        /// <summary>The onset curve so far (one value per frame; see <see cref="FramesPerSecond"/>).</summary>
+        public IReadOnlyList<float> Onsets => _onset;
+
+        /// <summary>High-band envelope (the kick's click, hi-hats): peak of the first difference per envelope sample.</summary>
+        public IReadOnlyList<float> ClickEnvelope => _clickEnvelope;
+
+        /// <summary>Low-band (below 150 Hz) power envelope (the kick's thump, the bass).</summary>
+        public IReadOnlyList<float> ThumpEnvelope => _thumpEnvelope;
 
         public void Process(ReadOnlySpan<float> interleaved)
         {
             var frames = interleaved.Length / _channels;
             _inputFrames += frames;
+            var maxEnvelope = (int)(MaxEnvelopeSeconds * EnvelopeRate);
             for (var f = 0; f < frames; f++)
             {
                 double mono = 0;
@@ -92,14 +115,28 @@ public sealed class BeatAnalyzer : IAnalyzer
                 var sample = (float)(_accumulator / _decimation);
                 _accumulator = 0;
                 _accumulated = 0;
+
+                // Envelopes: click = |first difference| (a high-pass), thump = power after two 150 Hz low-passes.
+                _clickMax = Math.Max(_clickMax, Math.Abs(sample - _lastSample));
+                _lastSample = sample;
+                _lp1 += _lowPass * (sample - _lp1);
+                _lp2 += _lowPass * (_lp1 - _lp2);
+                _thumpSum += _lp2 * _lp2;
+                if (++_pooled == _pool)
+                {
+                    if (_clickEnvelope.Count < maxEnvelope)
+                    {
+                        _clickEnvelope.Add(_clickMax);
+                        _thumpEnvelope.Add((float)(_thumpSum / _pool));
+                    }
+                    _pooled = 0;
+                    _clickMax = 0;
+                    _thumpSum = 0;
+                }
+
                 _ring[_written % FftSize] = sample;
                 _written++;
-                if (_written >= FftSize && ++_sinceHop >= _hop)
-                {
-                    _sinceHop = 0;
-                    Frame();
-                }
-                else if (_written == FftSize)
+                if (_written == FftSize || (_written > FftSize && ++_sinceHop >= _hop))
                 {
                     _sinceHop = 0;
                     Frame();
@@ -110,7 +147,8 @@ public sealed class BeatAnalyzer : IAnalyzer
         public byte[] Finish() => Detect().Serialize();
 
         public BeatInfo Detect() =>
-            BeatDetector.Detect([.. _onset], [.. _lowOnset], [.. _low], FramesPerSecond, FrameOffset, _inputFrames / (double)SourceRate);
+            BeatDetector.Detect([.. _onset], [.. _low], FramesPerSecond, FrameOffset, [.. _clickEnvelope], [.. _thumpEnvelope], EnvelopeRate,
+                _inputFrames / (double)SourceRate);
 
         private void Frame()
         {
@@ -121,7 +159,7 @@ public sealed class BeatAnalyzer : IAnalyzer
                 _im[i] = 0;
             }
             Fft.Forward(_re, _im);
-            double flux = 0, lowFlux = 0, low = 0;
+            double flux = 0, low = 0;
             for (var k = 1; k <= _fluxBins; k++)
             {
                 var power = (_re[k] * _re[k]) + (_im[k] * _im[k]);
@@ -130,10 +168,6 @@ public sealed class BeatAnalyzer : IAnalyzer
                 if (rise > 0)
                 {
                     flux += rise;
-                    if (k <= _lowBins)
-                    {
-                        lowFlux += rise;
-                    }
                 }
                 _previous[k] = level;
                 if (k <= _lowBins)
@@ -142,35 +176,39 @@ public sealed class BeatAnalyzer : IAnalyzer
                 }
             }
             _onset.Add((float)flux);
-            _lowOnset.Add((float)lowFlux);
             _low.Add((float)low);
         }
     }
 }
 
 /// <summary>
-/// AN-02: tempo, beat grid, phrases and breaks from onset curves. Electronic dance music has a constant tempo, so
-/// the result is a grid: tempo from the onset autocorrelation (60–200 BPM, with a prior around 130 BPM), refined by
-/// folding the whole onset curve at candidate periods (the sharpest fold wins; its peak is the beat phase). The
-/// onset curve weights the low band (kick drum) double, and the phase is put on the kick, not the off-beat hi-hat.
-/// Confidence is the share of beats found by dynamic-programming beat tracking (Ellis 2007) that sit on the grid.
+/// AN-02: tempo, beat grid, phrases and breaks. Electronic dance music has a constant tempo, so the result is a grid:
+/// <list type="number">
+/// <item>tempo from the onset autocorrelation (60–200 BPM, with a prior around 130 BPM), refined by folding the whole
+/// onset curve at candidate periods (the sharpest fold wins);</item>
+/// <item>phase on the kick drum: the click and thump envelopes are averaged over the beats of the drum sections; the
+/// kick is the click across which the low band rises (hi-hats have no thump, bass notes no click), and its attack is
+/// the beat. Checked by ear on real tracks; averaging hundreds of beats makes it precise to a few milliseconds;</item>
+/// <item>confidence: how steadily a dynamic-programming beat tracker (Ellis 2007) keeps one phase at this tempo;</item>
+/// <item>phrases (every 8 beats), beat start/end and breaks from per-beat low-band energy.</item>
+/// </list>
 /// </summary>
 public static class BeatDetector
 {
     private const double MinBpm = 60;
     private const double MaxBpm = 200;
 
-    public static BeatInfo Detect(float[] onsetRaw, float[] lowOnsetRaw, float[] low, double fps, double frameOffset, double duration)
+    public static BeatInfo Detect(float[] onsetRaw, float[] low, double fps, double frameOffset, float[] click, float[] thump,
+        double envelopeRate, double duration)
     {
         ArgumentNullException.ThrowIfNull(onsetRaw);
-        ArgumentNullException.ThrowIfNull(lowOnsetRaw);
         ArgumentNullException.ThrowIfNull(low);
+        ArgumentNullException.ThrowIfNull(click);
+        ArgumentNullException.ThrowIfNull(thump);
         if (onsetRaw.Length < fps * 4)
         {
             return new BeatInfo(120, 0, 0, 0, duration, []);
         }
-        // Full-band onsets set tempo and phase (they are transient-precise); low-band onsets build up slowly in a 46 ms
-        // window and would pull the phase, so the kick only decides which half-beat is the beat (low-band energy, below).
         var onset = Normalise(onsetRaw, fps);
 
         // 1. Coarse tempo: autocorrelation with harmonic support and a tempo prior.
@@ -201,47 +239,229 @@ public static class BeatDetector
         }
         var period = Parabolic(ac, bestLag);
 
-        // 2. Refine by folding: coarse then fine steps.
-        (period, var phase) = Fold(onset, period, 0.02, 0.0005, 64);
-        (period, phase) = Fold(onset, period, 0.0006, 0.00002, 256);
+        // 2. Refine the period by folding: coarse then fine steps (the phase found here is only an anchor).
+        (period, var anchor) = Fold(onset, period, 0.02, 0.0005, 64);
+        (period, anchor) = Fold(onset, period, 0.0006, 0.00002, 256);
+        var periodSeconds = period / fps;
+        var bpmFinal = 60 / periodSeconds;
 
-        // The beat is where the kick is: if the low band hits harder half a beat later, the fold found the off-beat.
-        // (Low-band energy, not onsets: a rolling bass on the off-beat has sharp onsets too, but the kick has the energy.)
-        var lowEnergy = Array.ConvertAll(low, v => (double)v);
-        if (FoldedAt(lowEnergy, period, phase + (period / 2)) > FoldedAt(lowEnergy, period, phase) * 1.1)
+        // 3. Phase, pass 1: the kick's attack averaged over the whole track (intro and breaks included).
+        var anchorSeconds = (anchor / fps) + frameOffset;
+        var attack = KickAttack(click, thump, envelopeRate, periodSeconds, anchorSeconds) ?? anchorSeconds;
+        var firstBeat = ((attack % periodSeconds) + periodSeconds) % periodSeconds;
+        var (lowPerBeat, accent) = PerBeat(low, onset, fps, frameOffset, firstBeat, periodSeconds, duration);
+        var (beatStart, beatEnd, inner) = Sections(lowPerBeat);
+
+        // Pass 2: only where the drums play. The kick attack per 32 beats inside the drum sections (no intro, outro or
+        // breaks, whose off-beat clicks and bass would pull the average); the most common offset wins.
+        if (DrumPhase(click, thump, envelopeRate, periodSeconds, firstBeat, beatStart, beatEnd, inner) is { } offset)
         {
-            phase = (phase + (period / 2)) % period;
+            firstBeat = (((firstBeat + offset) % periodSeconds) + periodSeconds) % periodSeconds;
+            (lowPerBeat, accent) = PerBeat(low, onset, fps, frameOffset, firstBeat, periodSeconds, duration);
+            (beatStart, beatEnd, inner) = Sections(lowPerBeat);
         }
 
-        // Beat 0: the first grid beat at or after the start.
-        var first = phase; // frames, 0 <= phase < period
-        var bpmFinal = fps * 60 / period;
+        // 4. Confidence.
+        var confidence = Confidence(onset, period);
 
-        // 3. Confidence from DP beat tracking.
-        var confidence = Confidence(onset, period, first);
+        // 5. Phrases, beat start/end and breaks.
+        double BeatSeconds(double k) => firstBeat + (k * periodSeconds);
+        var phraseOffset = PhraseOffset(lowPerBeat, accent);
+        var breaks = inner.Select(r => new BeatBreak(BeatSeconds(r.Start), BeatSeconds(r.End))).ToList();
+        return new BeatInfo(bpmFinal, firstBeat, confidence, phraseOffset, duration, breaks,
+            BeatSeconds(beatStart), Math.Min(duration, BeatSeconds(beatEnd)));
+    }
 
-        // 4. Phrases and breaks from beat-synchronous low-frequency energy.
-        var beats = (int)Math.Floor((onset.Length - first) / period);
-        var lowPerBeat = new double[Math.Max(0, beats)];
-        var accent = new double[lowPerBeat.Length];
+    /// <summary>Per-beat low-band energy and the onset accent on each beat, for the grid (firstBeat, period).</summary>
+    private static (double[] Low, double[] Accent) PerBeat(float[] low, double[] onset, double fps, double frameOffset, double firstBeat,
+        double period, double duration)
+    {
+        int FrameAt(double seconds) => (int)Math.Round((seconds - frameOffset) * fps);
+        var beats = Math.Max(0, (int)Math.Floor((duration - firstBeat) / period));
+        var perBeat = new double[beats];
+        var accent = new double[beats];
         for (var k = 0; k < beats; k++)
         {
-            var a = (int)Math.Round(first + (k * period));
-            var b = Math.Min(low.Length, (int)Math.Round(first + ((k + 1) * period)));
+            var a = Math.Clamp(FrameAt(firstBeat + (k * period)), 0, low.Length);
+            var b = Math.Clamp(FrameAt(firstBeat + ((k + 1) * period)), 0, low.Length);
             double sum = 0;
             for (var t = a; t < b; t++)
             {
                 sum += low[t];
             }
-            lowPerBeat[k] = sum / Math.Max(1, b - a);
+            perBeat[k] = sum / Math.Max(1, b - a);
             accent[k] = onset[Math.Clamp(a, 0, onset.Length - 1)];
         }
-        var phraseOffset = PhraseOffset(lowPerBeat, accent);
-        var toSeconds = new Func<double, double>(frame => (frame / fps) + frameOffset);
-        var (beatStart, beatEnd, inner) = Sections(lowPerBeat);
-        var breaks = inner.Select(r => new BeatBreak(toSeconds(first + (r.Start * period)), toSeconds(first + (r.End * period)))).ToList();
-        return new BeatInfo(bpmFinal, toSeconds(first), confidence, phraseOffset, duration, breaks,
-            toSeconds(first + (beatStart * period)), Math.Min(duration, toSeconds(first + (beatEnd * period))));
+        return (perBeat, accent);
+    }
+
+    /// <summary>
+    /// The correction (s, within ±half a beat) of the grid's phase from the kick attacks in 32-beat windows inside the
+    /// drum sections: the most common offset (1 ms bins, ±2 ms), refined by the mean of the offsets within 3 ms of it.
+    /// Null with fewer than 3 windows.
+    /// </summary>
+    private static double? DrumPhase(float[] click, float[] thump, double envelopeRate, double period, double firstBeat,
+        int beatStart, int beatEnd, List<(int Start, int End)> breaks)
+    {
+        const int window = 32;
+        var offsets = new List<double>();
+        for (var k = beatStart; k + window <= beatEnd; k += window)
+        {
+            var start = k;
+            if (breaks.Any(b => b.Start < start + window && b.End > start))
+            {
+                continue;
+            }
+            var t = firstBeat + (k * period);
+            if (KickAttack(click, thump, envelopeRate, period, t, t, t + (window * period)) is { } attack)
+            {
+                var d = attack - t;
+                offsets.Add(d - (Math.Round(d / period) * period));
+            }
+        }
+        if (offsets.Count < 3)
+        {
+            return null;
+        }
+        var half = (int)Math.Ceiling(period * 500);
+        var histogram = new int[(2 * half) + 1];
+        foreach (var o in offsets)
+        {
+            histogram[Math.Clamp((int)Math.Round(o * 1000) + half, 0, histogram.Length - 1)]++;
+        }
+        var mode = 0;
+        var bestCount = -1;
+        for (var i = 0; i < histogram.Length; i++)
+        {
+            var count = 0;
+            for (var j = Math.Max(0, i - 2); j <= Math.Min(histogram.Length - 1, i + 2); j++)
+            {
+                count += histogram[j];
+            }
+            if (count > bestCount)
+            {
+                bestCount = count;
+                mode = i - half;
+            }
+        }
+        var near = offsets.Where(o => Math.Abs((o * 1000) - mode) <= 3).ToList();
+        return near.Count > 0 ? near.Average() : mode / 1000.0;
+    }
+
+    /// <summary>
+    /// The kick drum's attack time (s) near <paramref name="anchor"/> (any beat time of the grid, ± half a beat): the
+    /// click and thump envelopes are averaged over the beats in [<paramref name="from"/>, <paramref name="to"/>) (default:
+    /// all). The kick is the click across which the low band rises most; its attack (where the averaged click first
+    /// reaches half its peak) is the beat. Null when there is nothing to average. Also used by tools/MixLab
+    /// to measure the alignment of two decks, so detection and measurement agree.
+    /// </summary>
+    public static double? KickAttack(IReadOnlyList<float> click, IReadOnlyList<float> thump, double envelopeRate, double period, double anchor,
+        double from = 0, double to = double.PositiveInfinity)
+    {
+        ArgumentNullException.ThrowIfNull(click);
+        ArgumentNullException.ThrowIfNull(thump);
+        var samplesPerBeat = period * envelopeRate;
+        var width = (int)Math.Floor(samplesPerBeat);
+        if (width < 16)
+        {
+            return null;
+        }
+        var length = Math.Min(click.Count, thump.Count);
+        var end = Math.Min(to, length / envelopeRate);
+        // Windows of one beat starting half a beat before each grid beat.
+        var windowStart = anchor - (period / 2);
+        var k0 = (long)Math.Ceiling((from - windowStart) / period);
+        var avgClick = new double[width];
+        var avgThump = new double[width];
+        var count = 0;
+        for (var k = k0; windowStart + ((k + 1) * period) <= end; k++)
+        {
+            var origin = (windowStart + (k * period)) * envelopeRate;
+            if (origin < 0)
+            {
+                continue;
+            }
+            var first = (int)origin;
+            var frac = origin - first;
+            for (var i = 0; i < width && first + i + 1 < length; i++)
+            {
+                // Linear interpolation keeps sub-sample alignment across beats.
+                avgClick[i] += (click[first + i] * (1 - frac)) + (click[first + i + 1] * frac);
+                avgThump[i] += (thump[first + i] * (1 - frac)) + (thump[first + i + 1] * frac);
+            }
+            count++;
+        }
+        if (count == 0)
+        {
+            return null;
+        }
+        // Candidates are real click peaks (local maxima within ±1 ms, at least 30 % of the strongest click); the score is
+        // the click × how much the low band rises across it (the 80 ms after against the 40 ms before), so a hi-hat (no
+        // thump), the end of a bass note (low band falls) and the kick's own body (no click) do not win (circular: the
+        // beat repeats). Checked by ear on Anders's tracks (4 of 5 exact; a kick without an attack click can come out
+        // a few tens of ms late).
+        var after = (int)Math.Round(0.080 * envelopeRate);
+        var before = (int)Math.Round(0.040 * envelopeRate);
+        var near = Math.Max(1, (int)Math.Round(0.001 * envelopeRate));
+        var strongest = avgClick.Max();
+        var best = 0;
+        var bestScore = double.MinValue;
+        for (var i = 0; i < width; i++)
+        {
+            if (avgClick[i] < 0.3 * strongest)
+            {
+                continue;
+            }
+            var isPeak = true;
+            for (var j = 1; j <= near && isPeak; j++)
+            {
+                isPeak = avgClick[i] >= avgClick[(i + j) % width] && avgClick[i] >= avgClick[((i - j) % width + width) % width];
+            }
+            if (!isPeak)
+            {
+                continue;
+            }
+            double rise = 0;
+            for (var j = 0; j < after; j++)
+            {
+                rise += avgThump[(i + j) % width] / after;
+            }
+            for (var j = 1; j <= before; j++)
+            {
+                rise -= avgThump[((i - j) % width + width) % width] / before;
+            }
+            var score = avgClick[i] * Math.Max(0, rise);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = i;
+            }
+        }
+        // Attack: walk back from the click's peak (within 5 ms) to where it first reaches half the peak.
+        var peak = best;
+        for (var i = 1; i <= (int)(0.003 * envelopeRate); i++)
+        {
+            var j = (best + i) % width;
+            if (avgClick[j] > avgClick[peak])
+            {
+                peak = j;
+            }
+        }
+        var half = avgClick[peak] / 2;
+        var attack = (double)peak;
+        for (var i = 1; i <= (int)(0.005 * envelopeRate); i++)
+        {
+            var j = ((peak - i) % width + width) % width;
+            var next = ((j + 1) % width + width) % width;
+            if (avgClick[j] < half)
+            {
+                // Interpolate the crossing between j and j + 1.
+                var span = avgClick[next] - avgClick[j];
+                attack = peak - i + (span > 0 ? (half - avgClick[j]) / span : 0);
+                break;
+            }
+        }
+        return windowStart + (attack / envelopeRate);
     }
 
     /// <summary>Removes the local mean (0.4 s) and negative values, then scales to unit standard deviation.</summary>
@@ -334,23 +554,11 @@ public static class BeatDetector
         return (bestPeriod, bestPhase);
     }
 
-    /// <summary>Sum of <paramref name="curve"/> over the 30 ms after each grid beat at <paramref name="phase"/>.</summary>
-    private static double FoldedAt(double[] curve, double period, double phase)
-    {
-        double sum = 0;
-        for (var t = phase % period; t < curve.Length; t += period)
-        {
-            var c = (int)Math.Round(t);
-            for (var j = Math.Max(0, c); j <= Math.Min(curve.Length - 1, c + 6); j++)
-            {
-                sum += curve[j];
-            }
-        }
-        return sum;
-    }
-
-    /// <summary>Share of dynamic-programming beats within 30 ms (or 6 % of a beat) of the grid.</summary>
-    private static double Confidence(double[] onset, double period, double first)
+    /// <summary>
+    /// Tempo steadiness: the share of dynamic-programming beats (Ellis 2007) within 30 ms (or 6 % of a beat) of their
+    /// own most common phase. Independent of which sub-beat the tracker follows (kick, hi-hat or bass).
+    /// </summary>
+    private static double Confidence(double[] onset, double period)
     {
         var n = onset.Length;
         var score = new double[n];
@@ -396,14 +604,34 @@ public static class BeatDetector
         {
             return 0;
         }
-        // Tempo steadiness: the tracker may follow the off-beat (hi-hats, rolling bass), so either half of the grid counts.
         var tolerance = Math.Max(1.5, period * 0.06);
-        int OnGrid(double origin) => beats.Count(b =>
+        var bins = Math.Max(1, (int)Math.Ceiling(period));
+        var histogram = new int[bins];
+        foreach (var b in beats)
         {
-            var k = Math.Round((b - origin) / period);
-            return Math.Abs(b - (origin + (k * period))) <= tolerance;
+            histogram[(int)(b % period) % bins]++;
+        }
+        var bestPhase = 0.0;
+        var bestCount = -1;
+        for (var i = 0; i < bins; i++)
+        {
+            var count = 0;
+            for (var j = -(int)tolerance; j <= (int)tolerance; j++)
+            {
+                count += histogram[((i + j) % bins + bins) % bins];
+            }
+            if (count > bestCount)
+            {
+                bestCount = count;
+                bestPhase = i;
+            }
+        }
+        var onGrid = beats.Count(b =>
+        {
+            var d = Math.Abs((b % period) - bestPhase);
+            return Math.Min(d, period - d) <= tolerance;
         });
-        return Math.Max(OnGrid(first), OnGrid(first + (period / 2))) / (double)beats.Count;
+        return onGrid / (double)beats.Count;
     }
 
     /// <summary>The beat (0–7) phrases start on: where low-frequency energy changes and accents line up best.</summary>
@@ -417,8 +645,10 @@ public static class BeatDetector
         var scores = new double[BeatInfo.PhraseBeats];
         for (var k = 1; k < low.Length; k++)
         {
-            var change = Math.Abs(Math.Log(low[k] + 1e-9) - Math.Log(low[k - 1] + 1e-9));
-            scores[k % BeatInfo.PhraseBeats] += Math.Min(change, 5) + (0.2 * accent[k] / maxAccent);
+            // Rises count fully (new elements come in on the "one"), falls half (the beat after a one-beat accent).
+            var change = Math.Log(low[k] + 1e-9) - Math.Log(low[k - 1] + 1e-9);
+            var weight = change > 0 ? Math.Min(change, 5) : 0.5 * Math.Min(-change, 5);
+            scores[k % BeatInfo.PhraseBeats] += weight + (0.2 * accent[k] / maxAccent);
         }
         return Array.IndexOf(scores, scores.Max());
     }
@@ -437,15 +667,13 @@ public static class BeatDetector
         }
         // Per-beat energy, unsmoothed (smoothing would blur the edges by a beat or two); single loud or quiet beats are
         // handled below: edges need 3 loud beats out of 4, and breaks are merged across short interruptions.
-        var rawSorted = low.Where(v => v > 0).Order().ToArray();
-        if (rawSorted.Length == 0)
+        var sorted = low.Where(v => v > 0).Order().ToArray();
+        if (sorted.Length == 0)
         {
             return (0, low.Length, result);
         }
-        var rawThreshold = rawSorted[rawSorted.Length / 2] * 0.25;
-        // Beat start: the first beat where the drums are present for at least 3 of the next 4 beats; beat end likewise
-        // from the back (so a single loud hit in an intro does not count).
-        bool Loud(int j) => j >= 0 && j < low.Length && low[j] >= rawThreshold;
+        var threshold = sorted[sorted.Length / 2] * 0.25;
+        bool Loud(int j) => j >= 0 && j < low.Length && low[j] >= threshold;
         var beatStart = 0;
         while (beatStart < low.Length && !(Loud(beatStart) && Enumerable.Range(beatStart, 4).Count(Loud) >= 3))
         {

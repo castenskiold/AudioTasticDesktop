@@ -116,8 +116,79 @@ public sealed class OutputSettings
     public DsdMode DsdMode { get; set; } = DsdMode.Pcm;
 }
 
+/// <summary>XF-01..XF-04 (Required Features 4.4).</summary>
 public sealed class CrossfadingSettings
 {
+    /// <summary>The XF switch (MW10).</summary>
+    public bool Enabled { get; set; }
+
+    public CrossfadeMode Mode { get; set; } = CrossfadeMode.IntroOutro;
+
+    /// <summary>
+    /// Intro/Outro: how long the tracks overlap (fade-out/fade-in). Beat matching: how long both play at full volume
+    /// before the first track is cut or faded out. 0.5–30 s.
+    /// </summary>
+    public double OverlapSeconds { get; set; } = 8;
+
+    /// <summary>
+    /// Beat matching (Anders, 18 Nov 2026): the incoming track fades in over this many seconds before the overlap at
+    /// full volume begins (0.5–30 s).
+    /// </summary>
+    public double FadeInSeconds { get; set; } = 8;
+
+    /// <summary>
+    /// (Anders, 18 Nov 2026) The incoming track's bass starts low (−24 dB below 200 Hz) and rises to normal over its
+    /// fade-in (beat matching: <see cref="FadeInSeconds"/>; Intro/Outro: the overlap).
+    /// </summary>
+    public bool BassFadeIn { get; set; } = true;
+
+    /// <summary>Beat matching: what happens to the first track when the overlap ends.</summary>
+    public CrossfadeEnd EndBehaviour { get; set; } = CrossfadeEnd.FadeOut;
+
+    /// <summary>Beat matching with <see cref="CrossfadeEnd.FadeOut"/>: fade-out length (s).</summary>
+    public double FadeOutSeconds { get; set; } = 4;
+
+    /// <summary>Beat matching: the largest tempo change (percent, 1–20); bigger differences use Intro/Outro.</summary>
+    public double TempoLimitPercent { get; set; } = 8;
+
+    /// <summary>Beat matching: how the new track gets back to its own tempo after the first one has ended.</summary>
+    public TempoReturnMode TempoReturn { get; set; } = TempoReturnMode.Gradual;
+
+    /// <summary>Beat matching with <see cref="TempoReturnMode.Gradual"/>: how long the return takes (s).</summary>
+    public double TempoReturnSeconds { get; set; } = 16;
+
+    /// <summary>
+    /// Beat matching (Anders, 18 Nov 2026): the mix starts this many seconds before the outgoing track's beat ends
+    /// (its drums stop; outro not counted), on the phrase boundary at or before that point.
+    /// </summary>
+    public double MixBeforeBeatEndSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Beat matching (Anders, 18 Nov 2026): the incoming track enters this many seconds after its beat starts (its
+    /// drums come in; intro skipped), on the phrase boundary at or after that point.
+    /// </summary>
+    public double MixInAfterBeatStartSeconds { get; set; }
+
+    /// <summary>AN-02: analyse BPM, beats and breaks of the whole playing playlist in the background.</summary>
+    public bool AnalyseInBackground { get; set; } = true;
+}
+
+public enum CrossfadeMode
+{
+    IntroOutro,
+    BeatMatch,
+}
+
+public enum CrossfadeEnd
+{
+    Cut,
+    FadeOut,
+}
+
+public enum TempoReturnMode
+{
+    CutAtNextBreak,
+    Gradual,
 }
 
 public sealed class MetadataSettings

@@ -20,6 +20,7 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     private volatile bool _paused;
     private volatile bool _outputActive;
     private Deck? _next;
+    private long _nextStartFrame = -1;
     private long _handovers;
 
     public MixerGraph(AudioFormat format)
@@ -76,6 +77,16 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
         set => Volatile.Write(ref _next, value);
     }
 
+    /// <summary>
+    /// XF-01/02: start <see cref="Next"/> when the playing deck has consumed this many frames (sample-exact, also in the
+    /// middle of a render block); -1 starts it when the playing deck ends (gapless). Set before <see cref="Next"/>.
+    /// </summary>
+    public long NextStartFrame
+    {
+        get => Interlocked.Read(ref _nextStartFrame);
+        set => Interlocked.Exchange(ref _nextStartFrame, value);
+    }
+
     /// <summary>Number of gapless hand-overs so far (the engine watches it).</summary>
     public long Handovers => Interlocked.Read(ref _handovers);
 
@@ -113,18 +124,33 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
             for (var offset = 0; offset < output.Length; offset += block)
             {
                 var chunk = output.Slice(offset, Math.Min(block, output.Length - offset));
+                var armed = Volatile.Read(ref _next);
+                var playing = armed is null ? null : ReferenceEquals(armed, DeckA) ? DeckB : DeckA;
+                var consumedBefore = playing?.ConsumedFrames ?? 0;
                 var a = DeckA.MixInto(chunk, _scratch);
                 var b = DeckB.MixInto(chunk, _scratch);
-                // PB-01: when the playing deck ends inside this block, the armed deck continues right after its
-                // last sample, so the join is sample-exact.
-                if (Volatile.Read(ref _next) is { } next && next.IsArmed)
+                if (armed is { IsArmed: true } next)
                 {
-                    var current = ReferenceEquals(next, DeckA) ? DeckB : DeckA;
+                    var current = playing!;
                     var written = ReferenceEquals(current, DeckA) ? a : b;
-                    if (current.HasEnded && next.StartArmed())
+                    var channels = Format.Channels;
+                    var startAt = Interlocked.Read(ref _nextStartFrame);
+                    var startOffset = -1; // in samples within the chunk
+                    if (startAt >= 0 && startAt - consumedBefore < chunk.Length / channels)
+                    {
+                        // XF-01/02: start at an exact frame of the playing deck (or at once if that frame has passed).
+                        startOffset = (int)Math.Max(0, startAt - consumedBefore) * channels;
+                    }
+                    else if (current.HasEnded)
+                    {
+                        // PB-01: the playing deck ended inside this block: continue right after its last sample.
+                        startOffset = written;
+                    }
+                    if (startOffset >= 0 && next.StartArmed())
                     {
                         Volatile.Write(ref _next, null);
-                        next.MixInto(chunk[written..], _scratch);
+                        Interlocked.Exchange(ref _nextStartFrame, -1);
+                        next.MixInto(chunk[startOffset..], _scratch);
                         Interlocked.Increment(ref _handovers);
                     }
                 }

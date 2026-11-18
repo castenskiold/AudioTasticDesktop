@@ -53,6 +53,9 @@ public sealed class Deck : IDisposable
     private volatile TimeStretchSource? _stretch;
     private double _speed = 1;
     private bool _keepPitch = true;
+    private DeckEnvelope? _envelope; // XF-01/02, read by the audio thread
+    private BassRamp? _bassRamp;     // XF: the incoming track's bass comes in gradually
+    private readonly double[] _bassState = new double[16]; // low-shelf state, 2 per channel (up to 8)
 
     // Position checkpoints: after each chunk the decoder records (frames written so far, source position of the next
     // frame, source frames per output frame for that chunk). The position of what has been played is mapped from
@@ -138,11 +141,55 @@ public sealed class Deck : IDisposable
         _stretch?.SetSpeed(speed, keepPitch);
     }
 
+    /// <summary>Frames handed to the mixer since the source was loaded or seeked (independent of the speed).</summary>
+    public long ConsumedFrames => Volatile.Read(ref _consumedFrames);
+
+    /// <summary>
+    /// XF-02: the consumed-frame count and the playback position (source frames) as one consistent pair, so a future
+    /// source position can be turned into a consumed-frame count: consumed + (target − position) / speed.
+    /// </summary>
+    public (long Consumed, long Position) Snapshot()
+    {
+        while (true)
+        {
+            var before = Volatile.Read(ref _consumedFrames);
+            var position = PositionFrames;
+            if (Volatile.Read(ref _consumedFrames) == before)
+            {
+                return (before, position);
+            }
+        }
+    }
+
+    /// <summary>XF-01/02: the crossfade envelope (null = unity gain); applies from the next render.</summary>
+    public DeckEnvelope? Envelope
+    {
+        get => Volatile.Read(ref _envelope);
+        set => Volatile.Write(ref _envelope, value);
+    }
+
+    /// <summary>XF (Anders): the bass ramp (null = no filter); applies from the next render.</summary>
+    public BassRamp? BassRamp
+    {
+        get => Volatile.Read(ref _bassRamp);
+        set => Volatile.Write(ref _bassRamp, value);
+    }
+
+    /// <summary>True when the envelope has faded the deck out completely.</summary>
+    public bool EnvelopeFinished => Envelope is { EndsSilent: true } e && ConsumedFrames >= e.End;
+
     /// <summary>Number of audio callbacks that found the buffer empty before the end of the source.</summary>
     public long Underruns => Interlocked.Read(ref _underruns);
 
     /// <summary>Error raised while decoding (playback of this deck stops); cleared on the next load.</summary>
     public Exception? Fault => Volatile.Read(ref _fault);
+
+    /// <summary>
+    /// Offline rendering (tools, tests): true when rendering <paramref name="frames"/> now would not underrun (the deck
+    /// is idle or ended, or that much audio is buffered).
+    /// </summary>
+    public bool CanRender(int frames) =>
+        Volatile.Read(ref _state) is not (StatePlaying or StateArmed) || SourceEnded || _ring.AvailableToRead >= frames * _graph.Format.Channels;
 
     /// <summary>Samples decoded and waiting in the ring buffer.</summary>
     internal int BufferedSamples => _ring.AvailableToRead;
@@ -172,6 +219,9 @@ public sealed class Deck : IDisposable
             Volatile.Write(ref _fault, null);
             PrepareBuffers(source.Format);
             ResetPosition(source.PositionFrames);
+            Volatile.Write(ref _envelope, null);
+            Volatile.Write(ref _bassRamp, null);
+            Array.Clear(_bassState);
             Prefill();
             Volatile.Write(ref _state, armed ? StateArmed : StatePlaying);
         });
@@ -204,6 +254,8 @@ public sealed class Deck : IDisposable
         _stretch = null;
         SourceFormat = null;
         ResetPosition(0);
+        Volatile.Write(ref _envelope, null);
+        Volatile.Write(ref _bassRamp, null);
         Volatile.Write(ref _state, StateIdle);
     });
 
@@ -237,6 +289,27 @@ public sealed class Deck : IDisposable
         }
         var channels = _graph.Format.Channels;
         Gain.Process(buffer[..n], channels);
+        if (Volatile.Read(ref _bassRamp) is { } bass && _consumedFrames < bass.End && channels <= 8)
+        {
+            ApplyBassRamp(buffer[..n], channels, bass);
+        }
+        if (Volatile.Read(ref _envelope) is { } envelope)
+        {
+            // XF-01/02: the crossfade curve, per frame, counted in this deck's consumed frames.
+            var frame = _consumedFrames;
+            for (var i = 0; i < n; i += channels, frame++)
+            {
+                var g = envelope.GainAt(frame);
+                if (g == 1f)
+                {
+                    continue;
+                }
+                for (var c = 0; c < channels; c++)
+                {
+                    buffer[i + c] *= g;
+                }
+            }
+        }
         var mixed = output[..n];
         for (var i = 0; i < mixed.Length; i++)
         {
@@ -244,6 +317,42 @@ public sealed class Deck : IDisposable
         }
         Volatile.Write(ref _consumedFrames, _consumedFrames + (n / channels));
         return n;
+    }
+
+    /// <summary>
+    /// Audio thread: the low shelf of <paramref name="bass"/>, its gain updated every 32 frames (coefficients are plain
+    /// arithmetic: no allocation). Transposed direct form II, double-precision state.
+    /// </summary>
+    private void ApplyBassRamp(Span<float> samples, int channels, BassRamp bass)
+    {
+        const int Step = 32;
+        var rate = _graph.Format.SampleRate;
+        var frames = samples.Length / channels;
+        for (var f0 = 0; f0 < frames; f0 += Step)
+        {
+            var gainDb = bass.GainDbAt(_consumedFrames + f0);
+            if (Math.Abs(gainDb) < 0.01)
+            {
+                continue; // the shelf is flat: identity
+            }
+            var q = Dsp.Biquad.Design(Data.Settings.FilterType.LowShelf, bass.Frequency, gainDb, 0.707, rate);
+            var count = Math.Min(Step, frames - f0);
+            for (var c = 0; c < channels; c++)
+            {
+                double z1 = _bassState[c * 2], z2 = _bassState[(c * 2) + 1];
+                for (var f = f0; f < f0 + count; f++)
+                {
+                    var i = (f * channels) + c;
+                    double x = samples[i];
+                    var y = (q.B0 * x) + z1;
+                    z1 = (q.B1 * x) - (q.A1 * y) + z2;
+                    z2 = (q.B2 * x) - (q.A2 * y);
+                    samples[i] = (float)y;
+                }
+                _bassState[c * 2] = z1;
+                _bassState[(c * 2) + 1] = z2;
+            }
+        }
     }
 
     public void Dispose()

@@ -27,6 +27,13 @@ public sealed record TrackInfo(string Path, string Title, string? Artist, AudioS
 public sealed record AbLoop(TimeSpan A, TimeSpan? B);
 
 /// <summary>PB-04 / PB-05: output mode, sample format, the rate the graph renders at and the hardware's rate.</summary>
+/// <summary>
+/// XF-01..XF-04: the crossfade for the UI. Before the mix: <see cref="MixStart"/>–<see cref="MixEnd"/> is the overlap on the
+/// current track (shaded on the waveform). During the mix and the tempo return (<see cref="Mixing"/>): the BPM readout
+/// <see cref="FromBpm"/> → <see cref="ToBpm"/> (beat matching).
+/// </summary>
+public sealed record CrossfadeStatus(Data.Settings.CrossfadeMode Mode, TimeSpan? MixStart, TimeSpan? MixEnd, double? FromBpm, double? ToBpm, bool Mixing);
+
 public sealed record OutputStatus(bool Exclusive, OutputSampleFormat SampleFormat, int RenderRate, int DeviceRate);
 
 /// <summary>CO-06: playback position, raised at 10 Hz while playing or paused.</summary>
@@ -117,6 +124,9 @@ public interface IPlayerController
 
     /// <summary>PB-09: the "play next" queue.</summary>
     QueueService Queue { get; }
+
+    /// <summary>XF-01..XF-04: the planned or running crossfade, or null (changes raise <see cref="PlayModeChanged"/>).</summary>
+    CrossfadeStatus? Crossfade { get; }
 
     /// <summary>PB-06: playback speed 0.5–2.0.</summary>
     double Speed { get; set; }
