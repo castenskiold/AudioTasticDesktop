@@ -40,6 +40,7 @@
     <Project Path="tests/AudioTastic.TestSupport/AudioTastic.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/AudioTastic.MixLab/AudioTastic.MixLab.csproj" />
     <Project Path="tools/AudioTastic.SoakTest/AudioTastic.SoakTest.csproj" />
   </Folder>
 </Solution>

@@ -25,6 +25,8 @@ public enum AnalysisKinds
     None = 0,
     Waveform = 1,
     Loudness = 2,
+    /// <summary>AN-02: BPM, beat grid, phrases and breaks.</summary>
+    Beats = 4,
 }
 
 /// <summary>Lower runs first.</summary>
@@ -62,7 +64,9 @@ public sealed class AnalysisProgressEventArgs(AnalysisTarget target, double frac
 /// </summary>
 public sealed class AnalysisService : IDisposable
 {
-    private static readonly IAnalyzer[] AllAnalyzers = [new WaveformAnalyzer(), new LoudnessAnalyzer()];
+    private static readonly IAnalyzer[] AllAnalyzers = [new WaveformAnalyzer(), new LoudnessAnalyzer(), new BeatAnalyzer()];
+    private static readonly (AnalysisKinds Kind, IAnalyzer Analyzer)[] KindAnalyzers =
+        [(AnalysisKinds.Waveform, AllAnalyzers[0]), (AnalysisKinds.Loudness, AllAnalyzers[1]), (AnalysisKinds.Beats, AllAnalyzers[2])];
 
     private readonly CacheStore _cache;
     private readonly IEnumerable<IAudioSourceFactory> _factories;
@@ -154,6 +158,10 @@ public sealed class AnalysisService : IDisposable
 
     public LoudnessResult? TryGetLoudness(AnalysisTarget target) =>
         Read(target, AllAnalyzers[1]) is { } data ? LoudnessResult.Deserialize(data) : null;
+
+    /// <summary>AN-02: the cached beat analysis, or null.</summary>
+    public AudioTastic.Core.Audio.Beats.BeatInfo? TryGetBeats(AnalysisTarget target) =>
+        Read(target, AllAnalyzers[2]) is { } data ? AudioTastic.Core.Audio.Beats.BeatInfo.Deserialize(data) : null;
 
     /// <summary>True while <paramref name="target"/> is queued or being analysed.</summary>
     public bool IsPending(AnalysisTarget target)
@@ -308,7 +316,7 @@ public sealed class AnalysisService : IDisposable
                 kinds = job.Kinds;
             }
             var todo = new List<IAnalyzer>();
-            foreach (var (kind, analyzer) in new[] { (AnalysisKinds.Waveform, AllAnalyzers[0]), (AnalysisKinds.Loudness, AllAnalyzers[1]) })
+            foreach (var (kind, analyzer) in KindAnalyzers)
             {
                 if (!kinds.HasFlag(kind))
                 {
@@ -328,7 +336,7 @@ public sealed class AnalysisService : IDisposable
                 foreach (var (analyzer, data) in Decode(target, todo, token))
                 {
                     _cache.Put(key, target.KindFor(analyzer.Kind), analyzer.DataVersion, data);
-                    done |= analyzer is WaveformAnalyzer ? AnalysisKinds.Waveform : AnalysisKinds.Loudness;
+                    done |= KindAnalyzers.First(k => ReferenceEquals(k.Analyzer, analyzer)).Kind;
                 }
             }
         }

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- P8 offline harness: beat analysis of a folder checked against hand labels (AN-02 exit criterion), and offline
+       rendering of a crossfade/beat-matched transition to a WAV file with a measured beat alignment (XF-02).
+       See Program.cs for usage. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <CopyNativeLibraries>true</CopyNativeLibraries>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="..\..\src\AudioTastic.Analysis\AudioTastic.Analysis.csproj" />
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
+  </ItemGroup>
+</Project>

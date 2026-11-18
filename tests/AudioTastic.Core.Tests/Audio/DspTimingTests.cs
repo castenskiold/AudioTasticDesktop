@@ -32,9 +32,9 @@ public sealed class DspTimingTests
         var source = DspTests.Signals(440, rate, rate, 0.8f);
         var block = new float[512 * 2]; // a typical device period
 
-        // Best of three (other test projects run at the same time).
+        // Best of five (other test projects run at the same time).
         var best = double.MaxValue;
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < 5; attempt++)
         {
             var timer = Stopwatch.StartNew();
             for (var s = 0; s < seconds; s++)
