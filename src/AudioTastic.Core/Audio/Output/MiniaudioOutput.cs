@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace AudioTastic.Core.Audio.Output;
 
 /// <summary>
-/// PB-04 part 1: audio output through miniaudio in shared mode (WASAPI on Windows, Core Audio on macOS,
-/// PulseAudio/PipeWire/ALSA on Linux). 32-bit float, stereo in P1.
+/// PB-04 / PB-05: audio output through miniaudio (WASAPI on Windows, Core Audio on macOS, PulseAudio/PipeWire/ALSA
+/// on Linux), in shared mode (32-bit float) or exclusive mode (the device's own integer format, converted here by
+/// <see cref="SampleConverter"/> so unprocessed audio reaches the device bit for bit).
 /// <list type="bullet">
 /// <item>The audio callback is an unmanaged function pointer into <see cref="OnData"/>: no delegates, no allocations.</item>
 /// <item>Device list changes are detected by polling every 2 s (miniaudio has no device-change events).</item>
@@ -29,6 +30,10 @@ public sealed unsafe class MiniaudioOutput : IAudioOutput
     private GCHandle _self;
     private IAudioRenderer? _renderer;
     private int _channels;
+    private OutputSampleFormat _sampleFormat;
+    private float[] _scratch = [];
+    private volatile bool _dither;
+    private DitherState _ditherState = new(0x2545F491u);
     private volatile bool _stopRequested = true;
     private bool _explicitDevice;
     private string _deviceSignature = string.Empty;
@@ -69,6 +74,8 @@ public sealed unsafe class MiniaudioOutput : IAudioOutput
     public bool IsRunning => IsOpen && !_stopRequested;
     public string? DeviceName { get; private set; }
     public AudioFormat? Format { get; private set; }
+    public bool IsExclusive { get; private set; }
+    public OutputSampleFormat SampleFormat => _sampleFormat;
 
     /// <summary>Sample rate the hardware runs at (differs from <see cref="Format"/> when the OS resamples).</summary>
     public int DeviceSampleRate => IsOpen ? (int)MiniaudioNative.DeviceInternalSampleRate(_device) : 0;
@@ -102,33 +109,69 @@ public sealed unsafe class MiniaudioOutput : IAudioOutput
         }
     }
 
-    public void Open(AudioDeviceInfo? device, AudioFormat format, int bufferMilliseconds, IAudioRenderer renderer)
+    public IReadOnlyList<DeviceFormat> GetDeviceFormats(AudioDeviceInfo? device)
+    {
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var formats = new MiniaudioNative.NativeFormat[MiniaudioNative.MaxFormats];
+            var id = device?.Id.ToArray();
+            uint total;
+            fixed (byte* idPtr = id)
+            fixed (MiniaudioNative.NativeFormat* p = formats)
+            {
+                if (MiniaudioNative.DeviceFormats(_context, idPtr, p, (uint)formats.Length, out total) != 0)
+                {
+                    return [];
+                }
+            }
+            var result = new List<DeviceFormat>();
+            for (var i = 0; i < Math.Min(total, (uint)formats.Length); i++)
+            {
+                if (formats[i].Format is >= 0 and <= 3)
+                {
+                    result.Add(new DeviceFormat((OutputSampleFormat)formats[i].Format, (int)formats[i].Channels, (int)formats[i].SampleRate,
+                        formats[i].ExclusiveOnly != 0));
+                }
+            }
+            return result;
+        }
+    }
+
+    public void Open(AudioDeviceInfo? device, AudioFormat format, OutputOptions options, IAudioRenderer renderer)
     {
         ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(options);
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             CloseCore();
             _renderer = renderer;
             _channels = format.Channels;
+            _sampleFormat = options.SampleFormat;
+            _dither = options.Dither;
+            _scratch = options.SampleFormat == OutputSampleFormat.F32 ? [] : new float[ScratchFrames * format.Channels];
             nint handle;
             var id = device?.Id.ToArray();
             fixed (byte* idPtr = id)
             {
-                Check(MiniaudioNative.DeviceOpen(_context, idPtr, (uint)format.SampleRate, (uint)format.Channels,
-                    (uint)Math.Clamp(bufferMilliseconds, 4, 1000), &OnData, &OnNotify, GCHandle.ToIntPtr(_self), out handle),
-                    $"open '{device?.Name ?? "default device"}'");
+                Check(MiniaudioNative.DeviceOpen(_context, idPtr, (uint)format.SampleRate, (uint)format.Channels, (int)options.SampleFormat,
+                    options.Exclusive ? 1 : 0, (uint)Math.Clamp(options.BufferMilliseconds, 4, 1000), &OnData, &OnNotify,
+                    GCHandle.ToIntPtr(_self), out handle),
+                    $"open '{device?.Name ?? "default device"}'{(options.Exclusive ? $" in exclusive mode ({options.SampleFormat}, {format.SampleRate} Hz)" : string.Empty)}");
             }
             _device = handle;
             _explicitDevice = device is not null;
+            IsExclusive = options.Exclusive;
             Format = format;
             var name = stackalloc byte[MiniaudioNative.NameBytes];
             DeviceName = MiniaudioNative.DeviceName(_device, name, MiniaudioNative.NameBytes) == 0
                 ? Marshal.PtrToStringUTF8((nint)name)
                 : device?.Name;
             _logger.LogInformation(
-                "Opened {Device} ({Backend}) at {Rate} Hz, {Channels} ch, device rate {DeviceRate} Hz, period {Period} frames",
-                DeviceName, BackendName, format.SampleRate, format.Channels, DeviceSampleRate, PeriodFrames);
+                "Opened {Device} ({Backend}, {Mode}, {SampleFormat}) at {Rate} Hz, {Channels} ch, device rate {DeviceRate} Hz, period {Period} frames",
+                DeviceName, BackendName, IsExclusive ? "exclusive" : "shared", _sampleFormat, format.SampleRate, format.Channels,
+                DeviceSampleRate, PeriodFrames);
         }
     }
 
@@ -197,30 +240,51 @@ public sealed unsafe class MiniaudioOutput : IAudioOutput
         _device = 0;
         Format = null;
         DeviceName = null;
+        IsExclusive = false;
     }
+
+    /// <summary>PB-05: switches dither on or off for integer output (audio thread reads it per callback).</summary>
+    public void SetDither(bool dither) => _dither = dither;
+
+    private const int ScratchFrames = 4096;
 
     /// <summary>Audio thread entry point (called by the shim's miniaudio data callback).</summary>
     [UnmanagedCallersOnly]
-    private static void OnData(nint user, float* output, uint frameCount)
+    private static void OnData(nint user, void* output, uint frameCount)
     {
         var self = Unsafe.As<MiniaudioOutput>(GCHandle.FromIntPtr(user).Target!);
-        var buffer = new Span<float>(output, (int)frameCount * self._channels);
+        var channels = self._channels;
+        var samples = (int)frameCount * channels;
+        var format = self._sampleFormat;
+        var bytesPerSample = format == OutputSampleFormat.F32 ? 4 : SampleConverter.BytesPerSample(format);
         try
         {
-            if (self._renderer is { } renderer)
+            if (self._renderer is not { } renderer)
             {
-                renderer.Render(buffer);
+                new Span<byte>(output, samples * bytesPerSample).Clear();
+                return;
             }
-            else
+            if (format == OutputSampleFormat.F32)
             {
-                buffer.Clear();
+                renderer.Render(new Span<float>(output, samples));
+                return;
+            }
+            // Integer formats: render in float, then convert exactly (bit-perfect for unprocessed audio).
+            var dither = self._dither;
+            var scratch = self._scratch;
+            var destination = new Span<byte>(output, samples * bytesPerSample);
+            for (var offset = 0; offset < samples; offset += scratch.Length)
+            {
+                var chunk = scratch.AsSpan(0, Math.Min(scratch.Length, samples - offset));
+                renderer.Render(chunk);
+                SampleConverter.Convert(chunk, destination[(offset * bytesPerSample)..], format, dither, ref self._ditherState);
             }
         }
 #pragma warning disable CA1031 // An exception must never cross into native code: output silence instead.
         catch (Exception)
 #pragma warning restore CA1031
         {
-            buffer.Clear();
+            new Span<byte>(output, samples * bytesPerSample).Clear();
         }
     }
 

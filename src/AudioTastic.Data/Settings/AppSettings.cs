@@ -54,6 +54,39 @@ public sealed class PlaybackSettings
 
     /// <summary>PB-03: ReplayGain / loudness normalisation.</summary>
     public ReplayGainSettings ReplayGain { get; set; } = new();
+
+    /// <summary>PB-01: preload the next track so there is no gap between tracks.</summary>
+    public bool Gapless { get; set; } = true;
+
+    /// <summary>PB-02: short fades instead of hard cuts.</summary>
+    public FadeSettings Fades { get; set; } = new();
+
+    /// <summary>PB-06: playback speed 0.5–2.0 (playback state, saved).</summary>
+    public double Speed { get; set; } = 1.0;
+
+    /// <summary>PB-06: keep the pitch when the speed changes (time-stretch); off = like a turntable.</summary>
+    public bool KeepPitch { get; set; } = true;
+
+    /// <summary>PB-06: remember the speed per file.</summary>
+    public bool RememberSpeedPerFile { get; set; }
+
+    /// <summary>PB-07: restore the last track and position at start-up.</summary>
+    public ResumeMode ResumeSession { get; set; } = ResumeMode.Paused;
+
+    /// <summary>PB-07: remember the position per file for long files.</summary>
+    public bool ResumeLongFiles { get; set; } = true;
+
+    /// <summary>PB-07: minimum length (minutes) for per-file resume.</summary>
+    public int ResumeMinimumMinutes { get; set; } = 20;
+
+    /// <summary>PB-07: where playback was (saved every 10 s and on exit).</summary>
+    public SessionState? LastSession { get; set; }
+
+    /// <summary>PB-09: clear the "play next" queue when playback is stopped.</summary>
+    public bool ClearQueueOnStop { get; set; }
+
+    /// <summary>PB-10: sleep timer options.</summary>
+    public SleepTimerSettings SleepTimer { get; set; } = new();
 }
 
 public sealed class OutputSettings
@@ -63,6 +96,24 @@ public sealed class OutputSettings
 
     /// <summary>PB-04: total output buffer in milliseconds (P1 exit criterion: no dropouts at 20 ms).</summary>
     public int BufferMilliseconds { get; set; } = 20;
+
+    /// <summary>PB-04: exclusive (bit-perfect) mode: no OS mixer, volume 100 % recommended.</summary>
+    public bool Exclusive { get; set; }
+
+    /// <summary>PB-05: output bit depth in exclusive mode; 0 = automatic (the source's, or the best the device has).</summary>
+    public int BitDepth { get; set; }
+
+    /// <summary>PB-01: reopen the device at each track's sample rate (a short gap) instead of resampling the next track.</summary>
+    public bool MatchOutputRate { get; set; }
+
+    /// <summary>PB-05: allow resampling when the device does not support a track's rate (exclusive mode) or for gapless.</summary>
+    public bool AllowResampling { get; set; } = true;
+
+    /// <summary>PB-05: TPDF dither when the bit depth is reduced.</summary>
+    public bool Dither { get; set; } = true;
+
+    /// <summary>FM-05: DSD playback: convert to PCM, or DoP (needs exclusive mode and a DoP DAC).</summary>
+    public DsdMode DsdMode { get; set; } = DsdMode.Pcm;
 }
 
 public sealed class CrossfadingSettings
@@ -159,6 +210,43 @@ public sealed class GeneralSettings
 }
 
 /// <summary>CO-04: repeat modes, cycled by the REP button (Off → Playlist → Track).</summary>
+/// <summary>PB-02: fade on/off and length per action (0–2,000 ms).</summary>
+public sealed class FadeSettings
+{
+    public bool OnPause { get; set; } = true;
+    public int PauseMilliseconds { get; set; } = 150;
+    public bool OnStop { get; set; } = true;
+    public int StopMilliseconds { get; set; } = 150;
+    public bool OnSeek { get; set; } = true;
+    public int SeekMilliseconds { get; set; } = 150;
+}
+
+/// <summary>PB-07: what to do with the last session at start-up.</summary>
+public enum ResumeMode
+{
+    Off,
+    Paused,
+    Playing,
+}
+
+/// <summary>PB-07: the last playing entry (playlist tab id, entry index and path, position).</summary>
+public sealed record SessionState(string? PlaylistId, int Index, string Path, double PositionSeconds, bool WasPlaying);
+
+/// <summary>PB-10 settings.</summary>
+public sealed class SleepTimerSettings
+{
+    public bool FadeOut { get; set; } = true;
+    public int FadeSeconds { get; set; } = 30;
+    public bool CloseApp { get; set; }
+}
+
+/// <summary>FM-05: DSD output.</summary>
+public enum DsdMode
+{
+    Pcm,
+    Dop,
+}
+
 /// <summary>PB-03 settings (Settings › Playback).</summary>
 public sealed class ReplayGainSettings
 {

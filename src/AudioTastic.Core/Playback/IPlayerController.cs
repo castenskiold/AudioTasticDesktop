@@ -23,6 +23,9 @@ public enum PlaybackState
 /// <param name="Duration">Length, when known.</param>
 public sealed record TrackInfo(string Path, string Title, string? Artist, AudioStreamInfo Stream, TimeSpan? Duration);
 
+/// <summary>PB-04 / PB-05: output mode, sample format, the rate the graph renders at and the hardware's rate.</summary>
+public sealed record OutputStatus(bool Exclusive, OutputSampleFormat SampleFormat, int RenderRate, int DeviceRate);
+
 /// <summary>CO-06: playback position, raised at 10 Hz while playing or paused.</summary>
 public sealed class PlaybackPositionEventArgs(TimeSpan position, TimeSpan? duration) : EventArgs
 {
@@ -108,6 +111,12 @@ public interface IPlayerController
 
     /// <summary>CO-07: recent peaks of the mixed signal (live waveform for streams).</summary>
     PeakTap Peaks { get; }
+
+    /// <summary>PB-04 / PB-05: how the output is running; null when closed.</summary>
+    OutputStatus? OutputStatus { get; }
+
+    /// <summary>PB-04 / PB-05: raised when the output is (re)opened.</summary>
+    event EventHandler<EventArgs>? OutputChanged;
 
     /// <summary>Plays <paramref name="entry"/> of <paramref name="playlist"/>, which becomes the playing playlist.</summary>
     Task PlayAsync(Playlist playlist, PlaylistEntry entry);

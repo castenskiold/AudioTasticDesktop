@@ -15,6 +15,8 @@
     <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
     <ProjectReference Include="..\..\src\AudioTastic.Metadata\AudioTastic.Metadata.csproj" />
+    <!-- P6 gapless tests drive the real engine with the fake output. -->
+    <Compile Include="..\AudioTastic.Core.Tests\Audio\Fakes.cs" Link="Fakes.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

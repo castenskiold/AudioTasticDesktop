@@ -17,6 +17,8 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
     private long _renderCount;
     private volatile bool _paused;
     private volatile bool _outputActive;
+    private Deck? _next;
+    private long _handovers;
 
     public MixerGraph(AudioFormat format)
     {
@@ -53,6 +55,19 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
         set => _outputActive = value;
     }
 
+    /// <summary>
+    /// PB-01: the armed deck to start, in the same render, the moment the other deck ends (gapless hand-over);
+    /// null for none. Set by the engine after arming the deck.
+    /// </summary>
+    public Deck? Next
+    {
+        get => Volatile.Read(ref _next);
+        set => Volatile.Write(ref _next, value);
+    }
+
+    /// <summary>Number of gapless hand-overs so far (the engine watches it).</summary>
+    public long Handovers => Interlocked.Read(ref _handovers);
+
     /// <summary>Number of completed <see cref="Render"/> calls.</summary>
     public long RenderCount => Interlocked.Read(ref _renderCount);
 
@@ -84,8 +99,21 @@ public sealed class MixerGraph : IAudioRenderer, IDisposable
             for (var offset = 0; offset < output.Length; offset += block)
             {
                 var chunk = output.Slice(offset, Math.Min(block, output.Length - offset));
-                DeckA.MixInto(chunk, _scratch);
-                DeckB.MixInto(chunk, _scratch);
+                var a = DeckA.MixInto(chunk, _scratch);
+                var b = DeckB.MixInto(chunk, _scratch);
+                // PB-01: when the playing deck ends inside this block, the armed deck continues right after its
+                // last sample, so the join is sample-exact.
+                if (Volatile.Read(ref _next) is { } next && next.IsArmed)
+                {
+                    var current = ReferenceEquals(next, DeckA) ? DeckB : DeckA;
+                    var written = ReferenceEquals(current, DeckA) ? a : b;
+                    if (current.HasEnded && next.StartArmed())
+                    {
+                        Volatile.Write(ref _next, null);
+                        next.MixInto(chunk[written..], _scratch);
+                        Interlocked.Increment(ref _handovers);
+                    }
+                }
             }
             Peaks.Write(output, Format.Channels);
             Master.Process(output, Format.Channels);

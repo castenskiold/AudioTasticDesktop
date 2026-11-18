@@ -19,6 +19,8 @@ public sealed class Deck : IDisposable
     private const int StatePlaying = 1;
     private const int StateStalled = 2;
     private const int StateEnded = 3;
+    /// <summary>PB-01: loaded and buffered, waiting for the mixer to start it the moment the other deck ends.</summary>
+    private const int StateArmed = 4;
 
     /// <summary>Decoded audio kept ahead of playback.</summary>
     private const double BufferSeconds = 0.5;
@@ -67,8 +69,14 @@ public sealed class Deck : IDisposable
     /// <summary>Format of the loaded source as decoded (before channel mapping); null when idle.</summary>
     public AudioFormat? SourceFormat { get; private set; }
 
-    /// <summary>True while a source is loaded and has not finished playing.</summary>
-    public bool IsActive => Volatile.Read(ref _state) is StatePlaying or StateStalled;
+    /// <summary>True while a source is loaded and has not finished playing (or is armed to start).</summary>
+    public bool IsActive => Volatile.Read(ref _state) is StatePlaying or StateStalled or StateArmed;
+
+    /// <summary>PB-01: loaded and waiting for a gapless start.</summary>
+    public bool IsArmed => Volatile.Read(ref _state) == StateArmed;
+
+    /// <summary>Being played by the mixer.</summary>
+    public bool IsPlaying => Volatile.Read(ref _state) == StatePlaying;
 
     /// <summary>True once the loaded source has been played to the end.</summary>
     public bool HasEnded => Volatile.Read(ref _state) == StateEnded;
@@ -91,8 +99,9 @@ public sealed class Deck : IDisposable
     /// <summary>
     /// Loads <paramref name="source"/> (the deck takes ownership) and starts feeding it, from the source's current
     /// position. Completes when enough audio is buffered to start. The source must match the graph's sample rate.
+    /// With <paramref name="armed"/> the deck waits until the mixer starts it (gapless hand-over, PB-01).
     /// </summary>
-    public Task LoadAsync(IAudioSource source)
+    public Task LoadAsync(IAudioSource source, bool armed = false)
     {
         ArgumentNullException.ThrowIfNull(source);
         return Post(() =>
@@ -105,9 +114,12 @@ public sealed class Deck : IDisposable
             PrepareBuffers(source.Format);
             ResetPosition(source.PositionFrames);
             Prefill();
-            Volatile.Write(ref _state, StatePlaying);
+            Volatile.Write(ref _state, armed ? StateArmed : StatePlaying);
         });
     }
+
+    /// <summary>Audio thread: starts an armed deck (gapless hand-over). Returns false when it was not armed.</summary>
+    internal bool StartArmed() => Interlocked.CompareExchange(ref _state, StatePlaying, StateArmed) == StateArmed;
 
     /// <summary>Seeks the loaded source; completes when audio from the new position is buffered.</summary>
     public Task SeekAsync(long frame) => Post(() =>
@@ -138,11 +150,11 @@ public sealed class Deck : IDisposable
     /// Audio thread: reads up to <paramref name="output"/>.Length samples, applies the deck gain and adds them to
     /// <paramref name="output"/>. <paramref name="scratch"/> must be at least as long as <paramref name="output"/>.
     /// </summary>
-    internal void MixInto(Span<float> output, Span<float> scratch)
+    internal int MixInto(Span<float> output, Span<float> scratch)
     {
         if (Volatile.Read(ref _state) != StatePlaying)
         {
-            return;
+            return 0;
         }
         var ended = Volatile.Read(ref _sourceEnded) != 0; // read before the ring: all final writes are then visible
         var buffer = scratch[..output.Length];
@@ -160,7 +172,7 @@ public sealed class Deck : IDisposable
         }
         if (n == 0)
         {
-            return;
+            return 0;
         }
         var channels = _graph.Format.Channels;
         Gain.Process(buffer[..n], channels);
@@ -170,6 +182,7 @@ public sealed class Deck : IDisposable
             mixed[i] += buffer[i];
         }
         Volatile.Write(ref _consumedFrames, _consumedFrames + (n / channels));
+        return n;
     }
 
     public void Dispose()
@@ -214,7 +227,7 @@ public sealed class Deck : IDisposable
                 }
             }
 
-            if (Volatile.Read(ref _state) == StatePlaying && _source is not null && Volatile.Read(ref _sourceEnded) == 0 &&
+            if (Volatile.Read(ref _state) is StatePlaying or StateArmed && _source is not null && Volatile.Read(ref _sourceEnded) == 0 &&
                 _ring.AvailableToWrite >= _mapBuffer.Length)
             {
                 FillOnce();
@@ -289,7 +302,7 @@ public sealed class Deck : IDisposable
     private void Stall()
     {
         var previous = Interlocked.Exchange(ref _state, StateStalled);
-        if (previous == StatePlaying)
+        if (previous is StatePlaying or StateArmed)
         {
             _graph.WaitForRenderBoundary();
         }

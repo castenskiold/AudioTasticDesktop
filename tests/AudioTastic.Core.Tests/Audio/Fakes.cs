@@ -101,6 +101,17 @@ internal sealed class FakeAudioOutput : IAudioOutput
     public string? DeviceName { get; private set; }
     public AudioFormat? Format { get; private set; }
     public List<(string? Device, AudioFormat Format)> Opens { get; } = [];
+    public List<OutputOptions> OpenOptions { get; } = [];
+    public bool IsExclusive { get; private set; }
+    public OutputSampleFormat SampleFormat { get; private set; }
+
+    /// <summary>Native formats reported for exclusive-mode negotiation (PB-05).</summary>
+    public List<DeviceFormat> DeviceFormats { get; } = [];
+
+    /// <summary>Simulates a device that refuses exclusive mode.</summary>
+    public bool RefuseExclusive { get; set; }
+
+    public IReadOnlyList<DeviceFormat> GetDeviceFormats(AudioDeviceInfo? device) => DeviceFormats;
     public bool Capture { get; set; }
     public long Renders;
 
@@ -126,9 +137,16 @@ internal sealed class FakeAudioOutput : IAudioOutput
         }
     }
 
-    public void Open(AudioDeviceInfo? device, AudioFormat format, int bufferMilliseconds, IAudioRenderer renderer)
+    public void Open(AudioDeviceInfo? device, AudioFormat format, OutputOptions options, IAudioRenderer renderer)
     {
+        if (options.Exclusive && RefuseExclusive)
+        {
+            throw new InvalidOperationException("Exclusive mode refused (test).");
+        }
         Close();
+        OpenOptions.Add(options);
+        IsExclusive = options.Exclusive;
+        SampleFormat = options.SampleFormat;
         _renderer = renderer;
         Format = format;
         DeviceName = device?.Name ?? "Speakers";

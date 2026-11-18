@@ -40,7 +40,7 @@ public sealed class MiniaudioOutputTests
         using var output = CreateOrSkip();
         var renderer = new CountingRenderer();
 
-        output.Open(null, new AudioFormat(48_000, 2), 20, renderer);
+        output.Open(null, new AudioFormat(48_000, 2), new OutputOptions(20), renderer);
         output.StartOutput();
         await Wait.UntilAsync(() => renderer.Frames > 48_000 / 10);
         output.StopOutput();
@@ -59,12 +59,30 @@ public sealed class MiniaudioOutputTests
         using var output = CreateOrSkip();
         var renderer = new CountingRenderer();
 
-        output.Open(null, new AudioFormat(44_100, 2), 20, renderer);
-        output.Open(null, new AudioFormat(96_000, 2), 20, renderer);
+        output.Open(null, new AudioFormat(44_100, 2), new OutputOptions(20), renderer);
+        output.Open(null, new AudioFormat(96_000, 2), new OutputOptions(20), renderer);
 
         Assert.Equal(96_000, output.Format!.Value.SampleRate);
         output.Close();
         Assert.False(output.IsOpen);
+    }
+
+    [Theory]
+    [InlineData(OutputSampleFormat.S16)]
+    [InlineData(OutputSampleFormat.S24)]
+    [InlineData(OutputSampleFormat.S32)]
+    public async Task Integer_formats_render_through_the_converter(OutputSampleFormat format)
+    {
+        using var output = CreateOrSkip();
+        var renderer = new CountingRenderer();
+
+        output.Open(null, new AudioFormat(48_000, 2), new OutputOptions(20, SampleFormat: format), renderer);
+        output.StartOutput();
+        await Wait.UntilAsync(() => renderer.Frames > 4800);
+
+        Assert.Equal(format, output.SampleFormat);
+        Assert.False(output.IsExclusive);
+        _ = output.GetDeviceFormats(null); // the null backend reports none; the call must still work
     }
 
     private sealed class CountingRenderer : IAudioRenderer

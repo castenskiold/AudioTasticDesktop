@@ -8,7 +8,8 @@ namespace AudioTastic.Core.Audio.Output;
 /// </summary>
 internal static unsafe partial class MiniaudioNative
 {
-    public const int ApiVersionExpected = 1;
+    public const int ApiVersionExpected = 2;
+    public const int MaxFormats = 64;
     public const int IdBytes = 512;
     public const int NameBytes = 256;
 
@@ -28,6 +29,21 @@ internal static unsafe partial class MiniaudioNative
         public int IsDefault;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeFormat
+    {
+        public int Format;
+        public uint Channels;
+        public uint SampleRate;
+        public int ExclusiveOnly;
+    }
+
+    [LibraryImport(Library, EntryPoint = "at_ma_device_formats")]
+    public static partial int DeviceFormats(nint context, byte* deviceId, NativeFormat* formats, uint capacity, out uint total);
+
+    [LibraryImport(Library, EntryPoint = "at_ma_device_internal_format")]
+    public static partial int DeviceInternalFormat(nint device);
+
     [LibraryImport(Library, EntryPoint = "at_ma_api_version")]
     public static partial int ApiVersion();
 
@@ -44,8 +60,8 @@ internal static unsafe partial class MiniaudioNative
     public static partial int EnumeratePlayback(nint context, DeviceInfo* infos, uint capacity, out uint total);
 
     [LibraryImport(Library, EntryPoint = "at_ma_device_open")]
-    public static partial int DeviceOpen(nint context, byte* deviceId, uint sampleRate, uint channels, uint bufferMilliseconds,
-        delegate* unmanaged<nint, float*, uint, void> dataProc, delegate* unmanaged<nint, int, void> notifyProc,
+    public static partial int DeviceOpen(nint context, byte* deviceId, uint sampleRate, uint channels, int format, int exclusive,
+        uint bufferMilliseconds, delegate* unmanaged<nint, void*, uint, void> dataProc, delegate* unmanaged<nint, int, void> notifyProc,
         nint user, out nint device);
 
     [LibraryImport(Library, EntryPoint = "at_ma_device_start")]

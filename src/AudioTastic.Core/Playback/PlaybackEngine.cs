@@ -1,5 +1,6 @@
 using System.Runtime;
 using AudioTastic.Core.Audio;
+using AudioTastic.Core.Audio.Output;
 using AudioTastic.Core.Playlists;
 using AudioTastic.Data.Settings;
 using AudioTastic.Sdk.Audio;
@@ -13,9 +14,13 @@ namespace AudioTastic.Core.Playback;
 /// (Stopped, Buffering, Playing, Paused).
 /// <para>
 /// Commands are serialised by one async gate. A 10 Hz monitor raises position events, logs underruns, advances to
-/// the next track when a deck ends, and reports decoder faults. In P1 the engine runs at the sample rate of the
-/// current file (the output is reopened when the rate changes); per-deck resampling for gapless and crossfading
-/// across rates comes with PB-01 in P6.
+/// the next track when a deck ends, and reports decoder faults.
+/// </para>
+/// <para>
+/// PB-01 gapless: 10 s before the end, the next entry is opened on the spare deck (resampled to the output rate if
+/// needed) and armed; the mixer starts it in the same render the current deck ends, and the monitor then makes it the
+/// current deck. An explicit play opens the output at the track's own rate (no forced resampling, PB-05); in exclusive
+/// mode (PB-04) rate and bit depth are chosen from the device's native formats.
 /// </para>
 /// </summary>
 public sealed class PlaybackEngine : IPlayerController, IDisposable
@@ -44,6 +49,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private int _orderVersion = -1;
     private volatile PlaybackState _state = PlaybackState.Stopped;
     private TrackInfo? _track;
+    private Deck _deck;
+    private Deck _spare;
+    private Preloaded? _preload;
+    private PlaylistEntry? _preloadSkipped;
+    private long _handoversSeen;
+    private int _preloading;
+    private OutputOptions? _outputOptions;
     private IReplayGainProvider? _gainProvider;
     private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
@@ -65,6 +77,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _graph = new MixerGraph(new AudioFormat(48_000, EngineChannels));
+        _deck = _graph.DeckA;
+        _spare = _graph.DeckB;
         _volume = Math.Clamp(settings.Current.Playback.Volume, 0, 100);
         _playOrder.SetShuffle(settings.Current.Playback.Shuffle, -1);
         _playOrder.Repeat = settings.Current.Playback.Repeat;
@@ -92,12 +106,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public TimeSpan Position => _state == PlaybackState.Stopped || _track is null
         ? TimeSpan.Zero
-        : _sourceFormat.FramesToTime(_graph.DeckA.PositionFrames);
+        : _sourceFormat.FramesToTime(_deck.PositionFrames);
 
     public TimeSpan? Duration => _track?.Duration;
 
     /// <summary>Total underruns on the active deck since the current track was loaded.</summary>
-    public long Underruns => _graph.DeckA.Underruns;
+    public long Underruns => _deck.Underruns;
 
     public int Volume
     {
@@ -135,6 +149,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public event EventHandler<PlaybackPositionEventArgs>? PositionChanged;
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackError;
     public event EventHandler<EventArgs>? PlayModeChanged;
+
+    /// <summary>PB-04 / PB-05: the output was (re)opened: see <see cref="OutputStatus"/>.</summary>
+    public event EventHandler<EventArgs>? OutputChanged;
+
+    /// <summary>PB-05: how the output is running: mode, sample format and the hardware rate (for the OUT indicator).</summary>
+    public OutputStatus? OutputStatus => _output.IsOpen && _output.Format is { } format
+        ? new OutputStatus(_output.IsExclusive, _output.SampleFormat, format.SampleRate, _output.DeviceSampleRate)
+        : null;
 
     /// <summary>PB-03: <see cref="ReplayGain"/> changed (new track, analysis finished, settings changed).</summary>
     public event EventHandler<EventArgs>? ReplayGainChanged;
@@ -310,7 +332,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             var wasRunning = _output.IsRunning;
             _output.StopOutput();
             _graph.OutputActive = false;
-            OpenOutput(format);
+            OpenOutput(format, _outputOptions ?? new OutputOptions(_settings.Current.Output.BufferMilliseconds));
             if (wasRunning)
             {
                 StartOutput();
@@ -390,7 +412,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             catch (Exception ex) when (ex is InvalidOperationException or AudioSourceException or IOException)
             {
                 // The deck owns the source once loading starts; unloading disposes it.
-                await _graph.DeckA.UnloadAsync().ConfigureAwait(false);
+                await _deck.UnloadAsync().ConfigureAwait(false);
                 ReportError(path, ex);
                 await StopCoreAsync().ConfigureAwait(false);
                 return;
@@ -412,25 +434,81 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private async Task StartSourceAsync(IAudioSource source)
     {
-        var engineFormat = new AudioFormat(source.Format.SampleRate, EngineChannels);
-        if (!_output.IsOpen || _output.Format != engineFormat)
+        await CancelPreloadAsync().ConfigureAwait(false);
+        var bits = source.Info.IsLossless ? source.Info.BitsPerSample : 0;
+        var (graphFormat, options) = ChooseOutput(source.Format, bits);
+        if (!_output.IsOpen || _output.Format != graphFormat || !SameOutputMode(options))
         {
             await StopOutputAsync().ConfigureAwait(false);
-            _graph.Configure(engineFormat);
-            OpenOutput(engineFormat);
+            _graph.Configure(graphFormat);
+            OpenOutput(graphFormat, options);
+        }
+        else
+        {
+            _output.SetDither(options.Dither);
+        }
+        if (source.Format.SampleRate != _graph.Format.SampleRate)
+        {
+            source = new ResamplingSource(source, _graph.Format.SampleRate); // PB-05: device cannot do the track's rate
         }
         _graph.Paused = false;
         _sourceFormat = source.Format;
         _canSeek = source.CanSeek;
-        await _graph.DeckA.LoadAsync(source).ConfigureAwait(false);
+        await _deck.LoadAsync(source).ConfigureAwait(false);
         if (!_output.IsRunning)
         {
             StartOutput();
         }
     }
 
+    private bool SameOutputMode(OutputOptions wanted) =>
+        _outputOptions is { } current && current.Exclusive == wanted.Exclusive && current.SampleFormat == wanted.SampleFormat;
+
+    /// <summary>
+    /// PB-04 / PB-05: the graph format and output options for a source. Shared mode: the source's rate, float.
+    /// Exclusive mode: the source's rate if the device supports it (else the nearest higher one, or the highest, when
+    /// resampling is allowed), and the smallest integer format that holds the source's bits (or the setting's).
+    /// </summary>
+    private (AudioFormat Format, OutputOptions Options) ChooseOutput(AudioFormat source, int sourceBits)
+    {
+        var output = _settings.Current.Output;
+        var shared = (new AudioFormat(source.SampleRate, EngineChannels), new OutputOptions(output.BufferMilliseconds));
+        if (!output.Exclusive)
+        {
+            return shared;
+        }
+        var formats = _output.GetDeviceFormats(FindDevice(output.DeviceName))
+            .Where(f => f.Channels is 0 or EngineChannels && f.SampleFormat != OutputSampleFormat.F32)
+            .ToList();
+        var rate = source.SampleRate;
+        if (formats.Count > 0 && !formats.Any(f => f.SampleRate is 0 || f.SampleRate == rate))
+        {
+            if (!output.AllowResampling)
+            {
+                _logger.LogWarning("The device has no exclusive format at {Rate} Hz and resampling is off; using shared mode", rate);
+                return shared;
+            }
+            var rates = formats.Select(f => f.SampleRate).Distinct().Order().ToList();
+            rate = rates.FirstOrDefault(r => r > rate, rates[^1]);
+        }
+        var wantedBits = output.BitDepth > 0 ? output.BitDepth : sourceBits > 0 ? sourceBits : 24;
+        var candidates = formats.Where(f => f.SampleRate is 0 || f.SampleRate == rate)
+            .Select(f => f.SampleFormat).Distinct()
+            .OrderBy(f => SampleConverter.Bits(f)).ToList();
+        var format = candidates.Count == 0
+            ? wantedBits <= 16 ? OutputSampleFormat.S16 : wantedBits <= 24 ? OutputSampleFormat.S24 : OutputSampleFormat.S32
+            : candidates.FirstOrDefault(f => SampleConverter.Bits(f) >= wantedBits, candidates[^1]);
+        var outBits = SampleConverter.Bits(format);
+        var dither = output.Dither && outBits < 32 && (sourceBits == 0 ? outBits <= 16 : outBits < sourceBits);
+        return (new AudioFormat(rate, EngineChannels), new OutputOptions(output.BufferMilliseconds, Exclusive: true, format, dither));
+    }
+
+    private AudioDeviceInfo? FindDevice(string? name) =>
+        name is null ? null : _output.GetDevices().FirstOrDefault(d => d.Name == name);
+
     private async Task StopCoreAsync()
     {
+        await CancelPreloadAsync().ConfigureAwait(false);
         await StopOutputAsync().ConfigureAwait(false);
         _graph.Paused = false;
         SetState(PlaybackState.Stopped);
@@ -448,7 +526,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             frame = Math.Min(frame, _sourceFormat.TimeToFrames(duration));
         }
-        await _graph.DeckA.SeekAsync(frame).ConfigureAwait(false);
+        await _deck.SeekAsync(frame).ConfigureAwait(false);
         Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
     }
 
@@ -465,30 +543,35 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _output.StopOutput();
         }
         _graph.OutputActive = false;
-        await _graph.DeckA.UnloadAsync().ConfigureAwait(false);
+        await _deck.UnloadAsync().ConfigureAwait(false);
     }
 
-    private void OpenOutput(AudioFormat format)
+    private void OpenOutput(AudioFormat format, OutputOptions options)
     {
         var output = _settings.Current.Output;
-        AudioDeviceInfo? device = null;
-        if (output.DeviceName is { } name)
+        var device = FindDevice(output.DeviceName);
+        if (output.DeviceName is { } name && device is null)
         {
-            device = _output.GetDevices().FirstOrDefault(d => d.Name == name);
-            if (device is null)
-            {
-                _logger.LogWarning("Output device {Device} not found; using the default device", name);
-            }
+            _logger.LogWarning("Output device {Device} not found; using the default device", name);
         }
         try
         {
-            _output.Open(device, format, output.BufferMilliseconds, _graph);
+            _output.Open(device, format, options, _graph);
+        }
+        catch (InvalidOperationException ex) when (options.Exclusive)
+        {
+            // PB-04: exclusive mode refused (in use by another app, or the format): keep playing in shared mode.
+            _logger.LogWarning(ex, "Exclusive mode is not available ({Format}, {Rate} Hz); using shared mode", options.SampleFormat, format.SampleRate);
+            options = new OutputOptions(options.BufferMilliseconds);
+            _output.Open(device, format, options, _graph);
         }
         catch (InvalidOperationException ex) when (device is not null)
         {
             _logger.LogWarning(ex, "Could not open {Device}; using the default device", device.Name);
-            _output.Open(null, format, output.BufferMilliseconds, _graph);
+            _output.Open(null, format, options, _graph);
         }
+        _outputOptions = options;
+        Raise(OutputChanged, EventArgs.Empty);
     }
 
     private void StartOutput()
@@ -620,7 +703,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
             }
 
-            var deck = _graph.DeckA;
+            var deck = _deck;
             var underruns = deck.Underruns;
             if (underruns > _lastUnderruns && state == PlaybackState.Playing)
             {
@@ -629,9 +712,20 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             }
             _lastUnderruns = underruns;
 
-            if (deck.HasEnded && state == PlaybackState.Playing && Interlocked.CompareExchange(ref _advancing, 1, 0) == 0)
+            if (_graph.Handovers != _handoversSeen || (deck.HasEnded && state == PlaybackState.Playing && _graph.Next is null))
             {
-                _ = Task.Run(AdvanceAfterEndAsync);
+                if (Interlocked.CompareExchange(ref _advancing, 1, 0) == 0)
+                {
+                    _ = Task.Run(AdvanceAfterEndAsync);
+                }
+            }
+            else if (state == PlaybackState.Playing && ShouldPreload() && Interlocked.CompareExchange(ref _preloading, 1, 0) == 0)
+            {
+                _ = Task.Run(PreloadAsync);
+            }
+            else if (_preload is { } p && p.Playlist.Version != p.PlaylistVersion)
+            {
+                _ = Task.Run(() => RunAsync(CancelPreloadAsync)); // the playlist changed: the next track may be another one
             }
         }
 #pragma warning disable CA1031 // Timer callback: never let an exception escape.
@@ -648,8 +742,12 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             await RunAsync(async () =>
             {
-                var deck = _graph.DeckA;
-                if (!deck.HasEnded || _state != PlaybackState.Playing)
+                if (await CommitHandoverAsync().ConfigureAwait(false))
+                {
+                    return;
+                }
+                var deck = _deck;
+                if (!deck.HasEnded || _state != PlaybackState.Playing || _graph.Next is not null)
                 {
                     return;
                 }
@@ -697,7 +795,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 try
                 {
                     // PB-04 fallback: keep playing on the system default device.
-                    _output.Open(null, format, _settings.Current.Output.BufferMilliseconds, _graph);
+                    _output.Open(null, format, new OutputOptions(_settings.Current.Output.BufferMilliseconds), _graph);
+                    _outputOptions = new OutputOptions(_settings.Current.Output.BufferMilliseconds);
                     StartOutput();
                     _logger.LogWarning("Output lost ({Reason}); continuing on the default device {Device}", e.Reason, _output.DeviceName);
                 }
@@ -718,6 +817,148 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _logger.LogError(ex, "Output fallback failed");
         }
     });
+
+    // ---- PB-01 gapless -------------------------------------------------------------------------------
+
+    /// <summary>Preloading starts this long before the end of the current track.</summary>
+    private static readonly TimeSpan PreloadLead = TimeSpan.FromSeconds(10);
+
+    private sealed record Preloaded(Playlist Playlist, int PlaylistVersion, PlaylistEntry Entry, int Index, TrackInfo Track,
+        ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek);
+
+    private bool ShouldPreload() =>
+        _preload is null && _graph.Next is null && _track?.Duration is { } duration && _settings.Current.Playback.Gapless &&
+        duration - Position <= PreloadLead && _entry is { IsUrl: false };
+
+    /// <summary>The entry that follows the current one at its end, without changing any state; null for none.</summary>
+    private (Playlist Playlist, int Index)? PeekNext()
+    {
+        SyncOrder();
+        return _playOrder.Next(CurrentIndexCore(), trackEnded: true) is int next ? (_playlist, next) : null;
+    }
+
+    private async Task PreloadAsync()
+    {
+        try
+        {
+            await RunAsync(async () =>
+            {
+                if (_state != PlaybackState.Playing || !ShouldPreload() || PeekNext() is not { } next)
+                {
+                    return;
+                }
+                var entry = next.Playlist.Entries[next.Index];
+                if (entry.IsUrl || ReferenceEquals(entry, _preloadSkipped))
+                {
+                    return;
+                }
+                IAudioSource source;
+                try
+                {
+                    source = await Task.Run(() => OpenSource(entry)).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is AudioSourceException or IOException or UnauthorizedAccessException or NotSupportedException)
+                {
+                    _preloadSkipped = entry; // the normal end-of-track path reports it and skips on
+                    return;
+                }
+                var track = BuildTrack(entry, source, null);
+                if (source.Format.SampleRate != _graph.Format.SampleRate)
+                {
+                    var output = _settings.Current.Output;
+                    if (output.MatchOutputRate || !output.AllowResampling)
+                    {
+                        source.Dispose(); // reopen the device at the new rate when the track starts (a short gap)
+                        _preloadSkipped = entry;
+                        return;
+                    }
+                    source = new ResamplingSource(source, _graph.Format.SampleRate);
+                }
+                ReplayGainDecision? gain = null;
+                try
+                {
+                    gain = _gainProvider?.GetGain(next.Playlist, entry);
+                }
+#pragma warning disable CA1031 // ReplayGain is optional.
+                catch (Exception ex)
+#pragma warning restore CA1031
+                {
+                    _logger.LogWarning(ex, "ReplayGain could not be determined for {Path}", entry.Path);
+                }
+                _spare.Gain.TargetGain = gain?.Linear ?? 1f;
+                _spare.Gain.SnapToTarget();
+                await _spare.LoadAsync(source, armed: true).ConfigureAwait(false);
+                _preload = new Preloaded(next.Playlist, next.Playlist.Version, entry, next.Index, track, gain, source.Format, source.CanSeek);
+                _graph.Next = _spare;
+                _logger.LogDebug("Preloaded {Path} for a gapless start", entry.Path);
+            }).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+#pragma warning disable CA1031 // Background work: log, never crash.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "Preloading the next track failed");
+        }
+        finally
+        {
+            Volatile.Write(ref _preloading, 0);
+        }
+    }
+
+    /// <summary>Drops a preloaded track (explicit play, stop, playlist change). Inside the gate.</summary>
+    private async Task CancelPreloadAsync()
+    {
+        _graph.Next = null;
+        if (_preload is not null || _spare.IsActive)
+        {
+            _preload = null;
+            await _spare.UnloadAsync().ConfigureAwait(false);
+        }
+        _preloadSkipped = null;
+    }
+
+    /// <summary>After the mixer started the armed deck: make it the current one. Inside the gate.</summary>
+    private async Task<bool> CommitHandoverAsync()
+    {
+        var handovers = _graph.Handovers;
+        if (handovers == _handoversSeen)
+        {
+            return false;
+        }
+        _handoversSeen = handovers;
+        if (_preload is not { } p)
+        {
+            return false;
+        }
+        var finished = _deck;
+        if (finished.Fault is { } fault && _track is not null)
+        {
+            ReportError(_track.Path, fault);
+        }
+        (_deck, _spare) = (_spare, _deck);
+        _preload = null;
+        _preloadSkipped = null;
+        _playlist = p.Playlist;
+        _entry = p.Entry;
+        _index = p.Index;
+        _track = p.Track;
+        _sourceFormat = p.Format;
+        _canSeek = p.CanSeek;
+        _lastUnderruns = 0;
+        DetachStreamMetadata();
+        if (p.Gain != _replayGain)
+        {
+            _replayGain = p.Gain;
+            Raise(ReplayGainChanged, EventArgs.Empty);
+        }
+        await finished.UnloadAsync().ConfigureAwait(false);
+        _logger.LogInformation("Gapless: playing {Path}", p.Entry.Path);
+        Raise(TrackChanged, new TrackChangedEventArgs(p.Track, p.Index, p.Entry));
+        return true;
+    }
 
     // ---- helpers ------------------------------------------------------------------------------------
 
@@ -752,7 +993,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             _logger.LogWarning(ex, "ReplayGain could not be determined for {Path}", entry.Path);
         }
-        _graph.DeckA.Gain.TargetGain = decision?.Linear ?? 1f;
+        _deck.Gain.TargetGain = decision?.Linear ?? 1f;
         if (decision != _replayGain)
         {
             _replayGain = decision;

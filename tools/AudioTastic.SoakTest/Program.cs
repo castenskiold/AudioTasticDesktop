@@ -180,10 +180,10 @@ internal sealed class TimingOutput(IAudioOutput inner) : IAudioOutput, IAudioRen
 
     public IReadOnlyList<AudioDeviceInfo> GetDevices() => inner.GetDevices();
 
-    public void Open(AudioDeviceInfo? device, AudioFormat format, int bufferMilliseconds, IAudioRenderer renderer)
+    public void Open(AudioDeviceInfo? device, AudioFormat format, OutputOptions options, IAudioRenderer renderer)
     {
         _renderer = renderer;
-        inner.Open(device, format, bufferMilliseconds, this);
+        inner.Open(device, format, options, this);
     }
 
     public void StartOutput() => inner.StartOutput();
