@@ -63,7 +63,9 @@ internal static class Program
                 .AddSingleton(sp => new PlayerApi(sp.GetRequiredService<PlaybackEngine>(), sp.GetRequiredService<AudioTastic.Core.Playlists.PlaylistService>(),
                     sp.GetRequiredService<AudioTastic.Metadata.TagService>(), () => sp.GetRequiredService<AudioTastic.App.Ui.Playlist.PlaylistController>()))
                 .AddSingleton<IAudioOutput>(sp => new MiniaudioOutput(sp.GetRequiredService<ILogger<MiniaudioOutput>>()))
+                .AddSingleton(sp => new AudioTastic.Core.Playback.ResumeStore(sp.GetRequiredService<AudioTastic.Data.Cache.CacheStore>()))
                 .AddSingleton<PlaybackEngine>()
+                .AddSingleton<AudioTastic.Core.Playback.SleepTimerService>()
                 .AddSingleton<IPlayerController>(sp => sp.GetRequiredService<PlaybackEngine>())
                 // P2 player UI: skins (UI-03) and the shell that owns the skinned windows.
                 .AddSingleton<AudioTastic.App.Skins.SkinManager>()

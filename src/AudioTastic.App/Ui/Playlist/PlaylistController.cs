@@ -55,6 +55,8 @@ public sealed class PlaylistController : IDisposable
         service.ActiveChanged += (_, _) => Reattach();
         service.TabsChanged += (_, _) => TabsChanged?.Invoke(this, EventArgs.Empty);
         engine.TrackChanged += (_, _) => Dispatcher.UIThread.Post(() => PlayingChanged?.Invoke(this, EventArgs.Empty));
+        engine.Queue.Changed += (_, _) => Dispatcher.UIThread.Post(() => DetailsChanged?.Invoke(this, EventArgs.Empty)); // PB-09 numbers
+        engine.ResumePositions.Changed += (_, _) => Dispatcher.UIThread.Post(() => DetailsChanged?.Invoke(this, EventArgs.Empty)); // PB-07 marker
         loader.Updated += (_, playlists) => Dispatcher.UIThread.Post(() =>
         {
             foreach (var p in playlists)
@@ -134,6 +136,32 @@ public sealed class PlaylistController : IDisposable
     public void RequestTags(IEnumerable<PlaylistEntry> entries) => _loader.RequestVisible(Active, entries);
 
     public void Play(PlaylistEntry entry) => Run(() => _engine.PlayAsync(Active, entry));
+
+    /// <summary>PB-09: queue positions (1-based) of <paramref name="entry"/>, for the row's "[1]" marker.</summary>
+    public IReadOnlyList<int> QueuePositions(PlaylistEntry entry) => _engine.Queue.PositionsOf(entry);
+
+    /// <summary>PB-07: the entry has a saved per-file resume position.</summary>
+    public bool HasResumePosition(PlaylistEntry entry) => !entry.IsUrl && _engine.ResumePositions.HasPosition(entry.Path);
+
+    /// <summary>PB-09 (Q, row menu, Shift+Enter in search): adds the selected entries to the play-next queue.</summary>
+    public void QueueSelection() => Queue(Selection);
+
+    public void Queue(IReadOnlyList<PlaylistEntry> entries)
+    {
+        if (entries.Count > 0)
+        {
+            _engine.Queue.Enqueue(Active, entries);
+        }
+    }
+
+    /// <summary>PB-09: removes the entries from the queue.</summary>
+    public void Unqueue(IEnumerable<PlaylistEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            _engine.Queue.Remove(entry);
+        }
+    }
 
     /// <summary>
     /// PL-04: adds files, folders and playlists to <paramref name="target"/> (default: the active tab) at
@@ -290,15 +318,25 @@ public sealed class PlaylistController : IDisposable
     {
         var selection = Selection;
         var first = selection.Count > 0 ? selection[0] : null;
+        var queued = selection.Any(e => QueuePositions(e).Count > 0);
+        var isPlaying = first is not null && ReferenceEquals(first, PlayingEntry);
         Open(source,
             Item("Play", () => Play(first!), first is not null),
-            Item("Play next (queue)", null),
-            Item("Stop after this track", null),
+            Item("Play next (queue)  Q", QueueSelection, selection.Count > 0),
+            Item("Remove from queue", () => Unqueue(selection), queued),
+            Item(_engine.StopAfterCurrent && isPlaying ? "✓ Stop after this track" : "Stop after this track",
+                () => _engine.StopAfterCurrent = !_engine.StopAfterCurrent, isPlaying),
             Item("File info…", null),
             Item("Edit tags…", null),
             Item("Look up online…", null),
             Item("Convert…", null),
-            Item("Reset resume position", null),
+            Item("Reset resume position", () =>
+            {
+                foreach (var e in selection.Where(e => !e.IsUrl))
+                {
+                    _engine.ResumePositions.ClearPosition(e.Path);
+                }
+            }, selection.Any(HasResumePosition)),
             Item("Show in folder", () => _platform.OpenFolder(Path.GetDirectoryName(first!.Path)!), first is { IsUrl: false }),
             new Separator(),
             Item("Remove", RemoveSelected, selection.Count > 0),

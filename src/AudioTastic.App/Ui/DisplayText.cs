@@ -4,6 +4,14 @@ using AudioTastic.Sdk.Audio;
 
 namespace AudioTastic.App.Ui;
 
+/// <summary>P6 state badges for the indicator row (MW5).</summary>
+/// <param name="Speed">PB-06 playback speed.</param>
+/// <param name="AbLoop">PB-08 A-B loop active.</param>
+/// <param name="StopAfterCurrent">PB-09.</param>
+/// <param name="SleepMinutes">PB-10: minutes left (0 = at the end of the track/playlist); null when off.</param>
+/// <param name="Out">PB-05: the output runs at another rate than the source.</param>
+public sealed record PlayerBadges(double Speed, bool AbLoop, bool StopAfterCurrent, int? SleepMinutes, bool Out);
+
 /// <summary>Text shown by the player: time display (CO-06), scrolling title (UI-06) and format indicators (UI-06).</summary>
 public static class DisplayText
 {
@@ -35,7 +43,7 @@ public static class DisplayText
     }
 
     /// <summary>UI-06 / MW5: codec, bit depth (lossless), bitrate, sample rate and channels.</summary>
-    public static IReadOnlyList<string> Indicators(TrackInfo? track, ReplayGainDecision? replayGain = null)
+    public static IReadOnlyList<string> Indicators(TrackInfo? track, ReplayGainDecision? replayGain = null, PlayerBadges? badges = null)
     {
         if (track is null)
         {
@@ -78,6 +86,29 @@ public static class DisplayText
         if (replayGain is not null)
         {
             list.Add("RG"); // PB-03: a ReplayGain / loudness gain is applied
+        }
+        if (badges is { } b)
+        {
+            if (b.Out)
+            {
+                list.Add("OUT"); // PB-05: the output rate differs from the source
+            }
+            if (Math.Abs(b.Speed - 1) > 1e-6)
+            {
+                list.Add(string.Create(CultureInfo.InvariantCulture, $"{b.Speed:0.0#}×")); // PB-06
+            }
+            if (b.AbLoop)
+            {
+                list.Add("A-B"); // PB-08
+            }
+            if (b.StopAfterCurrent)
+            {
+                list.Add("STOP"); // PB-09
+            }
+            if (b.SleepMinutes is { } minutes)
+            {
+                list.Add(minutes > 0 ? string.Create(CultureInfo.InvariantCulture, $"☾ {minutes}") : "☾"); // PB-10
+            }
         }
         return list;
     }

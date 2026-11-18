@@ -160,8 +160,78 @@ public sealed class SettingsWindow : Window
         Check(panel, "Analyse untagged files (EBU R128)", rg.AnalyseUntagged, v => Update(r => r.AnalyseUntagged = v));
         Check(panel, "Prevent clipping (limit the gain to the peak)", rg.PreventClipping, v => Update(r => r.PreventClipping = v));
         Check(panel, "Write analysed values to the files' tags", rg.WriteTags, v => Update(r => r.WriteTags = v));
-        Note(panel, "Gapless playback, fades, speed, resume, stop after current and the sleep timer arrive in phase P6. " +
-                    "Shuffle and repeat are switched in the main window (S, R) and are remembered.");
+        var playback = _settings.Current.Playback;
+        void P(Action<PlaybackSettings> change) => _settings.Update(SettingsGroup.Playback, s => change(s.Playback));
+
+        Heading(panel, "Gapless and fades");
+        Check(panel, "Gapless playback (the next track starts exactly where this one ends)", playback.Gapless, v => P(p => p.Gapless = v));
+        FadeRow(panel, "Fade on pause / resume", playback.Fades.OnPause, playback.Fades.PauseMilliseconds,
+            v => P(p => p.Fades.OnPause = v), ms => P(p => p.Fades.PauseMilliseconds = ms));
+        FadeRow(panel, "Fade on stop", playback.Fades.OnStop, playback.Fades.StopMilliseconds,
+            v => P(p => p.Fades.OnStop = v), ms => P(p => p.Fades.StopMilliseconds = ms));
+        FadeRow(panel, "Fade on seek", playback.Fades.OnSeek, playback.Fades.SeekMilliseconds,
+            v => P(p => p.Fades.OnSeek = v), ms => P(p => p.Fades.SeekMilliseconds = ms));
+
+        Heading(panel, "Speed");
+        Check(panel, "Remember the speed per file", playback.RememberSpeedPerFile, v => P(p => p.RememberSpeedPerFile = v));
+        Note(panel, "Set the speed in Main menu › Playback › Speed… (0.5–2.0×, with or without keeping the pitch).");
+
+        Heading(panel, "Resume");
+        var resume = new ComboBox { ItemsSource = new[] { "Off", "Reopen the last track paused", "Reopen the last track and play" }, SelectedIndex = (int)playback.ResumeSession, Width = 320 };
+        resume.SelectionChanged += (_, _) => P(p => p.ResumeSession = (ResumeMode)Math.Max(0, resume.SelectedIndex));
+        Row(panel, "On start", resume);
+        var minutes = new NumericUpDown { Minimum = 1, Maximum = 600, Value = playback.ResumeMinimumMinutes, FormatString = "0", Width = 140 };
+        minutes.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                P(p => p.ResumeMinimumMinutes = (int)v);
+            }
+        };
+        Check(panel, "Remember the position in long files (audiobooks, mixes)", playback.ResumeLongFiles, v => P(p => p.ResumeLongFiles = v));
+        Row(panel, "Long file: at least (minutes)", minutes, "Such files start where you left them; '»' marks them in the playlist. Reset it from the playlist's right-click menu.");
+
+        Heading(panel, "Queue and sleep timer");
+        Check(panel, "Clear the play-next queue on Stop", playback.ClearQueueOnStop, v => P(p => p.ClearQueueOnStop = v));
+        Check(panel, "Sleep timer: fade out before stopping", playback.SleepTimer.FadeOut, v => P(p => p.SleepTimer.FadeOut = v));
+        var fadeSeconds = new NumericUpDown { Minimum = 1, Maximum = 300, Value = playback.SleepTimer.FadeSeconds, FormatString = "0", Width = 140 };
+        fadeSeconds.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                P(p => p.SleepTimer.FadeSeconds = (int)v);
+            }
+        };
+        Row(panel, "Sleep timer fade (seconds)", fadeSeconds);
+        Check(panel, "Sleep timer: close AudioTastic afterwards", playback.SleepTimer.CloseApp, v => P(p => p.SleepTimer.CloseApp = v));
+        Note(panel, "Shuffle and repeat are switched in the main window (S, R) and are remembered.");
+    }
+
+    private static void Heading(StackPanel panel, string text) =>
+        panel.Children.Add(new TextBlock { Text = text, FontWeight = FontWeight.Bold, FontSize = 14, Margin = new Thickness(0, 10, 0, 0) });
+
+    private static void FadeRow(StackPanel panel, string label, bool on, int milliseconds, Action<bool> changedOn, Action<int> changedMs)
+    {
+        var box = new CheckBox { Content = label, IsChecked = on, VerticalAlignment = VerticalAlignment.Center, MinWidth = 220 };
+        var ms = new NumericUpDown { Minimum = 10, Maximum = 2000, Increment = 10, Value = milliseconds, FormatString = "0", Width = 130, IsEnabled = on };
+        Avalonia.Automation.AutomationProperties.SetName(ms, label + " (ms)");
+        box.IsCheckedChanged += (_, _) =>
+        {
+            changedOn(box.IsChecked == true);
+            ms.IsEnabled = box.IsChecked == true;
+        };
+        ms.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                changedMs((int)v);
+            }
+        };
+        panel.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8,
+            Children = { box, ms, new TextBlock { Text = "ms", VerticalAlignment = VerticalAlignment.Center } },
+        });
     }
 
     private void OutputPage(StackPanel panel)
@@ -183,7 +253,24 @@ public sealed class SettingsWindow : Window
             var chosen = device.SelectedIndex <= 0 ? null : devices[device.SelectedIndex];
             _ = _shell.Engine.SetOutputDeviceAsync(chosen);
         };
-        Row(panel, "Device", device, "Shared mode. Exclusive / bit-perfect output arrives in phase P6. Right-click the volume slider for a quick device menu.");
+        Row(panel, "Device", device, "Right-click the volume slider for a quick device menu.");
+
+        void O(Action<OutputSettings> change) => _settings.Update(SettingsGroup.Output, s => change(s.Output));
+        var mode = new ComboBox { ItemsSource = new[] { "Shared (mixed with other apps)", "Exclusive (bit-perfect)" }, SelectedIndex = output.Exclusive ? 1 : 0, Width = 320 };
+        mode.SelectionChanged += (_, _) => O(o => o.Exclusive = mode.SelectedIndex == 1);
+        Row(panel, "Mode", mode,
+            "Exclusive mode takes over the device: other apps are silent, and at 100 % volume with ReplayGain, speed and fades " +
+            "off the samples reach the device unchanged. If the device refuses, shared mode is used. Applies from the next track.");
+        var depth = new ComboBox { ItemsSource = new[] { "Auto (the file's bit depth)", "16 bit", "24 bit", "32 bit" }, Width = 320 };
+        depth.SelectedIndex = output.BitDepth switch { 16 => 1, 24 => 2, 32 => 3, _ => 0 };
+        depth.SelectionChanged += (_, _) => O(o => o.BitDepth = depth.SelectedIndex switch { 1 => 16, 2 => 24, 3 => 32, _ => 0 });
+        Row(panel, "Bit depth (exclusive)", depth);
+        Check(panel, "Match the output rate to each file (no resampling where the device allows)", output.MatchOutputRate, v => O(o => o.MatchOutputRate = v));
+        Check(panel, "Allow resampling when the device cannot play a file's rate", output.AllowResampling, v => O(o => o.AllowResampling = v));
+        Check(panel, "Dither when reducing bit depth", output.Dither, v => O(o => o.Dither = v));
+        var dsd = new ComboBox { ItemsSource = new[] { "Convert to PCM", "DoP (DSD over PCM, exclusive mode)" }, SelectedIndex = (int)output.DsdMode, Width = 320 };
+        dsd.SelectionChanged += (_, _) => O(o => o.DsdMode = (DsdMode)Math.Max(0, dsd.SelectedIndex));
+        Row(panel, "DSD files", dsd, "DoP needs a DAC that understands it and exclusive mode; otherwise DSD is converted to PCM. 'OUT' in the main window means the device runs at another rate than the file.");
 
         var buffer = new NumericUpDown { Minimum = 10, Maximum = 500, Increment = 5, Value = output.BufferMilliseconds, FormatString = "0", Width = 140 };
         buffer.ValueChanged += (_, e) =>

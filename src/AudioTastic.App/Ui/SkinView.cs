@@ -228,6 +228,13 @@ public sealed class SkinView : Border, IDisposable
                         _ = _vm.Player.SeekAsync(d * v);
                     }
                 };
+                wave.LoopChanged += (_, loop) =>
+                {
+                    if (_vm.Duration is { } d && _vm.HasTrack)
+                    {
+                        _ = _vm.Player.SetAbLoopAsync(d * loop.A, d * loop.B); // PB-08: markers dragged
+                    }
+                };
                 _updates.Add(() =>
                 {
                     var shown = _vm.Track is not null;
@@ -235,6 +242,15 @@ public sealed class SkinView : Border, IDisposable
                     wave.Update(shown ? _vm.Waveform : null, shown ? _vm.WaveformProgress : null,
                         canSeek ? _vm.Position / _vm.Duration!.Value : 0, canSeek, shown && _vm.IsLive, _vm.Player.Peaks,
                         _vm.State == PlaybackState.Playing);
+                    if (canSeek && _vm.AbLoop is { } loop)
+                    {
+                        var d = _vm.Duration!.Value;
+                        wave.SetLoop(loop.A / d, loop.B is { } b ? b / d : null);
+                    }
+                    else
+                    {
+                        wave.SetLoop(null, null);
+                    }
                 });
                 return wave;
             }

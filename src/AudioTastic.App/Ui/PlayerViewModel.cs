@@ -15,6 +15,8 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     private readonly IPlayerController _player;
     private readonly SettingsStore _settings;
     private readonly AnalysisCoordinator? _analysis;
+    private readonly SleepTimerService? _sleep;
+    private AbLoop? _abLoop;
     private Analysis.Waveform? _waveform;
     private double? _waveformProgress;
     private bool _isLive;
@@ -31,11 +33,12 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     private IReadOnlyList<string> _indicators = [];
     private string? _status;
 
-    public PlayerViewModel(IPlayerController player, SettingsStore settings, AnalysisCoordinator? analysis = null)
+    public PlayerViewModel(IPlayerController player, SettingsStore settings, AnalysisCoordinator? analysis = null, SleepTimerService? sleep = null)
     {
         _player = player;
         _settings = settings;
         _analysis = analysis;
+        _sleep = sleep;
         _state = player.State;
         _volume = player.Volume;
         _muted = player.IsMuted;
@@ -50,11 +53,20 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         player.PlayModeChanged += OnPlayModeChanged;
         player.PlaybackError += OnPlaybackError;
         player.ReplayGainChanged += OnReplayGainChanged;
+        player.SpeedChanged += OnBadgesChanged;
+        player.OutputChanged += OnBadgesChanged;
         if (analysis is not null)
         {
             analysis.Changed += OnAnalysisChanged;
         }
+        if (sleep is not null)
+        {
+            sleep.Changed += OnBadgesChanged;
+        }
     }
+
+    /// <summary>PB-08: the A-B loop (markers on the waveform).</summary>
+    public AbLoop? AbLoop { get => _abLoop; private set => Set(ref _abLoop, value); }
 
     /// <summary>CO-07: the playing track's waveform, once analysed.</summary>
     public Analysis.Waveform? Waveform { get => _waveform; private set => Set(ref _waveform, value); }
@@ -135,14 +147,40 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         _player.PlayModeChanged -= OnPlayModeChanged;
         _player.PlaybackError -= OnPlaybackError;
         _player.ReplayGainChanged -= OnReplayGainChanged;
+        _player.SpeedChanged -= OnBadgesChanged;
+        _player.OutputChanged -= OnBadgesChanged;
         if (_analysis is not null)
         {
             _analysis.Changed -= OnAnalysisChanged;
         }
+        if (_sleep is not null)
+        {
+            _sleep.Changed -= OnBadgesChanged;
+        }
     }
 
-    private void OnReplayGainChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
-        Indicators = DisplayText.Indicators(_track, _player.ReplayGain));
+    private void OnReplayGainChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(UpdateIndicators);
+
+    private void OnBadgesChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(UpdateIndicators);
+
+    private void UpdateIndicators()
+    {
+        AbLoop = _player.AbLoop;
+        var output = _player.OutputStatus;
+        var sleepMinutes = _sleep?.Mode switch
+        {
+            null => (int?)null,
+            SleepMode.AfterTime => (int)Math.Ceiling(_sleep.Remaining?.TotalMinutes ?? 0),
+            _ => 0,
+        };
+        var badges = new PlayerBadges(_player.Speed, _player.AbLoop?.B is not null, _player.StopAfterCurrent, sleepMinutes,
+            _track is not null && output is { } o && o.DeviceRate > 0 && o.DeviceRate != _track.Stream.SampleRate);
+        var indicators = DisplayText.Indicators(_track, _player.ReplayGain, badges);
+        if (!indicators.SequenceEqual(Indicators))
+        {
+            Indicators = indicators;
+        }
+    }
 
     private void OnAnalysisChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
     {
@@ -180,6 +218,7 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
     {
         Shuffle = _player.Shuffle;
         Repeat = _player.Repeat;
+        UpdateIndicators(); // PB-08 A-B, PB-09 stop after current
     });
 
     private void OnPlaybackError(object? sender, PlaybackErrorEventArgs e) => Dispatcher.UIThread.Post(() =>
@@ -190,7 +229,7 @@ public sealed class PlayerViewModel : INotifyPropertyChanged, IDisposable
         Track = track;
         Duration = track?.Duration;
         Title = DisplayText.Title(track);
-        Indicators = DisplayText.Indicators(track, _player.ReplayGain);
+        UpdateIndicators();
         OnPropertyChanged(nameof(TimeText));
     }
 

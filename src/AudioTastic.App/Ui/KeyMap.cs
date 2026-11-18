@@ -28,8 +28,10 @@ public static class KeyMap
         [(Key.D, KeyModifiers.Control)] = "doubleSize",
         [(Key.P, KeyModifiers.Control)] = "settings",
         [(Key.L, KeyModifiers.Control)] = "openUrl",
-        // Reserved for later phases: Q queue (PB-09), Shift+V stop after current (PB-09),
-        // [ A-B repeat (PB-08), Alt+G/E/L windows (EQ, PL, AL), Ctrl+E tags, Alt+3 file info.
+        [(Key.V, KeyModifiers.Shift)] = "stopAfterCurrent",
+        [(Key.OemOpenBrackets, KeyModifiers.None)] = "abRepeat",
+        [(Key.Q, KeyModifiers.None)] = "queue",
+        // Reserved for later phases: Alt+G/L windows (EQ, AL), Ctrl+E tags, Alt+3 file info.
         [(Key.G, KeyModifiers.Alt)] = "equalizer",
         [(Key.E, KeyModifiers.Alt)] = "playlist",
     };

@@ -265,7 +265,11 @@ internal sealed class PlaylistSearchBox : Border, IDisposable
                 var selection = _controller.Selection;
                 var visible = _controller.Visible;
                 var entry = selection.Count > 0 ? selection[0] : visible.Count > 0 ? visible[0] : null;
-                if (entry is not null)
+                if (entry is not null && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                {
+                    _controller.Queue([entry]); // PB-09: Shift+Enter queues the result
+                }
+                else if (entry is not null)
                 {
                     _controller.Play(entry);
                 }

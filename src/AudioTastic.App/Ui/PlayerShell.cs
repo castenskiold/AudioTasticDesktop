@@ -45,12 +45,22 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private readonly PluginHost _plugins;
     private Skin? _fallbackSkin;
     private SettingsWindow? _settingsWindow;
+    private readonly SleepTimerService _sleep;
     private bool _exiting;
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        AnalysisCoordinator analysis, ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, SleepTimerService sleep, ILoggerFactory loggerFactory)
     {
+        _sleep = sleep;
+        // PB-10: the timer stopped playback; close the app when Settings › Playback says so.
+        sleep.Finished += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (sleep.CloseApp)
+            {
+                Exit();
+            }
+        });
         _playlists = playlists;
         _plugins = plugins;
         _engine = engine;
@@ -62,7 +72,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _paths = paths;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PlayerShell>();
-        Player = new PlayerViewModel(engine, settings, analysis);
+        Player = new PlayerViewModel(engine, settings, analysis, sleep);
         _plugins.PluginDisabled += OnPluginDisabled;
     }
 
@@ -179,6 +189,12 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "miniPlayer": case "expand": case "titleDoubleClick": ToggleMiniPlayer(); break;
             case "doubleSize": _settings.Update(SettingsGroup.Interface, s => s.Interface.DoubleSize = !s.Interface.DoubleSize); break;
             case "settings": ShowSettings(); break;
+            case "abRepeat": Run(player.AbRepeatAsync); break; // PB-08: [ sets A, then B, then clears
+            case "stopAfterCurrent": player.StopAfterCurrent = !player.StopAfterCurrent; break; // PB-09
+            case "queue": _playlists.QueueSelection(); break; // PB-09: Q
+            case "clearQueue": player.Queue.Clear(); break;
+            case "speed": ShowDialog(new SpeedWindow(player)); break; // PB-06
+            case "sleepTimer": ShowDialog(new SleepTimerWindow(_sleep)); break; // PB-10
             case "about": ShowAbout(); break;
             default:
                 // equalizer, crossfade, cast: windows/features arrive in later phases.
@@ -190,6 +206,12 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public void BeginDrag(Control source, PointerPressedEventArgs e) => _snap.BeginDrag(source, e);
 
     public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist";
+
+    private void ShowDialog(Window dialog)
+    {
+        var owner = _main!.IsVisible ? _main : _mini!;
+        _ = dialog.ShowDialog(owner);
+    }
 
     public Control? CreateElement(Skin skin, SkinElement element) => PlaylistViews.Create(skin, element, _playlists);
 
@@ -459,7 +481,36 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         {
             Run(() => _playlists.AddAsync(_options.Files, play: true)); // PL-04: added to the active playlist and played
         }
+        else
+        {
+            ResumeSession();
+        }
     }
+
+    /// <summary>PB-07: reopens the last track at its position (paused or playing, Settings › Playback).</summary>
+    private void ResumeSession()
+    {
+        var playback = _settings.Current.Playback;
+        if (playback.ResumeSession == ResumeMode.Off || playback.LastSession is not { } session)
+        {
+            return;
+        }
+        var playlists = _playlists.Service.Playlists;
+        var playlist = playlists.FirstOrDefault(p => p.Id.ToString() == session.PlaylistId) ?? _playlists.Active;
+        var entries = playlist.Entries;
+        var entry = session.Index < entries.Length && PathEquals(entries[session.Index].Path, session.Path)
+            ? entries[session.Index]
+            : entries.FirstOrDefault(e => PathEquals(e.Path, session.Path));
+        if (entry is null)
+        {
+            _logger.LogInformation("Last session's track {Path} is no longer in its playlist", session.Path);
+            return;
+        }
+        var play = playback.ResumeSession == ResumeMode.Playing && session.WasPlaying;
+        Run(() => _engine.ResumeSessionAsync(playlist, entry, TimeSpan.FromSeconds(session.PositionSeconds), play));
+    }
+
+    private static bool PathEquals(string a, string b) => string.Equals(a, b, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     // ---- dialogs and menu -----------------------------------------------------------------------------
 
@@ -702,12 +753,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                             Header = "Repeat",
                             ItemsSource = new object[] { Repeat("Off", RepeatMode.Off), Repeat("Playlist", RepeatMode.Playlist), Repeat("Track", RepeatMode.Track) },
                         },
-                        Item("Speed…", enabled: false),
-                        Item("A-B repeat", enabled: false),
-                        Item("Stop after current", enabled: false),
+                        Item("Speed…", "speed"),
+                        Item(player.AbLoop is null ? "A-B repeat: set A  [" : player.AbLoop.B is null ? "A-B repeat: set B  [" : "A-B repeat: clear  [", "abRepeat",
+                            check: player.AbLoop?.B is not null),
+                        Item("Stop after current  Shift+V", "stopAfterCurrent", check: player.StopAfterCurrent),
+                        Item("Clear queue", "clearQueue", enabled: player.Queue.Count > 0),
                     },
                 },
-                Item("Sleep timer…", enabled: false),
+                Item(_sleep.Mode is null ? "Sleep timer…" : $"Sleep timer… ({SleepTimerWindow.Describe(_sleep)})", "sleepTimer", check: _sleep.Mode is not null ? true : null),
                 Item("Cast to…", enabled: false),
                 Item("Visualisation", enabled: false),
                 new MenuItem

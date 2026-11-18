@@ -32,6 +32,9 @@ public sealed class WaveformControl : Control, IDisposable
     private double? _dragPosition;
     private bool _live;
     private bool _canSeek;
+    private double? _loopA;   // 0-1
+    private double? _loopB;
+    private int _dragMarker;   // 0 = none, 1 = A, 2 = B
 
     public WaveformControl(Skin skin, SkinElement element)
     {
@@ -46,6 +49,20 @@ public sealed class WaveformControl : Control, IDisposable
 
     /// <summary>Raised with the chosen position (0–1) when the user clicks or finishes dragging.</summary>
     public event EventHandler<double>? SeekRequested;
+
+    /// <summary>PB-08: the A or B marker was dragged; (A, B) as fractions 0–1.</summary>
+    public event EventHandler<(double A, double B)>? LoopChanged;
+
+    /// <summary>PB-08: shows the A-B loop (fractions 0–1; B null while only A is set).</summary>
+    public void SetLoop(double? a, double? b)
+    {
+        if (_dragMarker == 0 && (a != _loopA || b != _loopB))
+        {
+            _loopA = a;
+            _loopB = b;
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>Updates what is shown; called on every player update (about 10 times a second).</summary>
     public void Update(Waveform? waveform, double? progress, double position, bool canSeek, bool live, PeakTap? peaks, bool playing)
@@ -97,6 +114,24 @@ public sealed class WaveformControl : Control, IDisposable
         else
         {
             RenderWaveform(context, w, h);
+        }
+        if (_loopA is { } la)
+        {
+            // PB-08: the loop region, lightly shaded, with A and B markers (small flags at the top).
+            var ax = la * w;
+            var bx = (_loopB ?? la) * w;
+            if (_loopB is not null)
+            {
+                using (context.PushOpacity(0.18))
+                {
+                    context.FillRectangle(_thumb, new Rect(ax, 0, Math.Max(1, bx - ax), h));
+                }
+            }
+            foreach (var mx in _loopB is null ? new[] { ax } : [ax, bx])
+            {
+                context.FillRectangle(_thumb, new Rect(Math.Min(mx, w - 1), 0, 1, h));
+                context.FillRectangle(_thumb, new Rect(Math.Min(mx, w - 3), 0, 3, 3));
+            }
         }
         if (_canSeek)
         {
@@ -185,6 +220,17 @@ public sealed class WaveformControl : Control, IDisposable
         if (_canSeek && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             e.Pointer.Capture(this);
+            // PB-08: a press within 4 units of an A/B marker drags that marker.
+            var px = e.GetPosition(this).X;
+            if (_loopA is { } la && _loopB is { } lb && Bounds.Width > 0)
+            {
+                _dragMarker = Math.Abs(px - (la * Bounds.Width)) <= 4 ? 1 : Math.Abs(px - (lb * Bounds.Width)) <= 4 ? 2 : 0;
+                if (_dragMarker != 0)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
             _dragPosition = PositionAt(e.GetPosition(this));
             InvalidateVisual();
             e.Handled = true;
@@ -194,6 +240,20 @@ public sealed class WaveformControl : Control, IDisposable
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        if (_dragMarker != 0)
+        {
+            var f = PositionAt(e.GetPosition(this));
+            if (_dragMarker == 1)
+            {
+                _loopA = Math.Min(f, _loopB ?? 1);
+            }
+            else
+            {
+                _loopB = Math.Max(f, _loopA ?? 0);
+            }
+            InvalidateVisual();
+            return;
+        }
         if (_dragPosition is not null)
         {
             _dragPosition = PositionAt(e.GetPosition(this));
@@ -204,6 +264,17 @@ public sealed class WaveformControl : Control, IDisposable
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_dragMarker != 0)
+        {
+            _dragMarker = 0;
+            e.Pointer.Capture(null);
+            if (_loopA is { } a && _loopB is { } b)
+            {
+                LoopChanged?.Invoke(this, (a, b));
+            }
+            e.Handled = true;
+            return;
+        }
         if (_dragPosition is { } position)
         {
             _dragPosition = null;
@@ -219,6 +290,7 @@ public sealed class WaveformControl : Control, IDisposable
     {
         base.OnPointerCaptureLost(e);
         _dragPosition = null;
+        _dragMarker = 0;
         InvalidateVisual();
     }
 

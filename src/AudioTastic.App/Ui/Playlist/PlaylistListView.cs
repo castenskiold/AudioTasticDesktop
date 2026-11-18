@@ -79,6 +79,16 @@ internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController contro
             DrawStreamIcon(context, w - 4, h);
         }
 
+        // PB-09: queue position(s) "[1]" and PB-07: a resume marker "»" before the duration.
+        var queue = controller.QueuePositions(entry);
+        var marks = (queue.Count > 0 ? "[" + string.Join(",", queue) + "] " : string.Empty) + (controller.HasResumePosition(entry) ? "» " : string.Empty);
+        if (marks.Length > 0)
+        {
+            var mark = Text(marks, style.Typeface, style.Playing);
+            durationWidth += mark.WidthIncludingTrailingWhitespace + 2;
+            context.DrawText(mark, new Point(w - 4 - durationWidth, (h - mark.Height) / 2));
+        }
+
         var title = Text(entry.DisplayName, playing ? style.PlayingTypeface : style.Typeface,
             missing ? style.Muted : playing ? style.Playing : style.Text);
         title.MaxTextWidth = Math.Max(1, w - numberColumn - 6 - durationWidth - 10);
@@ -294,6 +304,9 @@ internal sealed class PlaylistListView : Panel, IDisposable
                 break;
             case Key.Delete:
                 _controller.RemoveSelected();
+                break;
+            case Key.Q when e.KeyModifiers == KeyModifiers.None:
+                _controller.QueueSelection(); // PB-09
                 break;
             case Key.Up when e.KeyModifiers == KeyModifiers.Alt:
                 _controller.MoveSelection(-1);
