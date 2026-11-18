@@ -23,6 +23,9 @@ public enum PlaybackState
 /// <param name="Duration">Length, when known.</param>
 public sealed record TrackInfo(string Path, string Title, string? Artist, AudioStreamInfo Stream, TimeSpan? Duration);
 
+/// <summary>PB-08: an A-B loop; <see cref="B"/> is null while only A has been set.</summary>
+public sealed record AbLoop(TimeSpan A, TimeSpan? B);
+
 /// <summary>PB-04 / PB-05: output mode, sample format, the rate the graph renders at and the hardware's rate.</summary>
 public sealed record OutputStatus(bool Exclusive, OutputSampleFormat SampleFormat, int RenderRate, int DeviceRate);
 
@@ -111,6 +114,23 @@ public interface IPlayerController
 
     /// <summary>CO-07: recent peaks of the mixed signal (live waveform for streams).</summary>
     PeakTap Peaks { get; }
+
+    /// <summary>PB-09: the "play next" queue.</summary>
+    QueueService Queue { get; }
+
+    /// <summary>PB-09: stop when the current track ends (one-shot). Raises PlayModeChanged.</summary>
+    bool StopAfterCurrent { get; set; }
+
+    /// <summary>PB-08: the A-B loop; null when off.</summary>
+    AbLoop? AbLoop { get; }
+
+    /// <summary>PB-08: A, then B (loop), then off.</summary>
+    Task AbRepeatAsync();
+
+    /// <summary>PB-08: sets the loop (markers dragged on the waveform).</summary>
+    Task SetAbLoopAsync(TimeSpan a, TimeSpan b);
+
+    Task ClearAbLoopAsync();
 
     /// <summary>PB-04 / PB-05: how the output is running; null when closed.</summary>
     OutputStatus? OutputStatus { get; }

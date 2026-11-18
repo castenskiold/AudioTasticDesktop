@@ -56,6 +56,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private long _handoversSeen;
     private int _preloading;
     private OutputOptions? _outputOptions;
+    private bool _stopAfterCurrent;
+    private AbLoop? _abLoop;
     private IReplayGainProvider? _gainProvider;
     private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
@@ -150,6 +152,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public event EventHandler<PlaybackErrorEventArgs>? PlaybackError;
     public event EventHandler<EventArgs>? PlayModeChanged;
 
+    /// <summary>PB-09 / PB-10: playback stopped at the end of a track (stop after current, end of the playlist).</summary>
+    public event EventHandler<EventArgs>? TrackEndedStop;
+
     /// <summary>PB-04 / PB-05: the output was (re)opened: see <see cref="OutputStatus"/>.</summary>
     public event EventHandler<EventArgs>? OutputChanged;
 
@@ -157,6 +162,72 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public OutputStatus? OutputStatus => _output.IsOpen && _output.Format is { } format
         ? new OutputStatus(_output.IsExclusive, _output.SampleFormat, format.SampleRate, _output.DeviceSampleRate)
         : null;
+
+    /// <summary>PB-09: the "play next" queue.</summary>
+    public QueueService Queue { get; } = new();
+
+    /// <summary>PB-09: stop when the current track ends (switches itself off). Raises PlayModeChanged.</summary>
+    public bool StopAfterCurrent
+    {
+        get => _stopAfterCurrent;
+        set => _ = RunAsync(async () =>
+        {
+            if (value != _stopAfterCurrent)
+            {
+                _stopAfterCurrent = value;
+                if (value)
+                {
+                    await CancelPreloadAsync().ConfigureAwait(false);
+                }
+                Raise(PlayModeChanged, EventArgs.Empty);
+            }
+        });
+    }
+
+    /// <summary>PB-08: the A-B loop (B null while only A is set); null when off.</summary>
+    public AbLoop? AbLoop => _abLoop;
+
+    /// <summary>
+    /// PB-08 ([ key): first press sets A at the current position, the second sets B and starts looping, the third
+    /// clears the loop. Not for streams.
+    /// </summary>
+    public Task AbRepeatAsync() => RunAsync(async () =>
+    {
+        if (_track is null || !_canSeek || _state == PlaybackState.Stopped || _track.Duration is null)
+        {
+            return;
+        }
+        var position = Position;
+        if (_abLoop is null)
+        {
+            _abLoop = new AbLoop(position, null);
+        }
+        else if (_abLoop.B is null)
+        {
+            await ApplyLoopAsync(_abLoop.A, position).ConfigureAwait(false);
+            return;
+        }
+        else
+        {
+            ClearLoop();
+        }
+        Raise(PlayModeChanged, EventArgs.Empty);
+    });
+
+    /// <summary>PB-08: sets the loop directly (markers dragged on the waveform); at least 1 s long.</summary>
+    public Task SetAbLoopAsync(TimeSpan a, TimeSpan b) => RunAsync(() =>
+        _track is null || !_canSeek || _state == PlaybackState.Stopped ? Task.CompletedTask : ApplyLoopAsync(a, b));
+
+    /// <summary>PB-08: removes the loop.</summary>
+    public Task ClearAbLoopAsync() => RunAsync(() =>
+    {
+        if (_abLoop is not null)
+        {
+            ClearLoop();
+            Raise(PlayModeChanged, EventArgs.Empty);
+        }
+        return Task.CompletedTask;
+    });
 
     /// <summary>PB-03: <see cref="ReplayGain"/> changed (new track, analysis finished, settings changed).</summary>
     public event EventHandler<EventArgs>? ReplayGainChanged;
@@ -295,7 +366,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
     });
 
-    public Task StopAsync() => RunAsync(StopCoreAsync);
+    public Task StopAsync() => RunAsync(async () =>
+    {
+        await StopCoreAsync().ConfigureAwait(false);
+        if (_settings.Current.Playback.ClearQueueOnStop)
+        {
+            Queue.Clear(); // PB-09
+        }
+    });
 
     public Task PreviousAsync() => RunAsync(async () =>
     {
@@ -314,10 +392,16 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public Task NextAsync() => RunAsync(async () =>
     {
+        var play = _state is PlaybackState.Playing or PlaybackState.Paused;
+        if (TakeFromQueue() is { } queued)
+        {
+            await GoToAsync(queued, play).ConfigureAwait(false);
+            return;
+        }
         SyncOrder();
         if (_playOrder.Next(CurrentIndexCore(), trackEnded: false) is int next)
         {
-            await GoToAsync(next, _state is PlaybackState.Playing or PlaybackState.Paused).ConfigureAwait(false);
+            await GoToAsync(next, play).ConfigureAwait(false);
         }
     });
 
@@ -423,6 +507,11 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _entry = entry;
             _track = track;
             _lastUnderruns = 0;
+            if (_abLoop is not null)
+            {
+                _abLoop = null; // the deck was reloaded, so its loop is gone
+                Raise(PlayModeChanged, EventArgs.Empty);
+            }
             AttachStreamMetadata(metadata);
             _logger.LogInformation("Playing {Path} ({Codec}, {Rate} Hz, {Channels} ch) on {Device}",
                 path, track.Stream.Codec, track.Stream.SampleRate, track.Stream.Channels, _output.DeviceName);
@@ -761,7 +850,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             {
                 _ = Task.Run(PreloadAsync);
             }
-            else if (_preload is { } p && p.Playlist.Version != p.PlaylistVersion)
+            else if (_preload is { } p && (p.Playlist.Version != p.PlaylistVersion || Queue.Version != p.QueueVersion))
             {
                 _ = Task.Run(() => RunAsync(CancelPreloadAsync)); // the playlist changed: the next track may be another one
             }
@@ -793,6 +882,19 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 {
                     ReportError(_track.Path, fault);
                 }
+                if (_stopAfterCurrent)
+                {
+                    _stopAfterCurrent = false; // PB-09: one-shot
+                    Raise(PlayModeChanged, EventArgs.Empty);
+                    await StopCoreAsync().ConfigureAwait(false);
+                    TrackEndedStop?.Invoke(this, EventArgs.Empty);
+                    return;
+                }
+                if (TakeFromQueue() is { } queued)
+                {
+                    await PlayIndexCoreAsync(queued).ConfigureAwait(false);
+                    return;
+                }
                 SyncOrder();
                 if (_playOrder.Next(CurrentIndexCore(), trackEnded: true) is int next)
                 {
@@ -801,6 +903,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 else
                 {
                     await StopCoreAsync().ConfigureAwait(false);
+                    TrackEndedStop?.Invoke(this, EventArgs.Empty);
                 }
             }).ConfigureAwait(false);
         }
@@ -861,19 +964,85 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>Preloading starts this long before the end of the current track.</summary>
     private static readonly TimeSpan PreloadLead = TimeSpan.FromSeconds(10);
 
-    private sealed record Preloaded(Playlist Playlist, int PlaylistVersion, PlaylistEntry Entry, int Index, TrackInfo Track,
-        ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek);
+    private sealed record Preloaded(Playlist Playlist, int PlaylistVersion, int QueueVersion, PlaylistEntry Entry, int Index,
+        TrackInfo Track, ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek);
 
     private bool ShouldPreload() =>
-        _preload is null && _graph.Next is null && _track?.Duration is { } duration && _settings.Current.Playback.Gapless &&
+        _preload is null && _graph.Next is null && !_stopAfterCurrent && _abLoop?.B is null &&
+        _track?.Duration is { } duration && _settings.Current.Playback.Gapless &&
         duration - Position <= PreloadLead && _entry is { IsUrl: false };
 
     /// <summary>The entry that follows the current one at its end, without changing any state; null for none.</summary>
     private (Playlist Playlist, int Index)? PeekNext()
     {
+        if (Queue.Peek() is { } queued)
+        {
+            return (queued.Playlist, queued.Index); // PB-09: the queue comes first
+        }
         SyncOrder();
         return _playOrder.Next(CurrentIndexCore(), trackEnded: true) is int next ? (_playlist, next) : null;
     }
+
+    /// <summary>PB-09: takes the next queued entry and makes its playlist the playing one; returns its index.</summary>
+    private int? TakeFromQueue()
+    {
+        if (Queue.Dequeue() is not { } queued)
+        {
+            return null;
+        }
+        _playlist = queued.Playlist;
+        _entry = queued.Entry;
+        SyncOrder(force: true);
+        return queued.Index;
+    }
+
+    /// <summary>True when the playback stops at the end of the current track (no gapless preload then).</summary>
+    public bool WillStopAtEnd => _stopAfterCurrent || PeekNextForSleep() is null;
+
+    private (Playlist, int)? PeekNextForSleep()
+    {
+        if (Queue.Peek() is { } queued)
+        {
+            return (queued.Playlist, queued.Index);
+        }
+        return _playOrder.Next(Math.Max(0, _index), trackEnded: true) is int next ? (_playlist, next) : null;
+    }
+
+    private async Task ApplyLoopAsync(TimeSpan a, TimeSpan b)
+    {
+        var duration = _track?.Duration ?? TimeSpan.Zero;
+        if (b < a)
+        {
+            (a, b) = (b, a);
+        }
+        a = a < TimeSpan.Zero ? TimeSpan.Zero : a;
+        if (b - a < MinimumLoop)
+        {
+            b = a + MinimumLoop;
+        }
+        if (b > duration)
+        {
+            b = duration;
+            a = b - MinimumLoop < TimeSpan.Zero ? TimeSpan.Zero : (a > b - MinimumLoop ? b - MinimumLoop : a);
+        }
+        _abLoop = new AbLoop(a, b);
+        await CancelPreloadAsync().ConfigureAwait(false);
+        _deck.SetLoop(_sourceFormat.TimeToFrames(a), _sourceFormat.TimeToFrames(b));
+        if (Position >= b || Position < a)
+        {
+            await _deck.SeekAsync(_sourceFormat.TimeToFrames(a)).ConfigureAwait(false);
+        }
+        Raise(PlayModeChanged, EventArgs.Empty);
+    }
+
+    private void ClearLoop()
+    {
+        _abLoop = null;
+        _deck.ClearLoop();
+    }
+
+    /// <summary>PB-08: the shortest loop (longer than the deck's buffer, so the loop position mapping holds).</summary>
+    private static readonly TimeSpan MinimumLoop = TimeSpan.FromSeconds(1);
 
     private async Task PreloadAsync()
     {
@@ -926,7 +1095,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 _spare.Gain.TargetGain = gain?.Linear ?? 1f;
                 _spare.Gain.SnapToTarget();
                 await _spare.LoadAsync(source, armed: true).ConfigureAwait(false);
-                _preload = new Preloaded(next.Playlist, next.Playlist.Version, entry, next.Index, track, gain, source.Format, source.CanSeek);
+                _preload = new Preloaded(next.Playlist, next.Playlist.Version, Queue.Version, entry, next.Index, track, gain, source.Format, source.CanSeek);
                 _graph.Next = _spare;
                 _logger.LogDebug("Preloaded {Path} for a gapless start", entry.Path);
             }).ConfigureAwait(false);
@@ -978,10 +1147,19 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
         (_deck, _spare) = (_spare, _deck);
         _preload = null;
+        if (Queue.Peek() is { } queued && ReferenceEquals(queued.Entry, p.Entry))
+        {
+            Queue.Dequeue(); // PB-09: the queued entry is playing now
+        }
+        var newPlaylist = !ReferenceEquals(_playlist, p.Playlist);
         _preloadSkipped = null;
         _playlist = p.Playlist;
         _entry = p.Entry;
         _index = p.Index;
+        if (newPlaylist)
+        {
+            SyncOrder(force: true);
+        }
         _track = p.Track;
         _sourceFormat = p.Format;
         _canSeek = p.CanSeek;
