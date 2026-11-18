@@ -7,8 +7,43 @@ namespace AudioTastic.Plugins.Host;
 /// and passes through; any other exception is a plugin fault: it is reported (3 in a minute disable the plugin) and
 /// turned into an <see cref="AudioSourceException"/>, so playback moves on instead of crashing.
 /// </summary>
-internal sealed class GuardedSourceFactory(IAudioSourceFactory inner, PluginRecord plugin, PluginHost host) : IAudioSourceFactory
+internal sealed class GuardedSourceFactory(IAudioSourceFactory inner, PluginRecord plugin, PluginHost host) : IAudioSourceFactory, IDopSourceFactory
 {
+    /// <summary>FM-05: forwards DoP support of the plugin's factory (false when it has none).</summary>
+    public bool IsDsd(string path)
+    {
+        if (inner is not IDopSourceFactory dop || plugin.Status != PluginStatus.Enabled)
+        {
+            return false;
+        }
+        var result = false;
+        host.Guard(plugin, () => result = dop.IsDsd(path));
+        return result;
+    }
+
+    public IAudioSource OpenDop(string path)
+    {
+        if (inner is not IDopSourceFactory dop)
+        {
+            throw new AudioSourceException("This decoder cannot play DoP.");
+        }
+        try
+        {
+            return new GuardedAudioSource(dop.OpenDop(path), plugin, host);
+        }
+        catch (AudioSourceException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Converted to AudioSourceException after reporting.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            host.ReportFault(plugin, ex);
+            throw new AudioSourceException($"The {plugin.Manifest.Name} plugin failed: {ex.Message}", ex);
+        }
+    }
+
     public IAudioSourceFactory Inner => inner;
     public PluginRecord Plugin => plugin;
     public string Name => inner.Name;

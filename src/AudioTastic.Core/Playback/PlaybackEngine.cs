@@ -65,6 +65,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private TimeSpan? _startAt;
     private bool _startPaused;
     private bool _endedNaturally;
+    private bool _bitPerfect; // FM-05: a DoP track is playing: no gain, fades, speed or ReplayGain may touch it
     private IReplayGainProvider? _gainProvider;
     private ReplayGainDecision? _replayGain;
     private IStreamMetadata? _streamMetadata;
@@ -585,7 +586,19 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             }
             try
             {
-                await StartSourceAsync(source, startPaused).ConfigureAwait(false);
+                try
+                {
+                    await StartSourceAsync(source, startPaused).ConfigureAwait(false);
+                }
+                catch (DopRefusedException)
+                {
+                    // FM-05: exclusive mode is not available: play the DSD file as PCM instead.
+                    _logger.LogWarning("DoP needs exclusive mode, which the device refused; converting DSD to PCM");
+                    source.Dispose();
+                    source = await Task.Run(() => OpenSource(entry, allowDop: false)).ConfigureAwait(false);
+                    track = BuildTrack(entry, source, metadata);
+                    await StartSourceAsync(source, startPaused).ConfigureAwait(false);
+                }
             }
             catch (Exception ex) when (ex is InvalidOperationException or AudioSourceException or IOException)
             {
@@ -619,8 +632,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private async Task StartSourceAsync(IAudioSource source, bool paused = false)
     {
         await CancelPreloadAsync().ConfigureAwait(false);
+        var dop = IsDop(source);
         var bits = source.Info.IsLossless ? source.Info.BitsPerSample : 0;
-        var (graphFormat, options) = ChooseOutput(source.Format, bits);
+        var (graphFormat, options) = dop ? ChooseDopOutput(source.Format) : ChooseOutput(source.Format, bits);
         if (!_output.IsOpen || _output.Format != graphFormat || !SameOutputMode(options))
         {
             await StopOutputAsync().ConfigureAwait(false);
@@ -631,10 +645,15 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             _output.SetDither(options.Dither);
         }
+        if (dop && (!_output.IsExclusive || _graph.Format.SampleRate != source.Format.SampleRate))
+        {
+            throw new DopRefusedException();
+        }
         if (source.Format.SampleRate != _graph.Format.SampleRate)
         {
             source = new ResamplingSource(source, _graph.Format.SampleRate); // PB-05: device cannot do the track's rate
         }
+        SetBitPerfect(dop);
         _graph.Paused = paused;
         _graph.Fade.Snap(true); // a new track starts at full level (after a stop fade)
         _sourceFormat = source.Format;
@@ -645,6 +664,28 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             StartOutput();
         }
     }
+
+    /// <summary>FM-05: DoP is wanted for this file (Settings › Output: exclusive mode and DSD mode DoP).</summary>
+    private bool WantDop(IAudioSourceFactory factory, string path)
+    {
+        var output = _settings.Current.Output;
+        return output.Exclusive && output.DsdMode == DsdMode.Dop && factory is IDopSourceFactory dop && dop.IsDsd(path);
+    }
+
+    private bool DeviceSupportsDop(int rate)
+    {
+        var formats = _output.GetDeviceFormats(FindDevice(_settings.Current.Output.DeviceName));
+        return formats.Count == 0 || formats.Any(f => f.SampleRate is 0 || f.SampleRate == rate) &&
+            formats.Any(f => (f.SampleRate is 0 || f.SampleRate == rate) && f.SampleFormat is OutputSampleFormat.S24 or OutputSampleFormat.S32);
+    }
+
+    private static bool IsDop(IAudioSource source) => source.Info.Codec == "dop";
+
+    private bool WantDopFor(PlaylistEntry entry) =>
+        !entry.IsUrl && _factories.FirstOrDefault(f => f.CanOpen(entry.Path)) is { } factory && WantDop(factory, entry.Path);
+
+    /// <summary>FM-05: exclusive mode could not be used for a DoP track (it then plays as PCM).</summary>
+    private sealed class DopRefusedException() : Exception("DoP needs exclusive mode.");
 
     private bool SameOutputMode(OutputOptions wanted) =>
         _outputOptions is { } current && current.Exclusive == wanted.Exclusive && current.SampleFormat == wanted.SampleFormat;
@@ -688,6 +729,35 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         return (new AudioFormat(rate, EngineChannels), new OutputOptions(output.BufferMilliseconds, Exclusive: true, format, dither));
     }
 
+    /// <summary>FM-05: DoP goes out exclusively at its own rate, 24 bit (or 32), without dither.</summary>
+    private (AudioFormat Format, OutputOptions Options) ChooseDopOutput(AudioFormat source)
+    {
+        var output = _settings.Current.Output;
+        var formats = _output.GetDeviceFormats(FindDevice(output.DeviceName))
+            .Where(f => (f.SampleRate is 0 || f.SampleRate == source.SampleRate) && f.SampleFormat is OutputSampleFormat.S24 or OutputSampleFormat.S32)
+            .Select(f => f.SampleFormat).ToList();
+        var format = formats.Count == 0 || formats.Contains(OutputSampleFormat.S24) ? OutputSampleFormat.S24 : OutputSampleFormat.S32;
+        return (new AudioFormat(source.SampleRate, EngineChannels), new OutputOptions(output.BufferMilliseconds, Exclusive: true, format, Dither: false));
+    }
+
+    /// <summary>FM-05: while DoP plays, volume, ReplayGain, fades and speed are bypassed (mute still works).</summary>
+    private void SetBitPerfect(bool on)
+    {
+        if (_bitPerfect == on)
+        {
+            return;
+        }
+        _bitPerfect = on;
+        ApplyGain();
+        _graph.Master.SnapToTarget();
+        ApplySpeed();
+        if (on)
+        {
+            _deck.Gain.TargetGain = 1f;
+            _deck.Gain.SnapToTarget();
+        }
+    }
+
     private AudioDeviceInfo? FindDevice(string? name) =>
         name is null ? null : _output.GetDevices().FirstOrDefault(d => d.Name == name);
 
@@ -717,7 +787,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             frame = Math.Min(frame, _sourceFormat.TimeToFrames(duration));
         }
         var fades = _settings.Current.Playback.Fades;
-        var fade = fades.OnSeek && _state == PlaybackState.Playing ? fades.SeekMilliseconds : 0;
+        var fade = fades.OnSeek && _state == PlaybackState.Playing && !_bitPerfect ? fades.SeekMilliseconds : 0;
         await FadeOutAsync(fade).ConfigureAwait(false);
         await _deck.SeekAsync(frame).ConfigureAwait(false);
         if (fade > 0)
@@ -730,7 +800,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private void ResumeCore()
     {
         var fades = _settings.Current.Playback.Fades;
-        if (fades.OnPause && fades.PauseMilliseconds > 0)
+        if (fades.OnPause && fades.PauseMilliseconds > 0 && !_bitPerfect)
         {
             _graph.Fade.FadeIn(fades.PauseMilliseconds, fromSilence: true); // PB-02: fade in on resume
             _graph.Paused = false;
@@ -746,7 +816,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>PB-02: fades the output out and waits until it is silent (no-op when not playing or 0 ms).</summary>
     private async Task FadeOutAsync(int milliseconds)
     {
-        if (milliseconds <= 0 || _state != PlaybackState.Playing || !_output.IsRunning)
+        if (milliseconds <= 0 || _state != PlaybackState.Playing || !_output.IsRunning || _bitPerfect)
         {
             return;
         }
@@ -804,7 +874,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _output.StartOutput();
     }
 
-    private IAudioSource OpenSource(PlaylistEntry entry)
+    private IAudioSource OpenSource(PlaylistEntry entry, bool allowDop = true)
     {
         var path = entry.Path;
         var factory = _factories.FirstOrDefault(f => f.CanOpen(path))
@@ -813,6 +883,16 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         {
             entry.IsMissing = true;
             throw new AudioSourceException("File not found.");
+        }
+        if (allowDop && entry.Start is null && WantDop(factory, path))
+        {
+            var dop = ((IDopSourceFactory)factory).OpenDop(path);
+            if (DeviceSupportsDop(dop.Format.SampleRate))
+            {
+                return dop;
+            }
+            dop.Dispose();
+            _logger.LogInformation("The device has no 24/32-bit exclusive format at {Rate} Hz for DoP; converting DSD to PCM", dop.Format.SampleRate);
         }
         var source = factory.Open(path);
         if (entry.Start is not { } start)
@@ -1072,7 +1152,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         TrackInfo Track, ReplayGainDecision? Gain, AudioFormat Format, bool CanSeek);
 
     private bool ShouldPreload() =>
-        _preload is null && _graph.Next is null && !_stopAfterCurrent && _abLoop?.B is null &&
+        _preload is null && _graph.Next is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
         _track?.Duration is { } duration && _settings.Current.Playback.Gapless &&
         duration - Position <= PreloadLead && _entry is { IsUrl: false };
 
@@ -1159,14 +1239,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                     return;
                 }
                 var entry = next.Playlist.Entries[next.Index];
-                if (entry.IsUrl || ReferenceEquals(entry, _preloadSkipped))
+                if (entry.IsUrl || ReferenceEquals(entry, _preloadSkipped) || WantDopFor(entry))
                 {
-                    return;
+                    return; // FM-05: a DoP track starts on its own (exclusive output at its rate)
                 }
                 IAudioSource source;
                 try
                 {
-                    source = await Task.Run(() => OpenSource(entry)).ConfigureAwait(false);
+                    source = await Task.Run(() => OpenSource(entry, allowDop: false)).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is AudioSourceException or IOException or UnauthorizedAccessException or NotSupportedException)
                 {
@@ -1293,8 +1373,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private void ApplySpeed()
     {
-        _deck.SetSpeed(_speed, _keepPitch);
-        _spare.SetSpeed(_speed, _keepPitch);
+        var speed = _bitPerfect ? 1.0 : _speed; // FM-05: DoP must not be time-stretched
+        _deck.SetSpeed(speed, _keepPitch);
+        _spare.SetSpeed(speed, _keepPitch);
     }
 
     /// <summary>PB-06: with "remember speed per file", a file starts at its saved speed (or 1.0).</summary>
@@ -1398,7 +1479,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
     }
 
-    private void ApplyGain() => _graph.Master.TargetGain = _muted ? 0f : GainStage.VolumeToGain(_volume);
+    private void ApplyGain() => _graph.Master.TargetGain = _muted ? 0f : _bitPerfect ? 1f : GainStage.VolumeToGain(_volume);
 
     /// <summary>PB-03: asks the provider and sets deck A's gain (ramped, 10 ms).</summary>
     private void ApplyReplayGain(PlaylistEntry entry)
@@ -1406,7 +1487,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         ReplayGainDecision? decision = null;
         try
         {
-            decision = _gainProvider?.GetGain(_playlist, entry);
+            decision = WantDopFor(entry) ? null : _gainProvider?.GetGain(_playlist, entry); // FM-05: no gain on DoP
         }
 #pragma warning disable CA1031 // ReplayGain is optional: a failure plays the track unchanged.
         catch (Exception ex)

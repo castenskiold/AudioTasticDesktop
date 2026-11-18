@@ -55,7 +55,7 @@ GAPLESS_FORMATS = ["wav16", "flac", "mp3", "aac", "opus", "vorbis"]
 GAPLESS_SPLIT_SECONDS = 4.321  # deliberately not on a codec frame boundary
 GAPLESS_TOTAL_SECONDS = 10
 
-MISSING = ["ape", "musepack", "shorten", "dsf", "dff", "xm", "it", "s3m"]
+MISSING = ["ape", "musepack", "shorten", "xm", "it", "s3m"]
 
 # FM-06: host OS -> (OptimFROG package, encoder inside it)
 OPTIMFROG = {
@@ -103,6 +103,79 @@ def ffmpeg_loudness(ffmpeg, path: Path):
                             capture_output=True, text=True, check=True)
     values = [line.split("=")[-1] for line in result.stderr.splitlines() if "lavfi.r128.I=" in line]
     return float(values[-1])
+
+
+DSD_RATE = 2_822_400  # DSD64
+DSD_SECONDS = 1.0
+
+
+def dsd_bitstream(seconds=DSD_SECONDS, hz=1000.0, amplitude=0.5, phase=0.0):
+    """1-bit DSD of a sine (2nd-order sigma-delta modulator). Returns a list of bytes, MSB = earliest bit."""
+    import math
+    n = int(DSD_RATE * seconds)
+    out = bytearray((n + 7) // 8)
+    i1 = i2 = 0.0
+    y = 0.0
+    step = 2 * math.pi * hz / DSD_RATE
+    for k in range(n):
+        x = amplitude * math.sin(step * k + phase)
+        i1 += x - y
+        i2 += i1 - y
+        bit = 1 if i2 >= 0 else 0
+        y = 1.0 if bit else -1.0
+        if bit:
+            out[k >> 3] |= 0x80 >> (k & 7)
+    return bytes(out)
+
+
+def reverse_bits(b):
+    return int(f"{b:08b}"[::-1], 2)
+
+
+def write_dsf(path: Path, channels):
+    """DSF (Sony): 4096-byte blocks per channel, LSB-first bit order."""
+    block = 4096
+    per_channel = len(channels[0])
+    blocks = (per_channel + block - 1) // block
+    data = bytearray()
+    lsb = [bytes(reverse_bits(b) for b in ch) for ch in channels]
+    for i in range(blocks):
+        for ch in lsb:
+            chunk = ch[i * block:(i + 1) * block]
+            data += chunk + bytes(block - len(chunk))
+    fmt = struct.pack("<4sQIIIIIIQII", b"fmt ", 52, 1, 0, 2, len(channels), DSD_RATE, 1, per_channel * 8, block, 0)
+    data_chunk = struct.pack("<4sQ", b"data", 12 + len(data)) + data
+    total = 28 + len(fmt) + len(data_chunk)
+    header = struct.pack("<4sQQQ", b"DSD ", 28, total, 0)
+    path.write_bytes(header + fmt + data_chunk)
+
+
+def write_dff(path: Path, channels):
+    """DSDIFF (Philips): byte-interleaved channels, MSB-first bit order, big-endian chunk sizes."""
+    def chunk(cid, body):
+        pad = b"\0" if len(body) % 2 else b""
+        return struct.pack(">4sQ", cid, len(body)) + body + pad
+    ids = [b"SLFT", b"SRGT"][:len(channels)]
+    prop = b"SND " + chunk(b"FS  ", struct.pack(">I", DSD_RATE)) \
+        + chunk(b"CHNL", struct.pack(">H", len(channels)) + b"".join(ids)) \
+        + chunk(b"CMPR", b"DSD " + bytes([14]) + b"not compressed" + b"\0")
+    interleaved = bytes(b for frame in zip(*channels) for b in frame)
+    body = b"DSD " + chunk(b"FVER", struct.pack(">I", 0x01050000)) + chunk(b"PROP", prop) + chunk(b"DSD ", interleaved)
+    path.write_bytes(struct.pack(">4sQ", b"FRM8", len(body)) + body)
+
+
+def write_dsd(out: Path, manifest):
+    """FM-05 fixtures: a 1 kHz sine (left) and 1 kHz sine 90 degrees later (right) as DSD64, in DSF and DFF, plus
+    the raw bitstreams (MSB first) for the DoP tests."""
+    import math
+    left = dsd_bitstream(phase=0.0)
+    right = dsd_bitstream(phase=math.pi / 2)
+    write_dsf(out / "sine1k.dsd64.dsf", [left, right])
+    write_dff(out / "sine1k.dsd64.dff", [left, right])
+    (out / "sine1k.dsd64.raw-left").write_bytes(left)
+    (out / "sine1k.dsd64.raw-right").write_bytes(right)
+    for name in ("sine1k.dsd64.dsf", "sine1k.dsd64.dff"):
+        manifest["files"].append({"file": name, "signal": "sine1k", "format": "dsd64", "seconds": DSD_SECONDS})
 
 
 def write_midi(path: Path):
@@ -155,6 +228,7 @@ def main():
                                   "splitSeconds": GAPLESS_SPLIT_SECONDS})
 
     write_optimfrog(out, manifest)
+    write_dsd(out, manifest)
 
     # CO-07 exit criterion: a 5-minute FLAC (music-like: chords with a slow envelope and a beat).
     run(args.ffmpeg, ["-f", "lavfi", "-i",

@@ -42,7 +42,22 @@ public static class DisplayText
             return [];
         }
         var s = track.Stream;
-        var list = new List<string> { CodecLabel(s.Codec, track.Path) };
+        var list = new List<string>();
+        if (s.Codec == "dop")
+        {
+            // FM-05: DoP runs at DSD rate / 16.
+            list.Add(string.Create(CultureInfo.InvariantCulture, $"DSD{s.SampleRate * 16 / 44_100}"));
+            list.Add("DOP");
+        }
+        else if (s.Codec.StartsWith("dsd_", StringComparison.Ordinal))
+        {
+            // FM-05: DSD converted to PCM at DSD rate / 8.
+            list.Add(string.Create(CultureInfo.InvariantCulture, $"DSD{s.SampleRate * 8 / 44_100}"));
+        }
+        else
+        {
+            list.Add(CodecLabel(s.Codec, track.Path));
+        }
         if (s.IsLossless && s.BitsPerSample > 0)
         {
             list.Add(string.Create(CultureInfo.InvariantCulture, $"{s.BitsPerSample} BIT"));
