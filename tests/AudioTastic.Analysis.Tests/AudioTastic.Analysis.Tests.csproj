@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AN-01, CO-07, PB-03 analysis tests. Real-file tests need the FFmpeg libraries and the generated media
+       (skipped, not failed, without them). -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <CopyNativeLibraries>true</CopyNativeLibraries>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AudioTastic.Analysis\AudioTastic.Analysis.csproj" />
+    <ProjectReference Include="..\..\plugins\AudioTastic.Input.Ffmpeg\AudioTastic.Input.Ffmpeg.csproj" />
+    <ProjectReference Include="..\AudioTastic.TestSupport\AudioTastic.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

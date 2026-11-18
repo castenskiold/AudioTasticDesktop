@@ -51,6 +51,9 @@ public sealed class PlaybackSettings
 
     /// <summary>CO-04: repeat mode (playback state).</summary>
     public RepeatMode Repeat { get; set; }
+
+    /// <summary>PB-03: ReplayGain / loudness normalisation.</summary>
+    public ReplayGainSettings ReplayGain { get; set; } = new();
 }
 
 public sealed class OutputSettings
@@ -150,9 +153,42 @@ public sealed class GeneralSettings
 {
     /// <summary>TL-03: minimum level written to the log files.</summary>
     public LogLevelSetting LogLevel { get; set; } = LogLevelSetting.Information;
+
+    /// <summary>AN-01: background analysis worker threads (waveforms, loudness; BPM from P8). 1–8.</summary>
+    public int AnalysisThreads { get; set; } = 2;
 }
 
 /// <summary>CO-04: repeat modes, cycled by the REP button (Off → Playlist → Track).</summary>
+/// <summary>PB-03 settings (Settings › Playback).</summary>
+public sealed class ReplayGainSettings
+{
+    public ReplayGainMode Mode { get; set; } = ReplayGainMode.Off;
+
+    /// <summary>Extra gain for files with ReplayGain tags (dB, -15…+15).</summary>
+    public double PreampTaggedDb { get; set; }
+
+    /// <summary>Gain for files without tags and without analysis (or extra gain after analysis) (dB, -15…+15).</summary>
+    public double PreampUntaggedDb { get; set; }
+
+    /// <summary>Analyse loudness (EBU R128) of files without ReplayGain tags in the background.</summary>
+    public bool AnalyseUntagged { get; set; } = true;
+
+    /// <summary>Limit the gain so the track (or album) peak does not clip.</summary>
+    public bool PreventClipping { get; set; } = true;
+
+    /// <summary>Write analysed values to the files' ReplayGain tags.</summary>
+    public bool WriteTags { get; set; }
+}
+
+/// <summary>PB-03 modes. Auto uses album gain when the neighbouring track is from the same album.</summary>
+public enum ReplayGainMode
+{
+    Off,
+    Track,
+    Album,
+    Auto,
+}
+
 public enum RepeatMode
 {
     Off,

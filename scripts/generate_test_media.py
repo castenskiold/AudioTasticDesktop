@@ -80,6 +80,7 @@ def write_optimfrog(out: Path, manifest):
         for source in ("sine1k.wav16.wav", "sweep.wav16.wav", "sine1k.wav24.wav"):
             signal, fmt, _ = source.split(".")
             name = f"{signal}.ofr{fmt.removeprefix('wav')}.ofr"
+            (out / name).unlink(missing_ok=True)  # the encoder refuses to overwrite
             subprocess.run([str(exe), "--encode", str(out / source), "--output", str(out / name), "--preset", "2", "--silent"],
                            check=True)
             manifest["files"].append({"file": name, "signal": signal, "format": "optimfrog", "reference": source})
@@ -88,6 +89,20 @@ def write_optimfrog(out: Path, manifest):
 def run(ffmpeg, args):
     cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *args]
     subprocess.run(cmd, check=True)
+
+
+# PB-03 exit criterion: our R128 must be within 0.1 LU of FFmpeg's ebur128 filter on these files.
+LOUDNESS_FILES = ["sine1k.wav16.wav", "sweep.wav16.wav", "clicks.wav16.wav", "sine1k.mp3.mp3", "sine1k.aac.m4a",
+                  "sweep.opus.opus", "gapless.reference.wav", "long5min.flac", "surround51.flac", "sine1k.hires-24-96.flac"]
+
+
+def ffmpeg_loudness(ffmpeg, path: Path):
+    """Integrated loudness (LUFS) measured by FFmpeg's ebur128 filter, to three decimals."""
+    result = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", str(path),
+                             "-af", "ebur128=metadata=1,ametadata=print:key=lavfi.r128.I", "-f", "null", "-"],
+                            capture_output=True, text=True, check=True)
+    values = [line.split("=")[-1] for line in result.stderr.splitlines() if "lavfi.r128.I=" in line]
+    return float(values[-1])
 
 
 def write_midi(path: Path):
@@ -140,6 +155,20 @@ def main():
                                   "splitSeconds": GAPLESS_SPLIT_SECONDS})
 
     write_optimfrog(out, manifest)
+
+    # CO-07 exit criterion: a 5-minute FLAC (music-like: chords with a slow envelope and a beat).
+    run(args.ffmpeg, ["-f", "lavfi", "-i",
+                      "aevalsrc='0.3*sin(2*PI*220*t)*(0.6+0.4*sin(2*PI*0.1*t))+0.2*sin(2*PI*330*t)+0.15*sin(2*PI*440*t)*lt(mod(t,0.5),0.1)"
+                      "|0.3*sin(2*PI*277*t)*(0.6+0.4*cos(2*PI*0.07*t))+0.2*sin(2*PI*415*t)+0.15*sin(2*PI*440*t)*lt(mod(t,0.5),0.1)':s=44100",
+                      "-t", "300", "-c:a", "flac", "-sample_fmt", "s16", str(out / "long5min.flac")])
+    manifest["files"].append({"file": "long5min.flac", "format": "flac", "seconds": 300})
+    # PB-03: a 5.1 file, to check the surround channel weights and LFE exclusion.
+    run(args.ffmpeg, ["-f", "lavfi", "-i", "sine=frequency=500:sample_rate=48000", "-t", "5", "-af",
+                      "pan=5.1|FL=c0|FR=0.8*c0|FC=0.5*c0|LFE=c0|BL=0.3*c0|BR=0.3*c0",
+                      "-c:a", "flac", "-sample_fmt", "s16", str(out / "surround51.flac")])
+    manifest["files"].append({"file": "surround51.flac", "format": "flac", "seconds": 5, "channels": 6})
+    loudness = {name: ffmpeg_loudness(args.ffmpeg, out / name) for name in LOUDNESS_FILES}
+    (out / "loudness.json").write_text(json.dumps(loudness, indent=2))
 
     write_midi(out / "arpeggio.mid")
     manifest["files"].append({"file": "arpeggio.mid", "format": "midi", "seconds": 2})
