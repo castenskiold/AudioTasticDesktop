@@ -26,6 +26,12 @@ public sealed record ControlCommand(string Name, double? Value = null);
 public sealed record StartupOptions(bool CrashTest, IReadOnlyList<string> Files, FileAction Action = FileAction.Default,
     IReadOnlyList<ControlCommand>? Controls = null)
 {
+    /// <summary>
+    /// P10 installers: remove everything AudioTastic wrote to the system (file types, context menu, Start menu
+    /// shortcut, app identity) and exit without starting. The Windows uninstaller runs it. Settings and playlists stay.
+    /// </summary>
+    public bool Unregister { get; init; }
+
     /// <summary>Throws an exception on the UI thread after start-up, to test crash reporting (TL-03).</summary>
     public const string CrashTestSwitch = "--crash-test";
 
@@ -80,11 +86,15 @@ public static class CommandLine
     private static readonly Option<bool> QuitOption = new("--quit") { Description = "Close the running player." };
     private static readonly Option<bool> PortableOption = new("--portable") { Description = "Keep settings and data next to the program." };
     private static readonly Option<bool> CrashTestOption = new(StartupOptions.CrashTestSwitch) { Hidden = true };
+    private static readonly Option<bool> UnregisterOption = new("--unregister")
+    {
+        Description = "Remove AudioTastic's file types, context menu entries and Start menu shortcut, then exit (used by the uninstaller).",
+    };
 
     private static readonly RootCommand Root = CreateRoot();
 
     private static readonly string[] SlashNames =
-        ["open", "enqueue", "play", "pause", "playpause", "stop", "next", "prev", "previous", "volume", "seek", "quit", "portable"];
+        ["open", "enqueue", "play", "pause", "playpause", "stop", "next", "prev", "previous", "volume", "seek", "quit", "portable", "unregister"];
 
     /// <summary>Numbers are read the same in every language setting: "12.5", never "12,5" (Danish Windows read "12.5" as 125).</summary>
     private static double? Number(System.CommandLine.Parsing.ArgumentResult result, string option, double min, double max)
@@ -115,7 +125,7 @@ public static class CommandLine
             (OperatingSystem.IsWindows() ? " Options may also be written /name, e.g. /next or /volume 50." : ""))
         {
             FilesArgument, OpenOption, EnqueueOption, PlayOption, PauseOption, PlayPauseOption, StopOption, NextOption, PreviousOption,
-            VolumeOption, SeekOption, QuitOption, PortableOption, CrashTestOption,
+            VolumeOption, SeekOption, QuitOption, PortableOption, UnregisterOption, CrashTestOption,
         };
         return root;
     }
@@ -157,7 +167,10 @@ public static class CommandLine
         }
         Add(QuitOption, "quit");
         var files = (result.GetValue(FilesArgument) ?? []).Select(Path.GetFullPath).ToArray();
-        return new Parsed(result, new StartupOptions(result.GetValue(CrashTestOption), files, action, controls));
+        return new Parsed(result, new StartupOptions(result.GetValue(CrashTestOption), files, action, controls)
+        {
+            Unregister = result.GetValue(UnregisterOption),
+        });
     }
 
     /// <summary>"/next" → "--next" on Windows for the known names; everything else is left alone.</summary>

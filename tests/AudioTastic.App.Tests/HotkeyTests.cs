@@ -67,6 +67,17 @@ public sealed class HotkeyTests
     }
 
     [Fact]
+    public void Unregister_switch_is_parsed_for_the_uninstaller()
+    {
+        Assert.True(StartupOptions.Parse(["--unregister"]).Unregister);
+        Assert.False(StartupOptions.Parse(["a.flac"]).Unregister);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.True(StartupOptions.Parse(["/unregister"]).Unregister);
+        }
+    }
+
+    [Fact]
     public void Windows_refuses_a_combination_another_registration_already_has()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows RegisterHotKey");

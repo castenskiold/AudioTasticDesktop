@@ -110,7 +110,13 @@ AudioTastic is free software under the MIT license (`LICENSE`), copyright Big Ap
 
 ## Downloads
 
-Releases are on the [Releases page](https://github.com/castenskiold/AudioTasticDesktop/releases): archives for Windows, macOS and Linux (x64 and ARM64) and the optional OptimFROG plugin. Each release's notes say what was tested.
+Releases are on the [Releases page](https://github.com/castenskiold/AudioTasticDesktop/releases): for each of Windows, macOS and Linux (x64 and ARM64) an installer or package and a plain archive, plus the optional OptimFROG plugin. Each release's notes say what was tested.
+
+- **Windows:** `AudioTastic-<version>-win-x64-setup.exe` (or `-win-arm64-`) installs for the current user without administrator rights, with a Start menu entry and an uninstall entry (which also removes the file types and context menu entries). The `.zip` is the same program to unpack anywhere (add a file named `portable` for portable mode).
+- **macOS:** open the `.dmg` and drag AudioTastic to Applications. It is not notarised yet: the first time, right-click AudioTastic and choose *Open*.
+- **Linux:** the `.AppImage` is one file: make it executable (`chmod +x`) and run it. The `.tar.gz` holds the same program.
+
+Building the packages yourself: `packaging/` holds the Inno Setup script (`windows/AudioTastic.iss`, compile with ISCC), `macos/make_app.sh` and `linux/make_appimage.sh`; CI runs them after `dotnet publish`.
 
 ## Code signing policy
 

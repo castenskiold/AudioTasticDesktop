@@ -56,4 +56,7 @@ public interface IPlatformServices
     /// (portable mode).
     /// </summary>
     void SetAppIdentity(string appId, string displayName, string iconPath, bool writeToSystem);
+
+    /// <summary>P10 installers: removes what <see cref="SetAppIdentity"/> wrote to the system.</summary>
+    void RemoveAppIdentity(string appId);
 }

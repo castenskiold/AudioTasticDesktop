@@ -23,6 +23,13 @@ When you add a package or native library, add it here in the same pull request.
 | Microsoft.Windows.SDK.NET (Windows builds only; part of the .NET SDK's Windows targeting) | Microsoft Windows SDK license: free, redistributable, not open source (accepted by Big Apps ApS, 19 Nov 2026) | Windows Runtime projection for the media controls (SI-02) | P10 |
 | WinRT.Runtime (C#/WinRT, Windows builds only) | MIT | Windows Runtime interop for the projection above | P10 |
 
+## Packaging tools (P10)
+
+| Component | License | Used for |
+|---|---|---|
+| Inno Setup (Jordan Russell, Martijn Laan) | Inno Setup License (permissive; free for any use, including commercial) | The Windows installer; its setup runtime is part of `AudioTastic-<version>-win-<arch>-setup.exe` |
+| appimagetool and the AppImage runtime (AppImage project) | MIT | The Linux AppImage; the runtime is part of the `.AppImage` file |
+
 ## .NET packages (development only, not shipped)
 
 | Component | License | Used for |

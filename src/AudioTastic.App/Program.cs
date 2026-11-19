@@ -32,6 +32,10 @@ internal static class Program
             Console.WriteLine();
             return parsed.Result.Invoke();
         }
+        if (options.Unregister)
+        {
+            return Unregister(platform);
+        }
         var paths = AppPaths.ForCurrentProcess(args).EnsureCreated();
 
         // SI-06: a second start hands its files to the running player and ends (before logging, whose file the
@@ -183,6 +187,33 @@ internal static class Program
     /// SI-06: becomes the running instance, or sends this start's files to the one already running. A player that is
     /// still starting or just exiting gets up to 15 seconds; then this start gives up (<paramref name="forwarded"/> false).
     /// </summary>
+    /// <summary>
+    /// P10 installers (--unregister): removes the context menu entries, file type registration, Start menu shortcut and
+    /// app identity, so uninstalling leaves nothing behind in the registry. Settings and playlists are left alone.
+    /// </summary>
+    private static int Unregister(AudioTastic.Platform.IPlatformServices platform)
+    {
+        var failures = 0;
+        void Step(Action action)
+        {
+            try
+            {
+                action();
+            }
+#pragma warning disable CA1031 // Best effort: remove as much as possible.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                failures++;
+            }
+        }
+        Step(() => platform.Shell.SetContextMenu(null));
+        Step(() => platform.Shell.SetFileAssociations(null));
+        Step(() => platform.Shell.SetStartMenuShortcut(null, AppId));
+        Step(() => platform.RemoveAppIdentity(AppId));
+        return failures == 0 ? 0 : 1;
+    }
+
     /// <summary>SI-02 / SI-07: the Windows AppUserModelID (also for the future installer's Start menu shortcut).</summary>
     public const string AppId = "BigApps.AudioTastic";
 

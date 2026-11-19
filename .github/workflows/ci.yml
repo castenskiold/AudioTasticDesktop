@@ -104,6 +104,31 @@ jobs:
         with:
           name: AudioTastic-${{ matrix.rid }}
           path: publish/${{ matrix.rid }}
+      # P10 packages: Windows installer (Inno Setup), macOS .app in a .dmg, Linux AppImage (packaging/).
+      - name: Version
+        id: version
+        shell: bash
+        run: echo "value=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Windows installer
+        if: ${{ startsWith(matrix.rid, 'win-') }}
+        shell: pwsh
+        run: |
+          function Find-Iscc { Get-ChildItem "${env:ProgramFiles(x86)}", "$env:ProgramFiles" -Filter ISCC.exe -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName }
+          $iscc = Find-Iscc
+          if (-not $iscc) { choco install innosetup --no-progress -y; $iscc = Find-Iscc }
+          if (-not $iscc) { throw "Inno Setup (ISCC.exe) not found" }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.value }}" "/DRid=${{ matrix.rid }}" "/DSourceDir=$PWD\publish\${{ matrix.rid }}" "/O$PWD\packages" packaging\windows\AudioTastic.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: macOS app and disk image
+        if: ${{ startsWith(matrix.rid, 'osx-') }}
+        run: bash packaging/macos/make_app.sh publish/${{ matrix.rid }} ${{ steps.version.outputs.value }} ${{ matrix.rid }} packages
+      - name: AppImage
+        if: ${{ startsWith(matrix.rid, 'linux-') }}
+        run: bash packaging/linux/make_appimage.sh publish/${{ matrix.rid }} ${{ steps.version.outputs.value }} ${{ matrix.rid }} packages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.rid }}
+          path: packages
 
   native:
     name: Native libraries (${{ matrix.rid }})
@@ -224,6 +249,11 @@ jobs:
         with:
           name: optimfrog-plugin
           path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/packages
+          pattern: package-*
+          merge-multiple: true
       - name: Pack and publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -250,5 +280,9 @@ jobs:
             fi
           done
           files+=(AudioTastic.Input.OptimFrog.atplugin)
+          # Installers and packages (P10): setup.exe per Windows RID, .dmg per macOS RID, AppImage per Linux RID.
+          for package in packages/*; do
+            files+=("$package")
+          done
           gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
             --title "AudioTastic ${version}" --notes-file "../docs/releases/${version}.md"

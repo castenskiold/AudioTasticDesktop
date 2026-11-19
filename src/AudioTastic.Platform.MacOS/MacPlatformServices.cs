@@ -40,4 +40,8 @@ public sealed class MacPlatformServices : IPlatformServices
     public void SetAppIdentity(string appId, string displayName, string iconPath, bool writeToSystem)
     {
     }
+
+    public void RemoveAppIdentity(string appId)
+    {
+    }
 }

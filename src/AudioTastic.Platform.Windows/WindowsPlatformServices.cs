@@ -78,6 +78,18 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
         Marshal.ThrowExceptionForHR(SetCurrentProcessExplicitAppUserModelID(appId));
     }
 
+    public void RemoveAppIdentity(string appId)
+    {
+        Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\AppUserModelId\{appId}", throwOnMissingSubKey: false);
+        // HKCU\Software\AudioTastic only holds what the shell integration remembers; drop it when that is empty.
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\AudioTastic");
+        if (key is { SubKeyCount: 0, ValueCount: 0 })
+        {
+            key.Dispose();
+            Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(@"Software\AudioTastic", throwOnMissingSubKey: false);
+        }
+    }
+
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial int SetCurrentProcessExplicitAppUserModelID(string appId);
