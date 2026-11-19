@@ -20,6 +20,8 @@ import argparse
 import hashlib
 import shutil
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -50,15 +52,24 @@ def fetch(site_folder, package, expected):
     if archive.exists() and sha1(archive) == expected:
         return archive
     url = f"{BASE_URL}{site_folder}/{package}"
-    print(f"Downloading {url}")
-    request = urllib.request.Request(url, headers={"User-Agent": "AudioTastic-build"})
-    with urllib.request.urlopen(request, timeout=120) as response, open(archive, "wb") as out:
-        shutil.copyfileobj(response, out)
-    actual = sha1(archive)
-    if actual != expected:
-        archive.unlink()
-        sys.exit(f"SHA-1 mismatch for {package}: expected {expected}, got {actual}.")
-    return archive
+    # The site is small and sometimes times out or sends a broken file to CI runners: try three times.
+    for attempt, pause in enumerate((10, 30, None), start=1):
+        print(f"Downloading {url} (attempt {attempt})")
+        request = urllib.request.Request(url, headers={"User-Agent": "AudioTastic-build"})
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response, open(archive, "wb") as out:
+                shutil.copyfileobj(response, out)
+            actual = sha1(archive)
+            if actual == expected:
+                return archive
+            print(f"  SHA-1 mismatch: expected {expected}, got {actual}")
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            print(f"  failed: {error}")
+        if archive.exists():
+            archive.unlink()
+        if pause is not None:
+            time.sleep(pause)
+    sys.exit(f"Could not download a verified {package}.")
 
 
 def main():

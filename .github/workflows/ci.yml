@@ -114,6 +114,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Downloads (FFmpeg, libopenmpt) are cached so small external sites are only contacted when the scripts change;
+      # every script checks what it reuses.
+      - uses: actions/cache@v4
+        with:
+          path: native/downloads
+          key: downloads-${{ matrix.rid }}-${{ hashFiles('native/*.py', 'native/*.sh') }}
+          restore-keys: downloads-${{ matrix.rid }}-
       - name: FFmpeg (prebuilt LGPL)
         if: ${{ !startsWith(matrix.rid, 'osx') }}
         run: python native/fetch_ffmpeg.py --rid ${{ matrix.rid }}
@@ -124,8 +131,16 @@ jobs:
         if: ${{ startsWith(matrix.rid, 'osx') }}
         run: bash native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
       - name: miniaudio and SoundTouch
+        shell: bash
         run: |
-          cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} ${{ matrix.cmake_arch }}
+          # Configuring clones miniaudio (GitHub) and SoundTouch (codeberg.org), which sometimes fails: try three times.
+          for attempt in 1 2 3; do
+            cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} ${{ matrix.cmake_arch }} && break
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            echo "CMake configure failed (attempt $attempt); retrying in 30 s"
+            rm -rf native/build/${{ matrix.rid }}/_deps
+            sleep 30
+          done
           cmake --build native/build/${{ matrix.rid }} --config Release
           cmake --install native/build/${{ matrix.rid }} --config Release
       - name: libopenmpt (prebuilt, FM-07)
@@ -148,6 +163,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: native/downloads
+          key: plugin-assets-${{ hashFiles('native/fetch_soundfont.py', 'native/fetch_optimfrog.py') }}
       - run: python3 native/fetch_soundfont.py
       # OptimFROG libraries for the plugin's tests and its separate .atplugin package (not part of the app).
       - run: python3 native/fetch_optimfrog.py --rid win-x64 --rid linux-x64 --rid osx-x64
@@ -163,6 +182,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: native/downloads/optimfrog
+          key: optimfrog-linux-${{ hashFiles('native/fetch_optimfrog.py') }}
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       # The OptimFROG package's encoder makes the .ofr test files (used in CI and locally, never shipped).
       - run: python3 native/fetch_optimfrog.py --rid linux-x64
