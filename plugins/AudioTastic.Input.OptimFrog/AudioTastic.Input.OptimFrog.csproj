@@ -3,6 +3,9 @@
   <PropertyGroup>
     <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Not part of the app package (SignPath: no proprietary components, Anders 19 Nov 2026): it is published as a
+         separate .atplugin (artifacts/atplugins/<Configuration>/) that users install with Settings › Plugins › Install. -->
+    <PackAtPlugin>true</PackAtPlugin>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AudioTastic.Sdk\AudioTastic.Sdk.csproj" />

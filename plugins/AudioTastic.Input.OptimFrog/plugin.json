@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "author": "AudioTastic",
   "description": "Plays OptimFROG Lossless (.ofr) and DualStream (.ofs) files with the OptimFROG SDK 1.600 (closed-source freeware by Florin Ghido, bundled under its licence). x64 only.",
-  "license": "Part of AudioTastic; uses the OptimFROG Libraries (freeware, see OptimFROG-license.html)",
+  "license": "MIT (plugin code, Big Apps ApS); uses the OptimFROG Libraries (closed-source freeware, see OptimFROG-license.html). A separate download, not part of the AudioTastic package",
   "sdkVersion": "0.4.0",
   "entryAssembly": "AudioTastic.Input.OptimFrog.dll",
   "types": ["input"]

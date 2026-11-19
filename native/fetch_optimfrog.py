@@ -73,7 +73,13 @@ def main():
         root = package.removesuffix(".zip")
         with zipfile.ZipFile(archive) as zf:
             for library in libraries:
-                (target / library).write_bytes(zf.read(f"{root}/SDK/Library/{library}"))
+                info = zf.getinfo(f"{root}/SDK/Library/{library}")
+                data = zf.read(info)
+                if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                    # A symlink (libOptimFROG.so -> libOptimFROG.so.0): store the library itself under the link's
+                    # name, since plugin packages and Windows checkouts cannot carry symlinks.
+                    data = zf.read(f"{root}/SDK/Library/{data.decode().strip()}")
+                (target / library).write_bytes(data)
             (target / "OptimFROG-license.html").write_bytes(zf.read(f"{root}/license.html"))
         print(f"{rid}: {', '.join(libraries)} -> {target}")
 

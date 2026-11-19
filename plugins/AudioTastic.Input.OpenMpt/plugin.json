@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "author": "AudioTastic",
   "description": "Plays MOD, XM, IT, S3M and other tracker modules through libopenmpt. Songs play once, then the playlist continues.",
-  "license": "Part of AudioTastic; uses libopenmpt (BSD-3-Clause)",
+  "license": "MIT (part of AudioTastic); uses libopenmpt (BSD-3-Clause)",
   "sdkVersion": "0.4.0",
   "entryAssembly": "AudioTastic.Input.OpenMpt.dll",
   "types": ["input"]
