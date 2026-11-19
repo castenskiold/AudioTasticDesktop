@@ -136,6 +136,70 @@ public sealed class CacheStore
         return result;
     }
 
+    /// <summary>
+    /// MD-01: moves a file's cached data to its new version after a deliberate change that leaves the audio alone
+    /// (tags written), dropping the kinds in <paramref name="drop"/> (they describe what changed, e.g. "tags").
+    /// Returns the number of entries kept. Nothing happens when <paramref name="oldKey"/> has no entries.
+    /// </summary>
+    public int Rekey(FileKey oldKey, FileKey newKey, IReadOnlyCollection<string> drop)
+    {
+        ArgumentNullException.ThrowIfNull(drop);
+        using var connection = Open();
+        using var tx = connection.BeginTransaction();
+        long? id;
+        using (var find = connection.CreateCommand())
+        {
+            find.Transaction = tx;
+            find.CommandText = "SELECT id FROM files WHERE path = $path AND size = $size AND mtime_ticks = $mtime;";
+            find.Parameters.AddWithValue("$path", oldKey.NormalizedPath);
+            find.Parameters.AddWithValue("$size", oldKey.Size);
+            find.Parameters.AddWithValue("$mtime", oldKey.LastWriteUtcTicks);
+            id = find.ExecuteScalar() as long?;
+        }
+        if (id is null)
+        {
+            return 0;
+        }
+        using (var purge = connection.CreateCommand())
+        {
+            // Anything stored for the new version already (or any other version) gives way to the moved data.
+            purge.Transaction = tx;
+            purge.CommandText = "DELETE FROM files WHERE path = $path AND id <> $id;";
+            purge.Parameters.AddWithValue("$path", newKey.NormalizedPath);
+            purge.Parameters.AddWithValue("$id", id.Value);
+            purge.ExecuteNonQuery();
+        }
+        using (var move = connection.CreateCommand())
+        {
+            move.Transaction = tx;
+            move.CommandText = "UPDATE files SET path = $path, size = $size, mtime_ticks = $mtime WHERE id = $id;";
+            move.Parameters.AddWithValue("$path", newKey.NormalizedPath);
+            move.Parameters.AddWithValue("$size", newKey.Size);
+            move.Parameters.AddWithValue("$mtime", newKey.LastWriteUtcTicks);
+            move.Parameters.AddWithValue("$id", id.Value);
+            move.ExecuteNonQuery();
+        }
+        foreach (var kind in drop)
+        {
+            using var delete = connection.CreateCommand();
+            delete.Transaction = tx;
+            delete.CommandText = "DELETE FROM cache_entries WHERE file_id = $id AND kind = $kind;";
+            delete.Parameters.AddWithValue("$id", id.Value);
+            delete.Parameters.AddWithValue("$kind", kind);
+            delete.ExecuteNonQuery();
+        }
+        int kept;
+        using (var count = connection.CreateCommand())
+        {
+            count.Transaction = tx;
+            count.CommandText = "SELECT COUNT(*) FROM cache_entries WHERE file_id = $id;";
+            count.Parameters.AddWithValue("$id", id.Value);
+            kept = (int)(long)count.ExecuteScalar()!;
+        }
+        tx.Commit();
+        return kept;
+    }
+
     /// <summary>Removes all cached data for a path (every version of the file).</summary>
     public int Remove(string path)
     {

@@ -70,6 +70,26 @@ public sealed class CacheStoreTests : IDisposable
     }
 
     [Fact]
+    public void Rekey_moves_entries_to_the_new_version_and_drops_the_given_kinds()
+    {
+        var store = NewStore();
+        var oldKey = NewFile("a.flac", "one");
+        store.Put(oldKey, "waveform", 1, [1]);
+        store.Put(oldKey, "beats", 3, [2]);
+        store.Put(oldKey, "tags", 2, [3]);
+        var newKey = oldKey with { Size = oldKey.Size + 10, LastWriteUtcTicks = oldKey.LastWriteUtcTicks + 1 };
+
+        Assert.Equal(2, store.Rekey(oldKey, newKey, ["tags"]));
+
+        Assert.Equal(new byte[] { 1 }, store.TryGet(newKey, "waveform", 1));
+        Assert.Equal(new byte[] { 2 }, store.TryGet(newKey, "beats", 3));
+        Assert.Null(store.TryGet(newKey, "tags", 2));
+        Assert.Null(store.TryGet(oldKey, "waveform", 1));
+        Assert.Equal(1, store.FileCount());
+        Assert.Equal(0, store.Rekey(oldKey, newKey, [])); // nothing left under the old version
+    }
+
+    [Fact]
     public void Changed_file_misses_and_old_data_is_purged()
     {
         var store = NewStore();

@@ -173,20 +173,11 @@ public sealed class AnalysisService : IDisposable
     }
 
     /// <summary>
-    /// Copies cached results to the file's new version (after the file was changed on purpose, e.g. tags written),
-    /// so it is not analysed again.
+    /// Moves the file's cached data to its new version (after the file was changed on purpose, e.g. tags written),
+    /// so it is not analysed again; resume positions, nudges and other per-file entries move too, and the cached tags
+    /// are dropped (MD-01).
     /// </summary>
-    public void Rekey(AnalysisTarget target, FileKey oldKey)
-    {
-        var newKey = FileKey.FromFile(target.Path);
-        foreach (var analyzer in AllAnalyzers)
-        {
-            if (_cache.TryGet(oldKey, target.KindFor(analyzer.Kind), analyzer.DataVersion) is { } data)
-            {
-                _cache.Put(newKey, target.KindFor(analyzer.Kind), analyzer.DataVersion, data);
-            }
-        }
-    }
+    public void Rekey(AnalysisTarget target, FileKey oldKey) => _cache.Rekey(oldKey, FileKey.FromFile(target.Path), ["tags"]);
 
     public void Dispose()
     {
