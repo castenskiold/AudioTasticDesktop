@@ -90,6 +90,7 @@ internal sealed class FakeAudioOutput : IAudioOutput
 {
     private const int BlockFrames = 256;
     private readonly Lock _captureLock = new();
+    private readonly Lock _threadLock = new();
     private readonly List<float> _captured = [];
     private Thread? _thread;
     private volatile bool _running;
@@ -156,23 +157,34 @@ internal sealed class FakeAudioOutput : IAudioOutput
 
     public void StartOutput()
     {
-        if (_running)
+        // Start and stop can be called from different threads (engine commands, Dispose): a stop must never see a
+        // thread that exists but has not been started yet (seen on a CI runner).
+        lock (_threadLock)
         {
-            return;
+            if (_running)
+            {
+                return;
+            }
+            _running = true;
+            var thread = new Thread(RenderLoop) { IsBackground = true, Name = "Fake audio device" };
+            thread.Start();
+            _thread = thread;
         }
-        _running = true;
-        _thread = new Thread(RenderLoop) { IsBackground = true, Name = "Fake audio device" };
-        _thread.Start();
     }
 
     public void StopOutput()
     {
-        _running = false;
-        if (_thread is not null && _thread != Thread.CurrentThread)
+        Thread? thread;
+        lock (_threadLock)
         {
-            _thread.Join();
+            _running = false;
+            thread = _thread;
+            _thread = null;
         }
-        _thread = null;
+        if (thread is not null && thread != Thread.CurrentThread)
+        {
+            thread.Join();
+        }
     }
 
     public void Close()
