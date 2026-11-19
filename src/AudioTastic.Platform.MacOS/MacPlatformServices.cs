@@ -18,6 +18,9 @@ public sealed class MacPlatformServices : IPlatformServices
     /// <summary>SI-02 for this OS comes later (Now Playing on macOS, MPRIS on Linux).</summary>
     public IMediaControls MediaControls => NoMediaControls.Instance;
 
+    /// <summary>SI-01 for this OS comes later.</summary>
+    public IHotkeyService Hotkeys => NoHotkeys.Instance;
+
     public void AllowOtherProcessToActivate()
     {
     }

@@ -318,6 +318,23 @@ public sealed class SystemIntegrationSettings
     /// <summary>SI-02: AudioTastic in the OS media controls (overlay, lock screen, media keys, headset buttons).</summary>
     public bool MediaControls { get; set; } = true;
 
+    /// <summary>SI-01: system-wide hotkeys on/off (Anders asked for the switch).</summary>
+    public bool GlobalHotkeys { get; set; } = true;
+
+    /// <summary>SI-01: action → hotkey text such as "Ctrl+Alt+Home" (actions as in PlayerShell.Execute; empty = none).</summary>
+    public Dictionary<string, string> Hotkeys { get; set; } = DefaultHotkeys();
+
+    /// <summary>SI-01 defaults (spec): Ctrl+Alt+Home/End/PgUp/PgDn/Up/Down.</summary>
+    public static Dictionary<string, string> DefaultHotkeys() => new()
+    {
+        ["playPause"] = "Ctrl+Alt+Home",
+        ["stop"] = "Ctrl+Alt+End",
+        ["previous"] = "Ctrl+Alt+PageUp",
+        ["next"] = "Ctrl+Alt+PageDown",
+        ["volumeUp"] = "Ctrl+Alt+Up",
+        ["volumeDown"] = "Ctrl+Alt+Down",
+    };
+
     /// <summary>SI-04: minimising the player hides it to the tray (needs the tray icon).</summary>
     public bool MinimiseToTray { get; set; }
 

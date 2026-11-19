@@ -17,6 +17,8 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
 
     public IShellIntegration Shell { get; } = new WindowsShellIntegration();
 
+    public IHotkeyService Hotkeys { get; } = new WindowsHotkeys();
+
 #if WINDOWS
     public IMediaControls MediaControls { get; } =
         OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763) ? new WindowsMediaControls() : NoMediaControls.Instance;

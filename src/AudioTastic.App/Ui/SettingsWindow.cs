@@ -177,6 +177,11 @@ public sealed class SettingsWindow : Window
                 si.MediaControls, v => Update(s => s.MediaControls = v));
         }
 
+        if (_shell.Hotkeys.IsSupported)
+        {
+            HotkeysSection(panel, si);
+        }
+
         Heading(panel, "Tray");
         Check(panel, "Show the tray icon (player menu, sleep timer; click it to show or hide the player)", si.TrayIcon, v =>
         {
@@ -196,7 +201,80 @@ public sealed class SettingsWindow : Window
         Check(trayOptions, "Minimise to the tray", si.MinimiseToTray, v => Update(s => s.MinimiseToTray = v));
         Check(trayOptions, "Close to the tray (exit from the tray menu or Main menu › Exit)", si.CloseToTray, v => Update(s => s.CloseToTray = v));
         panel.Children.Add(trayOptions);
-        Note(panel, "Global hotkeys, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+        Note(panel, "Taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+    }
+
+    /// <summary>
+    /// SI-01: global hotkeys on/off (Anders) and one hotkey per action. Click a field and press the keys; Backspace
+    /// clears it. While a field has the focus the global hotkeys are paused, so a taken combination can be re-pressed.
+    /// </summary>
+    private void HotkeysSection(StackPanel panel, SystemIntegrationSettings si)
+    {
+        Heading(panel, "Global hotkeys");
+        Check(panel, "Global hotkeys (work while another program is in front)", si.GlobalHotkeys, v =>
+        {
+            _settings.Update(SettingsGroup.SystemIntegration, s => s.SystemIntegration.GlobalHotkeys = v);
+            ShowPage();
+        });
+        var table = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("180,Auto,*"),
+            RowSpacing = 4,
+            ColumnSpacing = 8,
+            Margin = new Thickness(24, 0, 0, 0),
+            IsEnabled = si.GlobalHotkeys,
+        };
+        var hotkeys = _shell.Hotkeys;
+        var row = 0;
+        foreach (var (action, label) in Integration.HotkeyManager.Actions)
+        {
+            table.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+            var box = new HotkeyBox(si.Hotkeys.GetValueOrDefault(action));
+            Avalonia.Automation.AutomationProperties.SetName(box, "Hotkey for " + label);
+            var status = new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = Brushes.Orange,
+                FontSize = 12,
+                Text = hotkeys.Failed.Contains(action) && si.GlobalHotkeys ? "In use by another program" : string.Empty,
+            };
+            box.GotFocus += (_, _) => hotkeys.Suspend(true);
+            box.LostFocus += (_, _) => hotkeys.Suspend(false);
+            box.Rejected += (_, message) => status.Text = message;
+            box.HotkeyChanged += (_, text) =>
+            {
+                status.Text = string.Empty;
+                _settings.Update(SettingsGroup.SystemIntegration, s =>
+                {
+                    s.SystemIntegration.Hotkeys = new Dictionary<string, string>(s.SystemIntegration.Hotkeys) { [action] = text };
+                    // One combination runs one action: take it away from any other action.
+                    foreach (var other in s.SystemIntegration.Hotkeys.Where(h => h.Key != action && text.Length > 0 && h.Value == text).ToList())
+                    {
+                        s.SystemIntegration.Hotkeys[other.Key] = string.Empty;
+                    }
+                });
+            };
+            Grid.SetRow(name, row);
+            Grid.SetRow(box, row);
+            Grid.SetColumn(box, 1);
+            Grid.SetRow(status, row);
+            Grid.SetColumn(status, 2);
+            table.Children.Add(name);
+            table.Children.Add(box);
+            table.Children.Add(status);
+            row++;
+        }
+        panel.Children.Add(table);
+        var defaults = new Button { Content = "Default hotkeys", Margin = new Thickness(24, 0, 0, 0), IsEnabled = si.GlobalHotkeys };
+        defaults.Click += (_, _) =>
+        {
+            _settings.Update(SettingsGroup.SystemIntegration, s => s.SystemIntegration.Hotkeys = SystemIntegrationSettings.DefaultHotkeys());
+            ShowPage();
+        };
+        panel.Children.Add(defaults);
+        Note(panel, "Click a field and press the keys (Ctrl, Alt or Win with a key); Backspace clears it. Keyboard media keys always work " +
+            "through the media controls. A combination another program already uses shows 'In use by another program'.");
     }
 
     /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>

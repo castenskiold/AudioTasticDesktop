@@ -62,6 +62,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private readonly Integration.ShellIntegrationService _shellIntegration;
     private TrayController? _tray;
     private readonly Integration.MediaControlsService _mediaControls;
+
+    /// <summary>SI-01: the global hotkeys (the settings page shows which could not be registered).</summary>
+    public Integration.HotkeyManager Hotkeys { get; }
     private bool _inTray;
     private bool _mainBeforeTray;
     private bool _playlistBeforeTray;
@@ -73,8 +76,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
         AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
-        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, ILoggerFactory loggerFactory)
+        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, Integration.HotkeyManager hotkeys, ILoggerFactory loggerFactory)
     {
+        Hotkeys = hotkeys;
         _mediaControls = mediaControls;
         _inbox = inbox;
         _shellIntegration = shellIntegration;
@@ -234,6 +238,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
         // SI-02: the OS media controls belong to the main window (it exists while hidden, e.g. in the mini player or tray).
         _mediaControls.Start(_main.TryGetPlatformHandle()?.Handle ?? 0);
+        // SI-01: global hotkeys run the same actions as the buttons and keys ("showHide" like a click on the tray icon).
+        Hotkeys.Start(action => ExecuteFromTray(action == "showHide" ? "trayToggle" : action));
         // SI-04: the tray icon and its menu.
         _tray = new TrayController(Player, _sleep, ExecuteFromTray, () => PlayerShown)
         {

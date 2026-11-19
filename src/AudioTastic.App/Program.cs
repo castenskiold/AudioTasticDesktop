@@ -92,6 +92,7 @@ internal static class Program
                 .AddSingleton(inbox)
                 .AddSingleton<AudioTastic.App.Integration.ShellIntegrationService>()
                 .AddSingleton<AudioTastic.App.Integration.MediaControlsService>()
+                .AddSingleton<AudioTastic.App.Integration.HotkeyManager>()
                 // P4 plugins (PG-01/03/05): decoders come from enabled input plugins, read live by every consumer.
                 .AddSingleton(sp => new PluginHost(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<ILoggerFactory>()))
                 .AddSingleton<IEnumerable<IAudioSourceFactory>>(sp => sp.GetRequiredService<PluginHost>().LiveSourceFactories)

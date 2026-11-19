@@ -203,7 +203,7 @@ dict(id="P10", name="System integration", size="M",
   ("SI-05", "File associations and context menu per OS (registry HKCU, Info.plist + Finder Quick Action, .desktop + xdg-mime); settings page."),
   ("SI-04", "Tray icon and menu (Avalonia TrayIcon), minimise/close to tray; adds sleep timer entry."),
   ("SI-02", "Media controls: SMTC via CsWinRT interop (Windows), MPNowPlayingInfoCenter/MPRemoteCommandCenter (macOS), MPRIS via Tmds.DBus (Linux)."),
-  ("SI-01", "Global hotkeys via SharpHook with settings page; macOS accessibility prompt; Wayland note."),
+  ("SI-01", "Global hotkeys with an on/off switch and a settings page: Windows RegisterHotKey; macOS/Linux SharpHook or the OS API, with the macOS accessibility prompt and the Wayland note."),
   ("SI-03", "Taskbar thumbnail buttons and progress (ITaskbarList3) [Windows only]; macOS Dock menu."),
   ("SI-07", "Native notifications per OS (AppUserModelID on Windows, signed bundle on macOS, freedesktop on Linux)."),
  ],
@@ -374,9 +374,10 @@ PROGRESS = {
                         "Step 3 (19 Nov 2026, Windows): file associations (SI-05): AudioTastic registered for every audio and playlist type its plugins play, shown in Open with and Settings › Default apps; the first start asks whether to use it for audio files (Anders) and opens Default apps. Exit criterion 'double-clicking a FLAC enqueues/plays in the running instance' checked by Anders on Windows.",
                         "Step 4 (19 Nov 2026, Windows): tray icon (SI-04) with Play/Pause, Stop, Previous, Next, a Sleep timer submenu (closes the PB-10 tray item), Show/Hide and Exit; tooltip with the title; click hides or shows the player and its docked windows; minimise/close to the tray. Checked by Anders; after his feedback, switching the icon off also switches off the two tray options.",
                         "Step 5 (19 Nov 2026, Windows): OS media controls (SI-02): the media flyout shows AudioTastic with title, artist, album and cover (the logo when a track has none, Anders); its buttons, keyboard media keys (tested by simulating them while another program had focus) and headset buttons control the player. Needed an app identity: AppUserModelID plus a per-user Start menu shortcut kept by the app, which notifications (SI-07) will use too. The Windows-only projects now target the Windows SDK when built on Windows; the SDK projection is under the Windows SDK license (Anders chose it over own interop code).",
+                        "Step 6 (19 Nov 2026, Windows): global hotkeys (SI-01) through RegisterHotKey (no keyboard hook, no library): defaults Ctrl+Alt+Home/End/PgUp/PgDn/Up/Down, twelve actions, an on/off switch (Anders) and 'press keys' fields that show combinations taken by another program. Checked by Anders; also tested by simulating the keys while another program had focus.",
                         "UI-01 (Anders, 19 Nov 2026): resizing the playlist or Art & Lyrics window snaps its right and bottom edges to the player's and other windows' edges and to the screen edge, like moving does.",
                         "Fixed on the way: the playlist drew rows for only part of its height at player sizes above 100 % (Avalonia's virtualizing panel under the scale transform), and format badges were cut off at the right edge."],
-               open=["Tray and media controls on macOS/Linux (Now Playing, MPRIS), media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
+               open=["Tray, media controls and hotkeys on macOS/Linux (Now Playing, MPRIS), media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

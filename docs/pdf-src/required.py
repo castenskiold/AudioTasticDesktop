@@ -203,7 +203,7 @@ tech=[
 ("AirPlay","No mature free .NET sender library; own RAOP (AirPlay 1) implementation needed."),
 ("Streaming server","Kestrel / ASP.NET Core (MIT), embedded."),
 ("Local database","SQLite via Microsoft.Data.Sqlite (MIT)."),
-("System integration","SharpHook (MIT) for global hotkeys; SMTC via CsWinRT (Windows); Tmds.DBus (MIT) for MPRIS (Linux); native interop for macOS Now Playing."),
+("System integration","Global hotkeys: Windows RegisterHotKey, SharpHook (MIT) on macOS/Linux; SMTC through the Windows SDK projection (Windows); Tmds.DBus (MIT) for MPRIS (Linux); native interop for macOS Now Playing."),
 ("Logging","Serilog (Apache 2.0)."),
 ]
 story+=[PageBreak(),*HH1("15. Technology stack and licence policy"),
@@ -243,4 +243,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.12  ·  19 November 2026", story, short_title="Required Features  ·  v1.12")
+ "Version 1.13  ·  19 November 2026", story, short_title="Required Features  ·  v1.13")
