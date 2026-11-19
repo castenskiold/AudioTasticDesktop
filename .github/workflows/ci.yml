@@ -146,13 +146,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 native/fetch_soundfont.py
-      - run: python3 native/fetch_optimfrog.py --rid win-x64 --rid linux-x64 --rid osx-x64
+      # OptimFROG: losslessaudio.org no longer serves the packages (404, Nov 2026); the plugin becomes a separate download
+      # hosted with our releases, and its tests are skipped here until CI fetches it from there.
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-assets
-          path: |
-            native/downloads/soundfont
-            native/out/optimfrog
+          path: native/downloads/soundfont
 
   test-media:
     name: Test media
@@ -160,8 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      # The OptimFROG package's encoder makes the .ofr test files (used locally, never shipped).
-      - run: python3 native/fetch_optimfrog.py --rid linux-x64
+      # The .ofr test files need the OptimFROG encoder (local only; see the plugin-assets job).
       - run: python3 scripts/generate_test_media.py
       - uses: actions/upload-artifact@v4
         with:
