@@ -49,14 +49,14 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signatures: every Mach-O file on its own (Apple silicon refuses to run unsigned code), then the bundle
-# without --deep, which would take the plugin folders (names with dots) for nested bundles and fail.
+# Ad-hoc signatures (Apple silicon refuses to run unsigned code). codesign wants every file in Contents/MacOS signed
+# before the bundle's main executable, and --deep takes the plugin folders (names with dots) for nested bundles. So:
+# every file except the main executable on its own (as Avalonia's macOS guide does), then the bundle without --deep,
+# which signs the main executable last.
 while IFS= read -r -d '' file; do
-  if file -b "$file" | grep -q 'Mach-O'; then
-    codesign --force --sign - "$file"
-  fi
-done < <(find "$app/Contents/MacOS" -type f -print0)
-codesign --force --sign - "$app" || echo "warning: the bundle itself could not be signed (its binaries are)"
+  codesign --force --sign - "$file"
+done < <(find "$app/Contents/MacOS" -type f ! -path "$app/Contents/MacOS/AudioTastic" -print0)
+codesign --force --sign - "$app" || echo "warning: the bundle itself could not be signed (its files are)"
 ln -s /Applications "$work/stage/Applications"
 dmg="$out/AudioTastic-${version}-${rid}.dmg"
 hdiutil create -volname "AudioTastic ${version}" -srcfolder "$work/stage" -ov -format UDZO "$dmg"
