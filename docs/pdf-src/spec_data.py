@@ -408,8 +408,11 @@ S("Casting and network", "Sending audio to other devices and connecting to onlin
 ("CN-05", "Device discovery and picker",
  "Finds cast devices on the local network continuously while the picker is open (and in the background when casting is enabled), and shows them grouped by type with their names. Choosing a device moves playback to it at the current position; choosing 'This computer' moves it back.",
  "MW10: CAST button → device picker popover (list of devices with type icons, 'This computer' at the top, Refresh). Each device with a screen offers the cast mode: Audio / Audio + video / Video only (CN-09); the last choice per device is remembered.",
- "<b>Libraries:</b> Makaretu.Dns.Multicast (MIT) for mDNS (_googlecast._tcp, _raop._tcp); own SSDP for DLNA. "
- "<b>Components:</b> CastService aggregating ICastTarget providers (cast-target plugins can add more, PG-01).", None),
+ "<b>Own code, no library</b> (decided in P11: the Makaretu.Dns.Multicast library had not been updated for years, and the needed parts of both protocols are small): "
+ "<b>mDNS</b> (_googlecast._tcp, later _raop._tcp): a PTR query with the unicast-response bit to 224.0.0.251:5353 from an ordinary socket on each network interface, so port 5353 (often held by the OS) is never needed; PTR/SRV/TXT/A records with name compression; the Chromecast TXT gives the name (fn), model (md), id and capabilities (ca; bit 0 = video out, so the device has a screen for CN-09). "
+ "<b>SSDP</b>: an M-SEARCH for MediaRenderer:1 to 239.255.255.250:1900, then the UPnP device description for the name, model, UDN and the AVTransport, RenderingControl and ConnectionManager control URLs. Only local-network addresses are accepted. "
+ "<b>Built (19 Nov 2026, step 3):</b> DnsMessage, MdnsBrowser, SsdpBrowser, DeviceDiscovery (both at once, about 3 s); on Anders's network it found his Chromecast Ultra (with a screen) and his Samsung TV. The picker follows with the first target (CN-01). "
+ "<b>Components:</b> DeviceDiscovery and CastDevice (id, name, kind, address, port, model, has screen, protocol details); CastService aggregating ICastTarget providers (cast-target plugins can add more, PG-01).", None),
 ("CN-06", "Remote control (web/mobile)",
  "A small web remote served by the player: now playing with art, transport buttons, volume, seek, and the current playlist with tap-to-play. Any phone browser on the same network can use it after pairing.",
  "Settings › Casting & network › Remote control: on/off, port, pairing QR code and PIN.",

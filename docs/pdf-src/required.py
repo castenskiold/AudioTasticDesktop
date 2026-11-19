@@ -200,7 +200,7 @@ tech=[
 ("VST3","VST3 SDK (MIT since version 3.8, October 2025) through a small native C++ host shim."),
 ("Tags","TagLibSharp (LGPL, separate DLL); FFmpeg metadata as fallback."),
 ("Chromecast","SharpCaster (open source) or own Cast v2 client."),
-("DLNA / UPnP / mDNS","Own SSDP + AVTransport SOAP code; Makaretu.Dns.Multicast (MIT) for mDNS."),
+("DLNA / UPnP / mDNS","Own SSDP, mDNS and AVTransport SOAP code (no library)."),
 ("AirPlay","No mature free .NET sender library; own RAOP (AirPlay 1) implementation needed."),
 ("Streaming server","Kestrel / ASP.NET Core (MIT), embedded."),
 ("Video encoding (cast modes)","FFmpeg (LGPL build) with the operating system's H.264 encoders (Media Foundation on Windows, VideoToolbox on macOS, VA-API on Linux) or a free software encoder such as libvpx (BSD) or OpenH264 (BSD); never x264 (GPL). Chosen in P11 after testing with the cast devices."),
@@ -246,4 +246,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.15  ·  19 November 2026", story, short_title="Required Features  ·  v1.15")
+ "Version 1.16  ·  19 November 2026", story, short_title="Required Features  ·  v1.16")

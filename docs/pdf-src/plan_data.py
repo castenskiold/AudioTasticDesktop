@@ -219,7 +219,7 @@ dict(id="P11", name="Casting and network", size="XL",
  why="Casting needs the full pipeline (DSP, crossfading) to decide what is sent, and the plugin system for cast targets; online services need stable track-change events.",
  features=[
   ("CN-04", "StreamServer on embedded Kestrel (range requests, random session URLs, LAN binding) and Transcoder (FLAC/MP3 via FFmpeg)."),
-  ("CN-05", "CastService, mDNS (Makaretu.Dns.Multicast) and SSDP discovery, device picker popover on the CAST button."),
+  ("CN-05", "CastService, own mDNS and SSDP discovery (no library), device picker popover on the CAST button."),
   ("CN-01", "ChromecastTarget (SharpCaster or own Cast v2), format checks, 'process audio before casting' mode; completes the ICastTargetPlugin contract (PG-01) and hosts cast-target plugins in the device picker."),
   ("CN-02", "DLNA renderer target: device description, AVTransport, RenderingControl, ConnectionManager format checks."),
   ("CN-03", "AirPlay (RAOP) target: RTSP session, ALAC RTP stream, encryption, volume/metadata; tested against shairport-sync; marked untested on real hardware."),
@@ -383,7 +383,8 @@ PROGRESS = {
                      "The macOS .dmg (signing fix pending CI) and the Linux AppImage are not tried by hand; tray, media controls, hotkeys, notifications and file types on macOS/Linux are still to build."]),
     "P11": dict(status="In progress", date="", outcome=[
                         "Step 1 (19 Nov 2026): CN-04 streaming server on Kestrel with random per-file URLs, local-network-only answers and range requests; files a device cannot play are served as 16-bit WAV (seekable, bit-exact for 16-bit sources). Test devices: Anders has a Samsung smart TV (DLNA) and a Chromecast; a Linux VM for AirPlay comes later.",
-                        "Step 2 (19 Nov 2026): FLAC (bit-exact, 16/24-bit) and MP3 transcoding on the fly through a new SDK encoder interface (SDK 0.4.1, offered by the FFmpeg plugin), seeking by start time; the test suite now runs at most 4 test projects at once (timing tests failed under full parallel load)."],
+                        "Step 2 (19 Nov 2026): FLAC (bit-exact, 16/24-bit) and MP3 transcoding on the fly through a new SDK encoder interface (SDK 0.4.1, offered by the FFmpeg plugin), seeking by start time; the test suite now runs at most 4 test projects at once (timing tests failed under full parallel load).",
+                        "Step 3 (19 Nov 2026): device discovery (CN-05) with own mDNS and SSDP code: Chromecasts with their name, model and whether they have a screen, DLNA renderers with their control addresses; on Anders's network it found both test devices. The picker comes with the first target."],
                open=["MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere."]),
 }
 
