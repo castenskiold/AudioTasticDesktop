@@ -20,9 +20,14 @@ TARBALL="$HERE/downloads/ffmpeg-$VERSION.tar.xz"
 [ -f "$TARBALL" ] || curl -fsSL "https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.xz" -o "$TARBALL"
 [ -d "$SRC" ] || tar -xJf "$TARBALL" -C "$HERE/build"
 cd "$SRC"
+# Building x86_64 on an arm64 Mac (GitHub's macOS runners) is a cross build; the x86 assembly needs nasm.
+CROSS=()
+if [ "$ARCH" != "$(uname -m)" ]; then
+  CROSS=(--enable-cross-compile --target-os=darwin)
+fi
 ./configure \
   --prefix="$HERE/build/install-$RID" \
-  --arch="$ARCH" --cc="clang -arch $ARCH" \
+  --arch="$ARCH" --cc="clang -arch $ARCH" "${CROSS[@]}" \
   --enable-shared --disable-static \
   --disable-programs --disable-doc --disable-debug \
   --disable-gpl --disable-nonfree \

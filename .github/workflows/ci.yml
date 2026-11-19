@@ -117,6 +117,9 @@ jobs:
       - name: FFmpeg (prebuilt LGPL)
         if: ${{ !startsWith(matrix.rid, 'osx') }}
         run: python native/fetch_ffmpeg.py --rid ${{ matrix.rid }}
+      - name: nasm (FFmpeg's x86 assembly, osx-x64 cross build)
+        if: ${{ matrix.rid == 'osx-x64' }}
+        run: brew install nasm
       - name: FFmpeg (built from source, LGPL)
         if: ${{ startsWith(matrix.rid, 'osx') }}
         run: bash native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
