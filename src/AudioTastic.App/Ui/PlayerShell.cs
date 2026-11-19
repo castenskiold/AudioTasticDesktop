@@ -266,6 +266,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 Player.ShowNotice(stopAfter ? "Stop after current: on (playback stops when this track ends)" : "Stop after current: off");
                 break;
             case "queue": _playlists.QueueSelection(); break; // PB-09: Q
+            case "editTags": _playlists.EditTags(source); break; // MD-01: Ctrl+E
             case "clearQueue": player.Queue.Clear(); break;
             case "speed": ShowDialog(new SpeedWindow(player)); break; // PB-06
             case "sleepTimer": ShowDialog(new SleepTimerWindow(_sleep)); break; // PB-10

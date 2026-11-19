@@ -79,6 +79,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     private CrossfadePlan? _plan;           // the transition planned for the armed incoming deck
     private CrossfadePlan? _mixing;         // after the hand-over: the outgoing deck still sounds, or the tempo returns
     private Deck? _fading;                  // the outgoing deck after the hand-over
+    private string? _fadingPath;            // MD-01: its file, open until the deck is unloaded
     private int _finishingFade;
     private double? _deckSpeedOverride;     // XF-02: matched speed of _deck (null = the normal speed)
     private double? _spareSpeedOverride;
@@ -146,6 +147,20 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public int CurrentIndex => _index;
     public Playlist PlayingPlaylist => _playlist;
     public PlaylistEntry? CurrentEntry => _entry;
+
+    /// <summary>
+    /// MD-01: true while a deck has <paramref name="path"/> open: the current track (unless stopped), the preloaded next
+    /// track, or the outgoing track of a crossfade. Tag writes to such a file wait until it is released.
+    /// </summary>
+    public bool IsDecoding(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        bool Same(string? other) => other is not null &&
+            string.Equals(other, path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        return (_state != PlaybackState.Stopped && Same(Volatile.Read(ref _entry)?.Path))
+            || Same(Volatile.Read(ref _preload)?.Entry.Path)
+            || (Volatile.Read(ref _fading) is not null && Same(Volatile.Read(ref _fadingPath)));
+    }
     public string? OutputDeviceName => _output.IsOpen ? _output.DeviceName : null;
 
     public TimeSpan Position => _state == PlaybackState.Stopped || _track is null
@@ -1749,6 +1764,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             Queue.Dequeue(); // PB-09: the queued entry is playing now
         }
         var newPlaylist = !ReferenceEquals(_playlist, p.Playlist);
+        var previousPath = _entry?.Path;
         _preloadSkipped = null;
         _playlist = p.Playlist;
         _entry = p.Entry;
@@ -1770,6 +1786,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         if (crossfade is not null && finished.IsActive)
         {
             // XF: the outgoing track keeps playing under its envelope; the monitor unloads it once it is silent.
+            _fadingPath = previousPath;
             _fading = finished;
             _mixing = crossfade;
             _logger.LogInformation("Crossfade ({Mode}): playing {Path}", crossfade.Mode, p.Entry.Path);

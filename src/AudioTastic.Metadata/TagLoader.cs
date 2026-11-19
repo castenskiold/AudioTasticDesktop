@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AudioTastic.Core.Playlists;
+using AudioTastic.Sdk.Metadata;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.Metadata;
@@ -76,6 +77,23 @@ public sealed class TagLoader : IDisposable
             // A CUE track keeps its own title and performer; a whole file prefers the file's tags over playlist text.
             entry.Tags = entry.IsVirtual ? (entry.Tags ?? new()).Merge(fileTags) : fileTags.Merge(entry.Tags);
         }
+        entry.TagsLoaded = true;
+    }
+
+    /// <summary>
+    /// MD-01: after the file's tags were written. A whole file takes the new tags as they are (cleared fields stay
+    /// cleared); a CUE track keeps its own title, performer and number from the cue sheet.
+    /// </summary>
+    public static void Refresh(PlaylistEntry entry, TrackTags? fileTags)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (fileTags is null)
+        {
+            return;
+        }
+        entry.Tags = entry.IsVirtual
+            ? new TrackTags(entry.Tags?.Title, entry.Tags?.Artist, TrackNumber: entry.Tags?.TrackNumber).Merge(fileTags)
+            : fileTags;
         entry.TagsLoaded = true;
     }
 

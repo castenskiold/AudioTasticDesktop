@@ -28,7 +28,7 @@ public sealed class TagWriteException : Exception
 /// (DSD, tracker modules, MIDI, TTA, streams) are read-only. After a write the file's cached data (waveform,
 /// loudness, beats, resume position, …) moves to the file's new version, because only the tags changed; the cached
 /// tags are dropped so <see cref="TagService"/> reads them again. Not thread-affine; callers must not write a file
-/// the player is decoding (see <c>TagWriteQueue</c> in the app).
+/// the player is decoding (<see cref="TagWriteService"/> waits for that).
 /// </summary>
 public sealed class TagWriter(TagService tags, CacheStore? cache, ILogger<TagWriter> logger)
 {

@@ -27,6 +27,8 @@ public sealed class PlaylistController : IDisposable
     private readonly IEnumerable<IAudioSourceFactory> _factories;
     private readonly Analysis.AnalysisService? _analysis;
     private readonly Analysis.BeatInfoService? _beats;
+    private readonly TagWriter? _writer;
+    private readonly TagWriteService? _writes;
 
     /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
     public string? AnalysisStatus => _analysis?.Status is { Total: > 0 } s ? $"Analysing {s.Done + 1}/{s.Total}" : null;
@@ -37,9 +39,19 @@ public sealed class PlaylistController : IDisposable
 
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
         IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
-        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null)
+        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null)
     {
         _beats = beats;
+        _writer = writer;
+        _writes = writes;
+        if (writes is not null)
+        {
+            // MD-01: written files refresh their rows; edits waiting for the player are written once it lets go.
+            writes.Written += (_, e) => Dispatcher.UIThread.Post(() => OnTagsWritten(e.Path, e.Tags));
+            writes.Failed += (_, e) => Dispatcher.UIThread.Post(() => Message?.Invoke(this, e.Message));
+            engine.TrackChanged += (_, _) => RetryTagWrites();
+            engine.StateChanged += (_, _) => RetryTagWrites();
+        }
         _analysis = analysis;
         if (analysis is not null)
         {
@@ -340,7 +352,7 @@ public sealed class PlaylistController : IDisposable
             Item(_engine.StopAfterCurrent && isPlaying ? "✓ Stop after this track" : "Stop after this track",
                 () => StopAfterCurrentRequested?.Invoke(this, EventArgs.Empty), isPlaying),
             Item("File info…", null),
-            Item("Edit tags…", null),
+            Item("Edit tags…  Ctrl+E", () => EditTags(source), _writes is not null && selection.Any(e => !e.IsUrl)),
             Item("Look up online…", null),
             Item("Convert…", null),
             Item("Reset resume position", () =>
@@ -371,6 +383,85 @@ public sealed class PlaylistController : IDisposable
     }
 
     public void Dispose() => _attached.Changed -= OnActiveChanged;
+
+    /// <summary>
+    /// MD-01: Edit tags… (Ctrl+E) for the selected files, or the playing track when nothing is selected. Files whose
+    /// tags cannot be written are skipped (and said so); the playing track is written once the player releases it.
+    /// </summary>
+    public void EditTags(Control source)
+    {
+        if (_writer is null || _writes is null || TopLevel.GetTopLevel(source) is not Window owner)
+        {
+            return;
+        }
+        var entries = Selection.Where(e => !e.IsUrl).ToList();
+        if (entries.Count == 0 && _engine.CurrentEntry is { IsUrl: false } current)
+        {
+            entries.Add(current);
+        }
+        var paths = entries.Select(e => e.Path).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (paths.Count == 0)
+        {
+            return;
+        }
+        var writer = _writer;
+        var writes = _writes;
+        Run(async () =>
+        {
+            var read = await Task.Run(() => paths.Select(p => (Path: p, Writable: TagWriter.CanWrite(p), Tags: writer.Read(p))).ToList());
+            var writable = read.Where(r => r.Writable && r.Tags is not null).ToList();
+            if (writable.Count == 0)
+            {
+                Message?.Invoke(this, paths.Count == 1 ? "The tags of this file cannot be written (read-only file or format)."
+                    : "The tags of these files cannot be written (read-only files or formats).");
+                return;
+            }
+            var heading = writable.Count == 1 ? Path.GetFileName(writable[0].Path) : $"{writable.Count} files";
+            var skipped = paths.Count - writable.Count;
+            var note = skipped > 0 ? $"{skipped} of {paths.Count} files cannot be written (read-only file or format) and are left out." : null;
+            if (await TagEditorWindow.ShowAsync(owner, [.. writable.Select(r => r.Tags!)], heading, note) is not { } edit)
+            {
+                return;
+            }
+            var outcome = await writes.WriteAsync([.. writable.Select(r => r.Path)], edit);
+            if (outcome.Failures.Count > 0)
+            {
+                return; // each failure was reported through Failed
+            }
+            Message?.Invoke(this, outcome.Deferred > 0
+                ? "Tags saved; the playing track's tags are written when it stops or the next track starts"
+                : outcome.Written == 1 ? "Tags saved" : $"Tags saved to {outcome.Written} files");
+        });
+    }
+
+    private void RetryTagWrites()
+    {
+        if (_writes is { PendingCount: > 0 } writes)
+        {
+            _ = writes.Retry();
+        }
+    }
+
+    /// <summary>MD-01: every row of the written file (in every tab) shows the new tags.</summary>
+    private void OnTagsWritten(string path, Sdk.Metadata.TrackTags? tags)
+    {
+        foreach (var playlist in _service.Playlists)
+        {
+            var changed = false;
+            foreach (var entry in playlist.Entries)
+            {
+                if (string.Equals(entry.Path, path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                {
+                    TagLoader.Refresh(entry, tags);
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                playlist.NotifyDetailsChanged();
+            }
+        }
+    }
 
     /// <summary>
     /// AN-02: moves a file's beat grid by a few milliseconds when the kick detection is a little off (beat matching

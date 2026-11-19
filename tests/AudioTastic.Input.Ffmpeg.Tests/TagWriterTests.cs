@@ -129,6 +129,47 @@ public sealed class TagWriterTests : IDisposable
     }
 
     [Fact]
+    public async Task Edits_to_a_file_in_use_wait_merge_and_are_written_when_it_is_released()
+    {
+        var playing = Copy("sine1k.flac.flac");
+        var other = Copy("sine1k.mp3.mp3");
+        var inUse = true;
+        var service = new TagWriteService(_writer, p => inUse && p == playing, NullLogger<TagWriteService>.Instance);
+        var written = new List<string>();
+        service.Written += (_, e) => written.Add(Path.GetFileName(e.Path));
+        var before = File.ReadAllBytes(playing);
+
+        var outcome = await service.WriteAsync([playing, other], new TagEdit(new Dictionary<TagField, string?> { [TagField.Album] = "First", [TagField.Year] = "2020" }));
+        await service.WriteAsync([playing], new TagEdit(new Dictionary<TagField, string?> { [TagField.Album] = "Second" }));
+
+        Assert.Equal((1, 1), (outcome.Written, outcome.Deferred));
+        Assert.Equal(["sine1k.mp3.mp3"], written);
+        Assert.Equal(before, File.ReadAllBytes(playing)); // untouched while in use
+        Assert.True(service.IsPending(playing));
+        Assert.Equal(0, await service.Retry()); // still in use
+
+        inUse = false;
+        Assert.Equal(1, await service.Retry());
+        var read = _writer.Read(playing)!;
+        Assert.Equal(("Second", "2020"), (read[TagField.Album], read[TagField.Year])); // both edits, the later one winning
+        Assert.Equal(0, service.PendingCount);
+    }
+
+    [Fact]
+    public void Refreshed_entries_take_the_new_tags_but_cue_tracks_keep_their_titles()
+    {
+        var whole = new Core.Playlists.PlaylistEntry("a.flac", tags: new Sdk.Metadata.TrackTags("Old", "Old artist", "Old album"));
+        var cue = new Core.Playlists.PlaylistEntry("a.flac", TimeSpan.Zero, TimeSpan.FromSeconds(2), new Sdk.Metadata.TrackTags("Cue title", "Cue artist", "Old album", TrackNumber: 2));
+        var file = new Sdk.Metadata.TrackTags("New", null, "New album");
+
+        TagLoader.Refresh(whole, file);
+        TagLoader.Refresh(cue, file);
+
+        Assert.Equal(("New", null, "New album"), (whole.Tags!.Title, whole.Tags.Artist, whole.Tags.Album)); // cleared artist stays cleared
+        Assert.Equal(("Cue title", "Cue artist", "New album", 2), (cue.Tags!.Title, cue.Tags.Artist, cue.Tags.Album, cue.Tags.TrackNumber));
+    }
+
+    [Fact]
     public void Common_value_of_several_files()
     {
         EditableTags Tags(string? album, string? year) => new(
