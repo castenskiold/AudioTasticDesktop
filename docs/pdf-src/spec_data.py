@@ -235,11 +235,11 @@ S("Metadata", "Reading, editing and showing information about the tracks.", [
  "<b>Components:</b> ArtService (TagLibSharp pictures + folder lookup), thumbnail cache (resized PNG in the data folder). Rendered in the skin's rounded frame.",
  "Settings › Metadata: album art on/off."),
 ("MD-03", "Online lookup",
- "Looks up missing tags and cover art. MusicBrainz for tags (search by artist/title/duration, or CD disc ID for FM-11), Cover Art Archive for covers, Discogs as a fallback for covers. Never overwrites tags without confirmation: results are shown side by side with the current tags for the user to accept.",
+ "Looks up missing tags and cover art. MusicBrainz for tags (search by artist/title/duration, or CD disc ID for FM-11), Cover Art Archive for covers. (A Discogs fallback for covers is deferred; it would need a personal access token per user.) Never overwrites tags without confirmation: results are shown side by side with the current tags for the user to accept.",
  "Tag editor › Look up online… ; Art & Lyrics window › right-click art › Find cover online.",
- "<b>APIs:</b> MusicBrainz WS/2 (JSON, max 1 request/s, descriptive User-Agent required), Cover Art Archive, Discogs API (needs a personal access token entered in settings). "
+ "<b>APIs:</b> MusicBrainz WS/2 (JSON, max 1 request/s, descriptive User-Agent required), Cover Art Archive (no account needed). "
  "<b>Components:</b> OnlineLookupService with rate limiter (System.Threading.RateLimiting) and an HTTP cache.",
- "Settings › Metadata: online lookup on/off, services to use, Discogs token."),
+ "Settings › Metadata: online lookup on/off, services to use (MusicBrainz tags, Cover Art Archive covers)."),
 ("MD-04", "Lyrics",
  "Shows lyrics for the current track. Synced lyrics (LRC: from a .lrc file next to the audio file, or embedded SYLT/LYRICS with timestamps) scroll and highlight the current line; clicking a line seeks there. Plain lyrics (USLT, LYRICS tag) are shown as scrollable text.",
  "AL2: lyrics pane in the Art & Lyrics window (below the art). Hidden when the feature is off.",

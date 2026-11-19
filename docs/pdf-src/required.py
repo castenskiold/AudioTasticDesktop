@@ -91,7 +91,7 @@ sections2=[
 ("7. Metadata",[
 ("Tag reading and editing","ID3v1/v2, Vorbis comments, APEv2 and MP4 atoms."),
 ("Album art",f"Embedded and folder cover art in the main window. Can be switched on/off in {GS}."),
-("Online lookup",f"Fetch tags and cover art from MusicBrainz, Cover Art Archive and Discogs. Can be switched on/off in {GS}."),
+("Online lookup",f"Fetch tags and cover art from MusicBrainz and the Cover Art Archive. Can be switched on/off in {GS}. (A Discogs fallback for covers is deferred, section 17.)"),
 ("Lyrics",f"Show embedded or synced (LRC) lyrics. Can be switched on/off in {GS}."),
 ("File info dialog","Format, bitrate, sample rate, bit depth, channels, codec and file size."),
 ]),
@@ -235,6 +235,7 @@ later=[
 ("VST2","Not included (VST3 only)."),
 ("AirPlay 2","Not included for now (original AirPlay only)."),
 ("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
+("Discogs cover fallback","Deferred (Anders, 19 November 2026); may be revisited later. Online lookup uses MusicBrainz and the Cover Art Archive, which need no account. Discogs would need each user's personal access token."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
 ]
 story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome")),Spacer(1,6),
@@ -242,4 +243,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.10  ·  18 November 2026", story, short_title="Required Features  ·  v1.10")
+ "Version 1.11  ·  19 November 2026", story, short_title="Required Features  ·  v1.11")
