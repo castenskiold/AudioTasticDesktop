@@ -168,8 +168,10 @@ jobs:
           path: native/downloads
           key: plugin-assets-${{ hashFiles('native/fetch_soundfont.py', 'native/fetch_optimfrog.py') }}
       - run: python3 native/fetch_soundfont.py
-      # OptimFROG libraries for the plugin's tests and its separate .atplugin package (not part of the app).
+      # OptimFROG libraries for the plugin's tests and its separate .atplugin package (not part of the app). The site
+      # sometimes sends CI runners something else: then the OptimFROG tests skip and the rest of CI still runs.
       - run: python3 native/fetch_optimfrog.py --rid win-x64 --rid linux-x64 --rid osx-x64
+        continue-on-error: true
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-assets
@@ -189,6 +191,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       # The OptimFROG package's encoder makes the .ofr test files (used in CI and locally, never shipped).
       - run: python3 native/fetch_optimfrog.py --rid linux-x64
+        continue-on-error: true # without the encoder the .ofr files are left out and their tests skip
       - run: python3 scripts/generate_test_media.py
       - uses: actions/upload-artifact@v4
         with:

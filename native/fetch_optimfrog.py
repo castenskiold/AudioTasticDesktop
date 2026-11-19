@@ -62,7 +62,8 @@ def fetch(site_folder, package, expected):
             actual = sha1(archive)
             if actual == expected:
                 return archive
-            print(f"  SHA-1 mismatch: expected {expected}, got {actual}")
+            print(f"  SHA-1 mismatch: expected {expected}, got {actual} ({archive.stat().st_size} bytes, "
+                  f"starts {archive.read_bytes()[:16]!r})")
         except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
             print(f"  failed: {error}")
         if archive.exists():
