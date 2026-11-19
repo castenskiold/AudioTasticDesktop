@@ -309,6 +309,15 @@ public sealed class SystemIntegrationSettings
     /// <summary>SI-04: the tray icon (menu bar icon on macOS) with the player menu.</summary>
     public bool TrayIcon { get; set; } = true;
 
+    /// <summary>
+    /// SI-02 / SI-07: a Start menu shortcut to this copy of AudioTastic (Windows also names the app in its media
+    /// controls and notifications through it). Null = the default: on, except in portable mode.
+    /// </summary>
+    public bool? StartMenuShortcut { get; set; }
+
+    /// <summary>SI-02: AudioTastic in the OS media controls (overlay, lock screen, media keys, headset buttons).</summary>
+    public bool MediaControls { get; set; } = true;
+
     /// <summary>SI-04: minimising the player hides it to the tray (needs the tray icon).</summary>
     public bool MinimiseToTray { get; set; }
 

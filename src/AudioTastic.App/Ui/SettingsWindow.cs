@@ -163,6 +163,20 @@ public sealed class SettingsWindow : Window
                 "'Choose default apps…' registers it and opens that page. Double-clicked files go to the running player and are played or enqueued as chosen above." +
                 (_paths.IsPortable ? " Portable mode: nothing is registered unless you switch it on." : ""));
         }
+        if (_platform.Shell.SupportsStartMenuShortcut)
+        {
+            Heading(panel, "Start menu");
+            Check(panel, "Start menu shortcut (Windows also uses it to name AudioTastic in its media controls)",
+                si.StartMenuShortcut ?? !_paths.IsPortable, v => Update(s => s.StartMenuShortcut = v));
+        }
+
+        if (_platform.MediaControls.IsSupported)
+        {
+            Heading(panel, "Media controls");
+            Check(panel, "Show AudioTastic in the Windows media controls (media overlay, lock screen, keyboard media keys, headset buttons)",
+                si.MediaControls, v => Update(s => s.MediaControls = v));
+        }
+
         Heading(panel, "Tray");
         Check(panel, "Show the tray icon (player menu, sleep timer; click it to show or hide the player)", si.TrayIcon, v =>
         {
@@ -182,7 +196,7 @@ public sealed class SettingsWindow : Window
         Check(trayOptions, "Minimise to the tray", si.MinimiseToTray, v => Update(s => s.MinimiseToTray = v));
         Check(trayOptions, "Close to the tray (exit from the tray menu or Main menu › Exit)", si.CloseToTray, v => Update(s => s.CloseToTray = v));
         panel.Children.Add(trayOptions);
-        Note(panel, "Hotkeys, media keys, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+        Note(panel, "Global hotkeys, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
     }
 
     /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>

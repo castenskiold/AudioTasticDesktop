@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0/AudioTastic.dll",
+      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0-windows10.0.19041.0/AudioTastic.dll",
       "args": [],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
@@ -17,7 +17,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0/AudioTastic.dll",
+      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0-windows10.0.19041.0/AudioTastic.dll",
       "args": ["--portable"],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
@@ -27,7 +27,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0/AudioTastic.dll",
+      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0-windows10.0.19041.0/AudioTastic.dll",
       "args": ["--crash-test"],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
@@ -37,7 +37,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0/AudioTastic.dll",
+      "program": "${workspaceFolder}/src/AudioTastic.App/bin/Debug/net10.0-windows10.0.19041.0/AudioTastic.dll",
       "args": ["tests/media/generated/sweep.flac.flac", "tests/media/generated/sweep.mp3.mp3", "tests/media/generated/sine1k.hires-24-96.flac"],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"

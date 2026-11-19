@@ -302,17 +302,18 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 
 S("System integration", "How the player works with the operating system. Platform-specific code lives in AudioTastic.Platform.Windows / .MacOS / .Linux behind shared interfaces.", [
 ("SI-01", "Global hotkeys and media keys",
- "Configurable system-wide shortcuts that work when the player is not focused (defaults: Ctrl+Alt+Home play/pause, Ctrl+Alt+End stop, Ctrl+Alt+PgUp/PgDn previous/next, Ctrl+Alt+Up/Down volume). Keyboard media keys work on all platforms.",
+ "Configurable system-wide shortcuts that work when the player is not focused (defaults: Ctrl+Alt+Home play/pause, Ctrl+Alt+End stop, Ctrl+Alt+PgUp/PgDn previous/next, Ctrl+Alt+Up/Down volume). Keyboard media keys work on all platforms (on Windows they reach AudioTastic through the media controls, SI-02, even when it is not focused or hidden in the tray).",
  "Settings › System integration › Hotkeys: list of actions with a 'press keys' field each.",
  "<b>Libraries:</b> SharpHook (MIT, libuiohook) for global hotkeys. macOS needs Accessibility permission (prompt on first use). Linux: works under X11; Wayland blocks global key capture, so media keys go through MPRIS (SI-02). "
  "<b>Components:</b> IHotkeyService.", "Settings › System integration: hotkeys on/off and key bindings."),
 ("SI-02", "OS media controls",
  "Publishes now-playing information (title, artist, album, art, position) and accepts play/pause/next/previous/seek from the OS: Windows media overlay, lock screen and Bluetooth headset buttons; macOS Now Playing (Control Centre, Touch Bar, AirPods); Linux MPRIS (desktop media widgets, playerctl).",
- "OS-provided UI only.",
- "<b>Windows:</b> SystemMediaTransportControls via CsWinRT using ISystemMediaTransportControlsInterop.GetForWindow on the main window HWND (TFM net8.0-windows10.0.19041). "
+ "OS-provided UI only: the Windows media flyout (Win+A / volume keys) shows 'AudioTastic', the title, artist, album and cover; a track without a cover, and a stream, shows the AudioTastic logo (Anders). Settings › System integration › Media controls switches it off.",
+ "<b>Windows (built, 19 Nov 2026):</b> SystemMediaTransportControls through SystemMediaTransportControlsInterop.GetForWindow on the main window's handle (it exists while hidden in the mini player or tray), from the Windows SDK projection Microsoft.Windows.SDK.NET.dll (Windows SDK license, chosen by Anders; WinRT.Runtime is MIT). The Windows-only projects target net10.0-windows10.0.19041.0 when built on Windows (minimum Windows 10 1809) and plain net10.0 elsewhere. Play, Pause, Stop, Next, Previous and position changes come back as player commands (keyboard media keys and Bluetooth headset buttons arrive the same way); the position is sent once a second and on seeks; the cover goes through a Windows in-memory stream (a wrapped .NET stream showed no cover). "
+ "Windows names an unpackaged app through its AppUserModelID: the process sets BigApps.AudioTastic, registers its name and icon under HKCU\\Software\\Classes\\AppUserModelId, and keeps a per-user Start menu shortcut carrying the same ID (without the shortcut the flyout said 'Unknown app'). "
  "<b>macOS:</b> MPNowPlayingInfoCenter and MPRemoteCommandCenter through Objective-C runtime interop (P/Invoke objc_msgSend) or a small Swift helper dylib. "
  "<b>Linux:</b> MPRIS 2 (org.mpris.MediaPlayer2 and .Player) on the session bus via Tmds.DBus (MIT). "
- "<b>Components:</b> IMediaControls.", None),
+ "<b>Components:</b> IMediaControls (WindowsMediaControls; NoMediaControls elsewhere for now), MediaControlsService (App), StartMenuShortcut (source-generated COM: IShellLinkW, IPersistFile, IPropertyStore).", "Settings › System integration: media controls on/off (default on); Start menu shortcut on/off (default on, off in portable mode)."),
 ("SI-03", "Taskbar integration",
  "Windows: thumbnail toolbar buttons (Previous, Play/Pause, Next) in the taskbar preview, and playback progress on the taskbar button. macOS: Dock menu with Play/Pause, Next, Previous and the current title.",
  "Windows taskbar preview; macOS Dock right-click menu.",
@@ -337,7 +338,7 @@ S("System integration", "How the player works with the operating system. Platfor
 ("SI-07", "Notifications",
  "Shows a native notification with title, artist and art when the track changes (optional; off while the player is focused).",
  "OS notification area.",
- "<b>Windows:</b> toast notifications via CommunityToolkit notifications package (MIT); unpackaged apps need an AppUserModelID registered with a Start menu shortcut (done by the installer). "
+ "<b>Windows:</b> toast notifications via CommunityToolkit notifications package (MIT); unpackaged apps need an AppUserModelID registered with a Start menu shortcut, which AudioTastic now keeps itself (SI-02, P10). "
  "<b>macOS:</b> UNUserNotificationCenter via native interop (needs a signed app bundle). <b>Linux:</b> org.freedesktop.Notifications via Tmds.DBus. "
  "<b>Components:</b> INotificationService.", "Settings › Interface: notify on track change (on/off)."),
 ("SI-08", "Command-line interface",

@@ -43,6 +43,7 @@ public sealed partial class WindowsShellIntegration : IShellIntegration
     private readonly string _capabilitiesPath;
     private readonly string _registeredApplicationsPath;
     private readonly bool _notifyShell;
+    private readonly string _shortcutPath;
     private readonly Lock _gate = new();
 
     /// <summary>The real location: the current user's registry.</summary>
@@ -52,8 +53,9 @@ public sealed partial class WindowsShellIntegration : IShellIntegration
     }
 
     /// <summary>For tests: everything is written below <paramref name="softwarePath"/> instead of HKCU\Software.</summary>
-    public WindowsShellIntegration(RegistryKey root, string softwarePath, bool notifyShell = false)
+    public WindowsShellIntegration(RegistryKey root, string softwarePath, bool notifyShell = false, string? programsFolder = null)
     {
+        _shortcutPath = Path.Combine(programsFolder ?? StartMenuShortcut.ProgramsFolder, "AudioTastic.lnk");
         _root = root;
         _classesPath = softwarePath + @"\Classes";
         _statePath = softwarePath + @"\AudioTastic\ShellIntegration";
@@ -207,6 +209,32 @@ public sealed partial class WindowsShellIntegration : IShellIntegration
 
     /// <summary>The extensions AudioTastic is registered for (as remembered when they were written).</summary>
     public IReadOnlyList<string> AssociatedExtensions() => GetState(AssociationsValue);
+
+    public bool SupportsStartMenuShortcut => true;
+
+    /// <summary>The shortcut file (Start menu › AudioTastic).</summary>
+    public string ShortcutPath => _shortcutPath;
+
+    public void SetStartMenuShortcut(string? executablePath, string appId)
+    {
+        lock (_gate)
+        {
+            if (executablePath is null)
+            {
+                File.Delete(_shortcutPath);
+                return;
+            }
+            if (File.Exists(_shortcutPath))
+            {
+                var (target, id) = StartMenuShortcut.Read(_shortcutPath);
+                if (string.Equals(target, executablePath, StringComparison.OrdinalIgnoreCase) && id == appId)
+                {
+                    return; // unchanged
+                }
+            }
+            StartMenuShortcut.Write(_shortcutPath, executablePath, appId, "Winamp-style audio player");
+        }
+    }
 
     public void OpenDefaultAppsSettings() =>
         ProcessLauncher.ShellOpen($"ms-settings:defaultapps?registeredAppUser={ApplicationName}");

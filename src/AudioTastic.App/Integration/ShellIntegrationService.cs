@@ -100,6 +100,20 @@ public sealed class ShellIntegrationService : IDisposable
                 _platform.Shell.SetContextMenu(null);
                 _logger.LogInformation("Context menu entries removed");
             }
+            if (_platform.Shell.SupportsStartMenuShortcut)
+            {
+                if (settings.StartMenuShortcut ?? !_paths.IsPortable)
+                {
+                    if (Executable() is { } exe)
+                    {
+                        _platform.Shell.SetStartMenuShortcut(exe, Program.AppId);
+                    }
+                }
+                else if (settings.StartMenuShortcut == false)
+                {
+                    _platform.Shell.SetStartMenuShortcut(null, Program.AppId);
+                }
+            }
             if (_platform.Shell.SupportsFileAssociations && settings.FileAssociations is { } associate)
             {
                 var associations = associate ? Associations() : null;
@@ -110,7 +124,7 @@ public sealed class ShellIntegrationService : IDisposable
                 }
             }
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or SecurityException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or SecurityException or System.Runtime.InteropServices.COMException)
         {
             _logger.LogWarning(ex, "Could not update the context menu entries");
         }

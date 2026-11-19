@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Windows implementation of AudioTastic.Platform. -->
+  <PropertyGroup Condition="'$(IsWindowsBuild)' == 'true'">
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion>$(WindowsSupportedVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
   <PropertyGroup>
     <!-- LibraryImport (user32) generates unsafe marshalling code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

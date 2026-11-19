@@ -20,6 +20,8 @@ When you add a package or native library, add it here in the same pull request.
 | TagLibSharp | LGPL-2.1 (separate, replaceable DLL) | Tag reading (MD-01) | P3 |
 | MeltySynth | MIT (includes code from C# Synth and TinySoundFont/SFZero, also MIT) | MIDI synthesizer in the MIDI plugin (FM-08) | P4 |
 | System.CommandLine | MIT (.NET Foundation) | Command-line parsing (SI-08) | P10 |
+| Microsoft.Windows.SDK.NET (Windows builds only; part of the .NET SDK's Windows targeting) | Microsoft Windows SDK license: free, redistributable, not open source (accepted by Big Apps ApS, 19 Nov 2026) | Windows Runtime projection for the media controls (SI-02) | P10 |
+| WinRT.Runtime (C#/WinRT, Windows builds only) | MIT | Windows Runtime interop for the projection above | P10 |
 
 ## .NET packages (development only, not shipped)
 

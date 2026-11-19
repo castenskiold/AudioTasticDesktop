@@ -22,6 +22,8 @@ dotnet run --project src/AudioTastic.App -- --crash-test   # app switches go aft
 dotnet run --project src/AudioTastic.App -- song.flac other.mp3   # P1: play files
 ```
 
+On Windows the app and its Windows-only projects target `net10.0-windows10.0.19041.0` (Windows 10 1809 or later), so the build output is in `src/AudioTastic.App/bin/<Configuration>/net10.0-windows10.0.19041.0/`; on macOS and Linux they target `net10.0`.
+
 In Visual Studio, open `AudioTastic.slnx` and set **AudioTastic.App** as the startup project.
 
 Useful switches:
@@ -38,6 +40,7 @@ Useful switches:
 **Single instance, file types and context menu (Windows):**
 - AudioTastic runs once per user (a portable copy runs on its own). Starting it again hands the files to the running player and brings it to the front; files opened together, e.g. several selected in Explorer, are added as one batch.
 - The first start asks whether to use AudioTastic for audio files. *Yes, set up* registers it for every audio and playlist type it plays and opens Windows' *Settings › Default apps*, where you choose it as the default (Windows lets only you do that). Double-clicked files then go to the running player. Change it later in *Settings › System integration* (*Choose default apps…*, or switch the registration off). Portable mode doesn't ask.
+- **Media controls:** AudioTastic appears in the Windows media flyout (Win+A or the volume keys) with the title, artist and cover (the logo when a track has none); its buttons, keyboard media keys and Bluetooth headset buttons control the player, also when it is hidden. It keeps a Start menu shortcut, which Windows uses to name the app (switchable in *Settings › System integration*).
 - **Tray icon:** the logo in the notification area (on Windows 11 perhaps under the ^ arrow). Hover for the current title; click to hide or show the player; right-click for Play/Pause, Stop, Previous, Next, a sleep timer, Show/Hide and Exit. *Settings › System integration › Tray* switches the icon off, and can make minimising or closing hide the player to the tray.
 - Right-clicking audio files and playlists in Explorer shows **Open in AudioTastic** and **Enqueue in AudioTastic** with the app icon. On Windows 11 they are under *Show more options* (or Shift+right-click). The entries are per user (no administrator rights), follow the program if you move it (they are rewritten at every start) and cover every file type the enabled plugins play. Switch them off in *Settings › System integration* before deleting the program; in portable mode they are off unless you switch them on.
 

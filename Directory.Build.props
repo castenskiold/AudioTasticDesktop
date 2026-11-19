@@ -17,5 +17,11 @@
     <InformationalVersion>0.9.0</InformationalVersion>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <!-- P10 (SI-02, SI-03): the Windows-only parts (Platform.Windows, the app and its tests) target the Windows SDK
+         when built on Windows, which is where every Windows RID is built and published (CI too). Elsewhere they stay
+         plain net10.0 and the Windows-only code is left out (#if WINDOWS). -->
+    <IsWindowsBuild>$([MSBuild]::IsOSPlatform('Windows'))</IsWindowsBuild>
+    <WindowsTargetFramework>net10.0-windows10.0.19041.0</WindowsTargetFramework>
+    <WindowsSupportedVersion>10.0.17763.0</WindowsSupportedVersion>
   </PropertyGroup>
 </Project>

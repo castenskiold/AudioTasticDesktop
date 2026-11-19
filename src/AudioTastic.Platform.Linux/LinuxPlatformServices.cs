@@ -15,11 +15,18 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <summary>SI-05 for this OS comes later (see the feature card).</summary>
     public IShellIntegration Shell => NoShellIntegration.Instance;
 
+    /// <summary>SI-02 for this OS comes later (Now Playing on macOS, MPRIS on Linux).</summary>
+    public IMediaControls MediaControls => NoMediaControls.Instance;
+
     public void AllowOtherProcessToActivate()
     {
     }
 
     public void AttachToParentConsole()
+    {
+    }
+
+    public void SetAppIdentity(string appId, string displayName, string iconPath, bool writeToSystem)
     {
     }
 }

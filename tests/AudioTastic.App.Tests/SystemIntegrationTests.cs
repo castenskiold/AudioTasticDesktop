@@ -346,4 +346,50 @@ public sealed class SystemIntegrationTests
         Assert.Equal(AudioTastic.App.Ui.TrayController.MaxToolTipLength, longTitle.Length);
         Assert.EndsWith("…", longTitle, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Media_controls_show_buffering_as_playing()
+    {
+        Assert.Equal(MediaPlaybackState.Playing, MediaControlsService.StateOf(AudioTastic.Core.Playback.PlaybackState.Playing));
+        Assert.Equal(MediaPlaybackState.Playing, MediaControlsService.StateOf(AudioTastic.Core.Playback.PlaybackState.Buffering));
+        Assert.Equal(MediaPlaybackState.Paused, MediaControlsService.StateOf(AudioTastic.Core.Playback.PlaybackState.Paused));
+        Assert.Equal(MediaPlaybackState.Stopped, MediaControlsService.StateOf(AudioTastic.Core.Playback.PlaybackState.Stopped));
+    }
+
+    [Fact]
+    public void Start_menu_shortcut_carries_the_app_identity_and_is_rewritten_when_the_program_moves()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows shell links");
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var folder = Directory.CreateTempSubdirectory("audiotastic-lnk-").FullName;
+        var testRoot = @"Software\AudioTasticTests\" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var shell = new WindowsShellIntegration(Registry.CurrentUser, testRoot, programsFolder: folder);
+            var exe = Environment.ProcessPath!; // any existing program will do
+            shell.SetStartMenuShortcut(exe, "BigApps.AudioTastic.Test");
+            var (target, appId) = StartMenuShortcut.Read(shell.ShortcutPath);
+            Assert.Equal(exe, target, ignoreCase: true);
+            Assert.Equal("BigApps.AudioTastic.Test", appId);
+
+            var written = File.GetLastWriteTimeUtc(shell.ShortcutPath);
+            shell.SetStartMenuShortcut(exe, "BigApps.AudioTastic.Test"); // unchanged: not rewritten
+            Assert.Equal(written, File.GetLastWriteTimeUtc(shell.ShortcutPath));
+
+            var other = Path.Combine(Environment.SystemDirectory, "notepad.exe");
+            shell.SetStartMenuShortcut(other, "BigApps.AudioTastic.Test");
+            Assert.Equal(other, StartMenuShortcut.Read(shell.ShortcutPath).Target, ignoreCase: true);
+
+            shell.SetStartMenuShortcut(null, "BigApps.AudioTastic.Test");
+            Assert.False(File.Exists(shell.ShortcutPath));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+            Registry.CurrentUser.DeleteSubKeyTree(testRoot, throwOnMissingSubKey: false);
+        }
+    }
 }

@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- CO-01: Avalonia desktop application (the player itself). -->
+  <PropertyGroup Condition="'$(IsWindowsBuild)' == 'true'">
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion>$(WindowsSupportedVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <AssemblyName>AudioTastic</AssemblyName>
@@ -67,6 +71,8 @@
     <EmbeddedResource Include="$(RepoRoot)THIRD-PARTY-NOTICES.md" LogicalName="AudioTastic.ThirdPartyNotices.md" />
     <!-- The app's MIT licence and the third-party notices also ship next to the program (release packages). -->
     <None Include="$(RepoRoot)LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <!-- SI-02 / SI-07: the icon Windows shows for the app identity (media controls, notifications). -->
+    <None Include="$(RepoRoot)assets\branding\png\audiotastic-256.png" Link="audiotastic.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(RepoRoot)THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 

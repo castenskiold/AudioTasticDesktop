@@ -17,9 +17,35 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
 
     public IShellIntegration Shell { get; } = new WindowsShellIntegration();
 
+#if WINDOWS
+    public IMediaControls MediaControls { get; } =
+        OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763) ? new WindowsMediaControls() : NoMediaControls.Instance;
+#else
+    public IMediaControls MediaControls => NoMediaControls.Instance; // built without the Windows SDK (not on Windows)
+#endif
+
     public void AllowOtherProcessToActivate() => AllowSetForegroundWindow(AsfwAny);
 
     public void AttachToParentConsole() => AttachConsole(AttachParentProcess);
+
+    /// <summary>
+    /// The process's AppUserModelID (taskbar grouping, media controls, toasts) and, per user, its name and icon under
+    /// HKCU\Software\Classes\AppUserModelId\&lt;id&gt;, which is how Windows names an app without a package.
+    /// </summary>
+    public void SetAppIdentity(string appId, string displayName, string iconPath, bool writeToSystem)
+    {
+        if (writeToSystem)
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"Software\Classes\AppUserModelId\{appId}");
+            key.SetValue("DisplayName", displayName);
+            key.SetValue("IconUri", iconPath);
+        }
+        Marshal.ThrowExceptionForHR(SetCurrentProcessExplicitAppUserModelID(appId));
+    }
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial int SetCurrentProcessExplicitAppUserModelID(string appId);
 
     private const int AttachParentProcess = -1;
 

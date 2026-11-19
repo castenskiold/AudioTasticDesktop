@@ -19,6 +19,9 @@ public interface IPlatformServices
     /// <summary>SI-05: file manager integration (context menu entries).</summary>
     IShellIntegration Shell { get; }
 
+    /// <summary>SI-02: the OS media controls (now playing, media keys, overlay).</summary>
+    IMediaControls MediaControls { get; }
+
     /// <summary>
     /// SI-06: called by a second start before it hands its files to the running player, so that the player may
     /// bring its window to the front (Windows only lets the process the user just started do that).
@@ -30,4 +33,12 @@ public interface IPlatformServices
     /// console of its own; elsewhere standard output already works.
     /// </summary>
     void AttachToParentConsole();
+
+    /// <summary>
+    /// SI-02 / SI-07: gives the process an app identity, so the OS media controls and notifications show
+    /// <paramref name="displayName"/> and <paramref name="iconPath"/> instead of "Unknown app". Call before any window
+    /// is created. <paramref name="writeToSystem"/> false sets the identity without writing anything to the system
+    /// (portable mode).
+    /// </summary>
+    void SetAppIdentity(string appId, string displayName, string iconPath, bool writeToSystem);
 }

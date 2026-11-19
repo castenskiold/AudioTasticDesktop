@@ -61,6 +61,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private readonly Integration.InstanceInbox _inbox;
     private readonly Integration.ShellIntegrationService _shellIntegration;
     private TrayController? _tray;
+    private readonly Integration.MediaControlsService _mediaControls;
     private bool _inTray;
     private bool _mainBeforeTray;
     private bool _playlistBeforeTray;
@@ -72,8 +73,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
         AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
-        Integration.ShellIntegrationService shellIntegration, ILoggerFactory loggerFactory)
+        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, ILoggerFactory loggerFactory)
     {
+        _mediaControls = mediaControls;
         _inbox = inbox;
         _shellIntegration = shellIntegration;
         _art = art;
@@ -230,6 +232,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 }
             };
         }
+        // SI-02: the OS media controls belong to the main window (it exists while hidden, e.g. in the mini player or tray).
+        _mediaControls.Start(_main.TryGetPlatformHandle()?.Handle ?? 0);
         // SI-04: the tray icon and its menu.
         _tray = new TrayController(Player, _sleep, ExecuteFromTray, () => PlayerShown)
         {

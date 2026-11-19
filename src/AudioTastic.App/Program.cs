@@ -45,6 +45,16 @@ internal static class Program
         {
             return 0; // --quit with no player running: nothing to do, and nothing to start
         }
+        // SI-02 / SI-07: an app identity before any window exists, so Windows' media controls name AudioTastic.
+        try
+        {
+            platform.SetAppIdentity(AppId, "AudioTastic", Path.Combine(AppContext.BaseDirectory, "audiotastic.png"), writeToSystem: !paths.IsPortable);
+        }
+#pragma warning disable CA1031 // Cosmetic: never stop the start-up over it.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
         var inbox = new AudioTastic.App.Integration.InstanceInbox();
         instance.Listen(inbox.Post);
 
@@ -81,6 +91,7 @@ internal static class Program
                 .AddSingleton(platform)
                 .AddSingleton(inbox)
                 .AddSingleton<AudioTastic.App.Integration.ShellIntegrationService>()
+                .AddSingleton<AudioTastic.App.Integration.MediaControlsService>()
                 // P4 plugins (PG-01/03/05): decoders come from enabled input plugins, read live by every consumer.
                 .AddSingleton(sp => new PluginHost(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<ILoggerFactory>()))
                 .AddSingleton<IEnumerable<IAudioSourceFactory>>(sp => sp.GetRequiredService<PluginHost>().LiveSourceFactories)
@@ -169,6 +180,9 @@ internal static class Program
     /// SI-06: becomes the running instance, or sends this start's files to the one already running. A player that is
     /// still starting or just exiting gets up to 15 seconds; then this start gives up (<paramref name="forwarded"/> false).
     /// </summary>
+    /// <summary>SI-02 / SI-07: the Windows AppUserModelID (also for the future installer's Start menu shortcut).</summary>
+    public const string AppId = "BigApps.AudioTastic";
+
     private static AudioTastic.App.Integration.SingleInstance? AcquireOrForward(AppPaths paths, StartupOptions options,
         AudioTastic.Platform.IPlatformServices platform, out bool forwarded)
     {

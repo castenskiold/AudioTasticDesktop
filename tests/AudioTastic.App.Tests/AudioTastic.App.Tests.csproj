@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Tests for app-level logic that does not need a running UI: skins (UI-03), window snapping (UI-01),
        time/indicator formatting (CO-06, UI-06), key bindings. -->
+  <PropertyGroup Condition="'$(IsWindowsBuild)' == 'true'">
+    <TargetFramework>$(WindowsTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion>$(WindowsSupportedVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>

@@ -41,6 +41,16 @@ public interface IShellIntegration
 
     /// <summary>Opens the OS page where the user makes AudioTastic the default for file types.</summary>
     void OpenDefaultAppsSettings();
+
+    /// <summary>True when this OS has a Start menu shortcut to manage (Windows).</summary>
+    bool SupportsStartMenuShortcut { get; }
+
+    /// <summary>
+    /// SI-02 / SI-07: creates or updates the Start menu shortcut to <paramref name="executablePath"/> with the app
+    /// identity <paramref name="appId"/> (Windows uses it to name the app in media controls and notifications);
+    /// null removes it.
+    /// </summary>
+    void SetStartMenuShortcut(string? executablePath, string appId);
 }
 
 /// <summary>Shell integration for systems that have none yet (macOS and Linux until they get their own).</summary>
@@ -59,6 +69,12 @@ public sealed class NoShellIntegration : IShellIntegration
     public bool SetFileAssociations(FileAssociations? associations) => false;
 
     public void OpenDefaultAppsSettings()
+    {
+    }
+
+    public bool SupportsStartMenuShortcut => false;
+
+    public void SetStartMenuShortcut(string? executablePath, string appId)
     {
     }
 }
