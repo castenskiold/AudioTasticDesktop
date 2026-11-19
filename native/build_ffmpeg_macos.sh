@@ -27,7 +27,7 @@ cd "$SRC"
   --disable-programs --disable-doc --disable-debug \
   --disable-gpl --disable-nonfree \
   --disable-autodetect --enable-audiotoolbox \
-  --disable-avdevice --disable-avfilter --disable-swscale --disable-postproc \
+  --disable-avdevice --disable-avfilter --disable-swscale \
   --install-name-dir='@rpath'
 make -j"$(sysctl -n hw.ncpu)"
 make install
