@@ -97,14 +97,14 @@ Releases are on the [Releases page](https://github.com/castenskiold/AudioTasticD
 
 ## Code signing policy
 
-Windows releases are to be signed through the SignPath Foundation (application in progress; until then releases are unsigned).
+Windows releases are **not code-signed yet**, so Windows SmartScreen may say the publisher is unknown: choose *More info › Run anyway*. Each release is built by this repository's GitHub Actions workflow from its own source code (see the workflow run linked from the release).
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+When the project is signed (we plan to apply to the [SignPath Foundation](https://signpath.org) again once AudioTastic is more widely used), only those release builds will be signed and every signing request will be approved by hand:
 
 - **Committers and reviewers:** [Big Apps ApS](https://github.com/castenskiold) (repository owner)
 - **Approvers:** [Big Apps ApS](https://github.com/castenskiold)
 
-Only release builds made by this repository's GitHub Actions workflow from its own source code are signed, and every signing request is approved by hand. The optional OptimFROG plugin (closed-source freeware libraries) and the GeneralUser GS SoundFont are separate downloads and are not part of the signed package.
+The optional OptimFROG plugin (closed-source freeware libraries) and the GeneralUser GS SoundFont are separate downloads and are not part of the app package.
 
 ## Privacy
 
