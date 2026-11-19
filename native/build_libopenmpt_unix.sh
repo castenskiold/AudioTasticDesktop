@@ -27,8 +27,8 @@ make -j"$(getconf _NPROCESSORS_ONLN)" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} SHARED
     NO_MPG123=1 NO_OGG=1 NO_VORBIS=1 NO_VORBISFILE=1 NO_PORTAUDIO=1 NO_PORTAUDIOCPP=1 NO_PULSEAUDIO=1 NO_SDL2=1 NO_SNDFILE=1 NO_FLAC=1
 ls -l bin
 case "$RID" in
-  # The makefile names the library libopenmpt.<version>.dylib (or similar) with symlinks; .NET loads libopenmpt.dylib.
-  osx-*) cp -L "$(ls bin/libopenmpt*.dylib | head -n 1)" "$OUT/libopenmpt.dylib" ;;
+  # On macOS the makefile writes the Mach-O library as bin/libopenmpt.so; .NET loads libopenmpt.dylib.
+  osx-*) cp -L "$(ls bin/libopenmpt*.dylib bin/libopenmpt.so 2>/dev/null | head -n 1)" "$OUT/libopenmpt.dylib" ;;
   *)     cp -L bin/libopenmpt.so* "$OUT/" ;;
 esac
 cp LICENSE "$OUT/libopenmpt-LICENSE.txt"
