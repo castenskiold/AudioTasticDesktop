@@ -280,7 +280,7 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 ("UI-06", "Scrolling title and format indicators",
  "Shows 'Artist – Title (duration)' scrolling when it does not fit (pauses briefly at the start). Next to it: bitrate (kbps), sample rate (kHz), mono/stereo/channel count, and status badges (RG, A-B, speed, STOP, sleep timer, cast target, DoP).",
  "MW4: scrolling title. MW5: indicator row below it.",
- "<b>Components:</b> MarqueeText control (smooth pixel scrolling at 30 fps, can be switched to static); IndicatorBar bound to PlaybackEngine state.", "Settings › Interface: scroll title (on/off), scroll speed."),
+ "<b>Components:</b> MarqueeText control (smooth pixel scrolling at 30 fps, can be switched to static); IndicatorBar bound to PlaybackEngine state; a row of badges that does not fit is drawn slightly smaller so every badge stays whole.", "Settings › Interface: scroll title (on/off), scroll speed."),
 ("UI-07", "Visualisations",
  "Built-in spectrum analyser (log-spaced bars with falling peak caps) and oscilloscope, drawn in the display panel. Clicking cycles spectrum → oscilloscope → off. Full-screen or windowed visualisations come from visualisation plugins and open in their own window.",
  "MW6: visualisation area in the display panel. Main menu › Visualisation: Spectrum / Oscilloscope / Off, and Open &lt;plugin&gt;; Ctrl+Shift+K opens the first visualisation plugin or closes the open one.",
@@ -324,16 +324,16 @@ S("System integration", "How the player works with the operating system. Platfor
  "OS tray / menu bar.",
  "<b>Components:</b> Avalonia TrayIcon and NativeMenu (built in). Linux tray depends on the desktop environment supporting StatusNotifierItem.", "Settings › System integration: show tray icon, minimise to tray, close to tray."),
 ("SI-05", "File associations and context menu",
- "Registers AudioTastic as a handler for the supported audio and playlist file types and adds an 'Enqueue in AudioTastic' (and 'Play in AudioTastic') entry to the file manager's context menu.",
- "Settings › System integration › File types: checklist of extensions, Register / Unregister. OS file managers.",
- "<b>Windows:</b> per-user registry entries under HKCU\\Software\\Classes (ProgID, SystemFileAssociations\\audio\\shell verbs) and RegisteredApplications; Windows 10/11 still asks the user to confirm defaults in Settings › Default apps (open that page for them). On Windows 11 classic verbs appear under 'Show more options'. "
+ "Registers AudioTastic as a handler for the supported audio and playlist file types and adds 'Open in AudioTastic' (adds the files and plays the first) and 'Enqueue in AudioTastic' (only adds them) entries, with the app icon, to the file manager's context menu.",
+ "Settings › System integration: context menu on/off (built, Windows); file types checklist with Register / Unregister (to come). OS file managers.",
+ "<b>Windows context menu (built, 19 Nov 2026):</b> per-user verbs AudioTastic.Play and AudioTastic.Queue under HKCU\\Software\\Classes\\SystemFileAssociations\\&lt;ext&gt;\\shell (MUIVerb, Icon '&lt;exe&gt;,0', MultiSelectModel Player; commands '&lt;exe&gt; --open %1' and '&lt;exe&gt; --enqueue %1') for every extension of the enabled decoder plugins and playlist formats. The written extensions are remembered under HKCU\\Software\\AudioTastic\\ShellIntegration, so entries for dropped types are removed. Rewritten at every start (the program may have moved) and on setting and plugin changes; on by default, off by default in portable mode (TL-05); switching it off removes the entries. No administrator rights. On Windows 11 classic verbs appear under 'Show more options'. <b>Windows file associations (to come):</b> ProgID and RegisteredApplications; Windows 10/11 still asks the user to confirm defaults in Settings › Default apps (open that page for them). "
  "<b>macOS:</b> CFBundleDocumentTypes in Info.plist; a Finder Quick Action (Automator workflow or app extension) for Enqueue. "
  "<b>Linux:</b> .desktop file with MimeType and Actions, installed to ~/.local/share/applications, plus xdg-mime. "
  "<b>Components:</b> IShellIntegration.", "Settings › System integration: file types, context menu on/off."),
 ("SI-06", "Single instance",
- "Only one AudioTastic runs at a time. Opening files when it is already running sends them to the running player, which plays them or enqueues them (setting). Also used by the CLI (SI-08).",
- "No UI apart from the setting.",
- "<b>Components:</b> named Mutex (Windows) / lock file (macOS, Linux) to detect the running instance; named pipe (System.IO.Pipes, Unix domain socket on macOS/Linux) carrying JSON commands.", "Settings › System integration: files opened from the OS: Play / Enqueue."),
+ "Only one AudioTastic runs at a time per user and data folder (a portable copy runs on its own). Opening files when it is already running sends them to the running player, which plays them or enqueues them (setting; --open and --enqueue override it) and comes to the front when files are played or it is started without files. Commands arriving within 300 ms form one batch, sorted by path when they come from several starts (Explorer starts one process per selected file, in no reliable order); commands that arrive while the player starts join its own start-up files. Also used by the CLI (SI-08).",
+ "No UI apart from the setting. Enqueueing shows a short 'Enqueued …' notice in the title.",
+ "<b>Components (built, 19 Nov 2026):</b> SingleInstance: a named mutex 'Local\\AudioTastic-&lt;hash of user and data folder&gt;' held by a thread of its own (a mutex belongs to the thread that took it; named mutexes work on all three OSes in .NET), and a named pipe of the same name (System.IO.Pipes with CurrentUserOnly; a Unix domain socket on macOS/Linux) carrying one JSON InstanceCommand (action, files) per connection. A second start keeps trying for up to 15 s (the first may still be starting or just exiting), calls AllowSetForegroundWindow on Windows so the player may come to the front, and exits. InstanceInbox keeps commands until the player window is ready; InstanceBatch merges them.", "Settings › System integration: files opened from the file manager or the command line: Play (default) / Enqueue."),
 ("SI-07", "Notifications",
  "Shows a native notification with title, artist and art when the track changes (optional; off while the player is focused).",
  "OS notification area.",
@@ -341,7 +341,7 @@ S("System integration", "How the player works with the operating system. Platfor
  "<b>macOS:</b> UNUserNotificationCenter via native interop (needs a signed app bundle). <b>Linux:</b> org.freedesktop.Notifications via Tmds.DBus. "
  "<b>Components:</b> INotificationService.", "Settings › Interface: notify on track change (on/off)."),
 ("SI-08", "Command-line interface",
- "Controls the player from scripts and shortcuts: AudioTastic [files…], /enqueue files…, /play, /pause, /playpause, /stop, /next, /prev, /volume N, /seek s, /quit. If the player is running, the command is sent to it (SI-06); if not, it starts.",
+ "Controls the player from scripts and shortcuts. Built (P10 step 1): AudioTastic [files…], --open files…, --enqueue files… (on Windows also /open, /enqueue). To come: /play, /pause, /playpause, /stop, /next, /prev, /volume N, /seek s, /quit. If the player is running, the command is sent to it (SI-06); if not, it starts.",
  "Terminal / shortcuts. AudioTastic --help prints usage.",
  "<b>Components:</b> System.CommandLine (MIT) parser; commands forwarded through the single-instance pipe.", None),
 ])

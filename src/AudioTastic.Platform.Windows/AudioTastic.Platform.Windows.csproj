@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Windows implementation of AudioTastic.Platform. -->
+  <PropertyGroup>
+    <!-- LibraryImport (user32) generates unsafe marshalling code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AudioTastic.Platform\AudioTastic.Platform.csproj" />
   </ItemGroup>

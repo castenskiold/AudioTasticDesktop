@@ -99,7 +99,7 @@ public sealed class SettingsWindow : Window
                 InterfacePage(panel);
                 break;
             case SettingsGroup.SystemIntegration:
-                Note(panel, "Hotkeys, tray, file associations and the context menu arrive in phase P10.");
+                SystemIntegrationPage(panel);
                 break;
             case SettingsGroup.EqualizerDsp:
                 EqualizerDspPage(panel);
@@ -124,6 +124,32 @@ public sealed class SettingsWindow : Window
         };
         panel.Children.Add(reset);
         _page.Content = panel;
+    }
+
+    /// <summary>SI-05 / SI-06: the file manager's context menu and what opened files do.</summary>
+    private void SystemIntegrationPage(StackPanel panel)
+    {
+        var si = _settings.Current.SystemIntegration;
+        void Update(Action<SystemIntegrationSettings> change) => _settings.Update(SettingsGroup.SystemIntegration, s => change(s.SystemIntegration));
+
+        var open = new ComboBox { ItemsSource = new[] { "Play them", "Enqueue them (add to the playlist)" }, SelectedIndex = (int)si.OpenFiles, Width = 320 };
+        open.SelectionChanged += (_, _) => Update(s => s.OpenFiles = (OpenFilesAction)Math.Max(0, open.SelectedIndex));
+        Row(panel, "Files opened from the file manager or the command line", open,
+            "AudioTastic runs once: files opened while it is running go to the running player, into the active playlist.");
+
+        if (_platform.Shell.SupportsContextMenu)
+        {
+            Check(panel, $"Context menu: '{Integration.ShellIntegrationService.OpenText}' and '{Integration.ShellIntegrationService.EnqueueText}'",
+                Integration.ShellIntegrationService.IsEnabled(si, _paths.IsPortable), v => Update(s => s.ContextMenu = v));
+            Note(panel, "Shown when you right-click audio files and playlists in Explorer. On Windows 11 they are under 'Show more options' " +
+                "(or Shift+right-click). Switch this off before deleting the program to remove them." +
+                (_paths.IsPortable ? " Portable mode: off unless you switch it on." : ""));
+        }
+        else
+        {
+            Note(panel, "The file manager's context menu entries for this system come in a later step of phase P10.");
+        }
+        Note(panel, "Hotkeys, media keys, the tray icon, taskbar buttons and notifications arrive later in phase P10.");
     }
 
     /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>

@@ -25,6 +25,17 @@ internal static class Program
     {
         var options = StartupOptions.Parse(args);
         var paths = AppPaths.ForCurrentProcess(args).EnsureCreated();
+        var platform = PlatformServicesFactory.Create();
+
+        // SI-06: a second start hands its files to the running player and ends (before logging, whose file the
+        // running player holds).
+        using var instance = AcquireOrForward(paths, options, platform, out var forwarded);
+        if (instance is null)
+        {
+            return forwarded ? 0 : 1;
+        }
+        var inbox = new AudioTastic.App.Integration.InstanceInbox();
+        instance.Listen(inbox.Post);
 
         using var logging = Logging.Create(paths, LogLevelSetting.Information);
         var log = logging.Factory.CreateLogger("AudioTastic");
@@ -56,7 +67,9 @@ internal static class Program
                 .AddSingleton(crashReporter)
                 .AddSingleton(settings)
                 .AddSingleton(cache)
-                .AddSingleton(PlatformServicesFactory.Create())
+                .AddSingleton(platform)
+                .AddSingleton(inbox)
+                .AddSingleton<AudioTastic.App.Integration.ShellIntegrationService>()
                 // P4 plugins (PG-01/03/05): decoders come from enabled input plugins, read live by every consumer.
                 .AddSingleton(sp => new PluginHost(sp.GetRequiredService<AppPaths>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<ILoggerFactory>()))
                 .AddSingleton<IEnumerable<IAudioSourceFactory>>(sp => sp.GetRequiredService<PluginHost>().LiveSourceFactories)
@@ -125,6 +138,9 @@ internal static class Program
             // PB-03: the engine asks the ReplayGain service for each track's gain.
             services.GetRequiredService<PlaybackEngine>().ReplayGainProvider = services.GetRequiredService<AudioTastic.Analysis.ReplayGainService>();
 
+            // SI-05: the file manager's context menu follows the setting, this program's location and the plugins' file types.
+            services.GetRequiredService<AudioTastic.App.Integration.ShellIntegrationService>().Start();
+
             var exitCode = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             log.LogInformation("AudioTastic exited with code {Code}", exitCode);
             return exitCode;
@@ -138,7 +154,36 @@ internal static class Program
         }
     }
 
-    /// <summary>Avalonia configuration; also used by the XAML previewer.</summary>
+    /// <summary>
+    /// SI-06: becomes the running instance, or sends this start's files to the one already running. A player that is
+    /// still starting or just exiting gets up to 15 seconds; then this start gives up (<paramref name="forwarded"/> false).
+    /// </summary>
+    private static AudioTastic.App.Integration.SingleInstance? AcquireOrForward(AppPaths paths, StartupOptions options,
+        AudioTastic.Platform.IPlatformServices platform, out bool forwarded)
+    {
+        forwarded = false;
+        var command = AudioTastic.App.Integration.InstanceCommand.From(options);
+        var deadline = Environment.TickCount64 + 15_000;
+        while (true)
+        {
+            if (AudioTastic.App.Integration.SingleInstance.TryAcquire(paths.Root) is { } instance)
+            {
+                return instance;
+            }
+            platform.AllowOtherProcessToActivate();
+            if (AudioTastic.App.Integration.SingleInstance.TrySend(paths.Root, command, TimeSpan.FromSeconds(1)))
+            {
+                forwarded = true;
+                return null;
+            }
+            if (Environment.TickCount64 > deadline)
+            {
+                return null;
+            }
+            Thread.Sleep(100);
+        }
+    }
+
     /// <summary>EQ-05 / PG-01: one chain effect per enabled DSP plugin instance; faults go to the plugin host (PG-03).</summary>
     private static List<AudioTastic.Core.Audio.Dsp.PluginEffect> PluginEffects(PluginHost host)
     {
@@ -156,6 +201,7 @@ internal static class Program
         return effects;
     }
 
+    /// <summary>Avalonia configuration; also used by the XAML previewer.</summary>
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UsePlatformDetect()

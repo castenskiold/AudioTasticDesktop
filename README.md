@@ -28,7 +28,13 @@ Useful switches:
 
 - `--portable`: keep all data in a `Data` folder next to the executable (TL-05). Creating an empty file named `portable` next to the executable does the same.
 - `--crash-test`: throw an exception after start-up, to check crash reporting (TL-03). The next start offers the report.
-- Any other argument is a file, folder or playlist to add to the active playlist and play (the full command line, SI-08, comes in P10).
+- `--open files…`: add the files, folders or playlists to the active playlist and play the first one.
+- `--enqueue files…`: only add them to the end of the active playlist (`/enqueue` works too on Windows).
+- Any other argument is a file, folder or playlist to open; *Settings › System integration* decides whether it is played (default) or enqueued. The rest of the command line (`/play`, `/next`, …; SI-08) comes later in P10.
+
+**Single instance and context menu (Windows):**
+- AudioTastic runs once per user (a portable copy runs on its own). Starting it again hands the files to the running player and brings it to the front; files opened together, e.g. several selected in Explorer, are added as one batch.
+- Right-clicking audio files and playlists in Explorer shows **Open in AudioTastic** and **Enqueue in AudioTastic** with the app icon. On Windows 11 they are under *Show more options* (or Shift+right-click). The entries are per user (no administrator rights), follow the program if you move it (they are rewritten at every start) and cover every file type the enabled plugins play. Switch them off in *Settings › System integration* before deleting the program; in portable mode they are off unless you switch them on.
 
 **Windows and controls:**
 - The player has a skinned main window, mini player (Ctrl+W) and playlist window (Alt+E), docked together.
@@ -41,9 +47,9 @@ Useful switches:
 
 **Formats** (all played through plugins):
 - FFmpeg: WAV, FLAC, MP3, AIFF, APE, AAC/M4A, WavPack, Ogg Vorbis, Opus, ALAC, WMA, Musepack, TTA, Shorten, DSD (DSF/DFF, as PCM or DoP), http streams;
-- MIDI with a bundled SoundFont;
+- MIDI through a SoundFont (GeneralUser GS is downloaded from the MIDI plugin's settings, or use any .sf2);
 - tracker modules (MOD, XM, IT, S3M, ...);
-- OptimFROG (x64).
+- OptimFROG (x64; the optional `.atplugin` from the Releases page).
 
 **Waveform and loudness:** the strip under the display is a waveform seek bar (click or drag to seek). ReplayGain (Settings › Playback) uses tags or a background EBU R128 analysis; "RG" shows while a gain is applied.
 

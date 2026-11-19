@@ -368,7 +368,10 @@ PROGRESS = {
                         "Checked by Anders: tag editor, album art, lyrics (after his feedback the lyrics pane got most of the window), file info and the lookup of tags. The Discogs cover fallback is deferred (Anders)."],
                open=["Anders checks Cover Art Archive covers with tracks that have one (his first lookup's release had none).",
                      "Fixtures for APE and Musepack tag writing; macOS/Linux."]),
-    "P10": dict(status="Next", date="", outcome=[], open=[]),
+    "P10": dict(status="In progress", date="", outcome=[
+                        "Step 1 (19 Nov 2026, Windows): single instance (SI-06) with a JSON command pipe, the --open and --enqueue switches (part of SI-08), and Explorer's 'Open in AudioTastic' / 'Enqueue in AudioTastic' context menu entries with the app icon (part of SI-05); Settings › System integration (play or enqueue opened files, context menu on/off). Checked by Anders: the entries show with the icon, Open plays, Enqueue only adds.",
+                        "Fixed on the way: the playlist drew rows for only part of its height at player sizes above 100 % (Avalonia's virtualizing panel under the scale transform), and format badges were cut off at the right edge."],
+               open=["File associations (ProgID, Default apps), the rest of the CLI (/play, /next, /volume, ...), tray, media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

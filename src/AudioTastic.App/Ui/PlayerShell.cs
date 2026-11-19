@@ -57,11 +57,16 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private SettingsWindow? _settingsWindow;
     private readonly SleepTimerService _sleep;
     private bool _exiting;
+    private readonly Integration.InstanceInbox _inbox;
+    private readonly List<Integration.InstanceCommand> _pendingCommands = [];
+    private DispatcherTimer? _commandTimer;
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
+        ILoggerFactory loggerFactory)
     {
+        _inbox = inbox;
         _art = art;
         _lyrics = lyrics;
         _sleep = sleep;
@@ -762,14 +767,79 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             Dispatcher.UIThread.Post(() => throw new InvalidOperationException(
                 $"Crash test requested with {StartupOptions.CrashTestSwitch}."));
         }
-        if (_options.Files.Count > 0)
-        {
-            Run(() => _playlists.AddAsync(_options.Files, play: true)); // PL-04: added to the active playlist and played
-        }
-        else
+        // SI-06: the start-up files plus whatever later starts sent while this window was opening, as one batch.
+        var early = _inbox.Attach(OnInstanceCommand);
+        var batch = Integration.InstanceBatch.Merge([Integration.InstanceCommand.From(_options), .. early],
+            _settings.Current.SystemIntegration.OpenFiles);
+        if (batch.Play.Count == 0)
         {
             ResumeSession();
         }
+        ApplyBatch(batch, activate: early.Count > 0);
+    }
+
+    /// <summary>SI-06: a later start handed over its files (pipe thread). Commands within 300 ms form one batch.</summary>
+    private void OnInstanceCommand(Integration.InstanceCommand command) => Dispatcher.UIThread.Post(() =>
+    {
+        _pendingCommands.Add(command);
+        if (_commandTimer is null)
+        {
+            _commandTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _commandTimer.Tick += (_, _) =>
+            {
+                _commandTimer.Stop();
+                var commands = _pendingCommands.ToArray();
+                _pendingCommands.Clear();
+                ApplyBatch(Integration.InstanceBatch.Merge(commands, _settings.Current.SystemIntegration.OpenFiles), activate: true);
+            };
+        }
+        _commandTimer.Stop();
+        _commandTimer.Start();
+    });
+
+    /// <summary>
+    /// SI-05 / SI-06 / PL-04: files to play are added to the active playlist and the first one starts; enqueued files
+    /// are only added (after them). Opening brings the player to the front.
+    /// </summary>
+    private void ApplyBatch(Integration.InstanceBatch batch, bool activate)
+    {
+        if (batch.Play.Count > 0 || batch.Enqueue.Count > 0)
+        {
+            _logger.LogInformation("Opening {Play} and enqueueing {Enqueue} files", batch.Play.Count, batch.Enqueue.Count);
+            Run(async () =>
+            {
+                if (batch.Play.Count > 0)
+                {
+                    await _playlists.AddAsync(batch.Play, play: true);
+                }
+                if (batch.Enqueue.Count > 0)
+                {
+                    await _playlists.AddAsync(batch.Enqueue);
+                }
+            });
+        }
+        if (batch.Enqueue.Count > 0 && batch.Play.Count == 0)
+        {
+            Player.ShowNotice(batch.Enqueue.Count == 1
+                ? $"Enqueued {System.IO.Path.GetFileName(batch.Enqueue[0])}"
+                : $"Enqueued {batch.Enqueue.Count} items");
+        }
+        if (activate && batch.Activate)
+        {
+            BringToFront();
+        }
+    }
+
+    /// <summary>SI-06: shows the player (main window or mini player) in front of other programs.</summary>
+    private void BringToFront()
+    {
+        var window = _mini!.IsVisible ? _mini : _main!;
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+        window.Show();
+        window.Activate();
     }
 
     /// <summary>PB-07: reopens the last track at its position (paused or playing, Settings › Playback).</summary>

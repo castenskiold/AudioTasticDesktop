@@ -294,6 +294,21 @@ public enum DialogTheme
 
 public sealed class SystemIntegrationSettings
 {
+    /// <summary>
+    /// SI-05: "Open in AudioTastic" and "Enqueue in AudioTastic" in the file manager's context menu.
+    /// Null = the default: on, except in portable mode (a portable copy leaves the system alone).
+    /// </summary>
+    public bool? ContextMenu { get; set; }
+
+    /// <summary>SI-06: what files opened from the OS (double-click, file association, command line) do.</summary>
+    public OpenFilesAction OpenFiles { get; set; } = OpenFilesAction.Play;
+}
+
+/// <summary>SI-06: files opened from the OS are added and played, or only added (enqueued).</summary>
+public enum OpenFilesAction
+{
+    Play,
+    Enqueue,
 }
 
 public sealed class EqualizerDspSettings
