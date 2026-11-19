@@ -16,11 +16,58 @@ public sealed class SystemIntegrationTests
         Assert.Equal(FileAction.Enqueue, options.Action);
         Assert.Equal([Path.GetFullPath("a.flac"), Path.GetFullPath("b.mp3")], options.Files);
 
-        Assert.Equal(FileAction.Open, StartupOptions.Parse(["--OPEN", "a.flac"]).Action);
+        Assert.Equal(FileAction.Open, StartupOptions.Parse(["--open", "a.flac"]).Action);
         var plain = StartupOptions.Parse(["--crash-test", "a.flac"]);
         Assert.Equal(FileAction.Default, plain.Action);
         Assert.True(plain.CrashTest);
         Assert.Single(plain.Files);
+    }
+
+    [Fact]
+    public void Player_commands_are_parsed_in_a_fixed_order()
+    {
+        var options = StartupOptions.Parse(["--quit", "--volume", "35", "--next", "--seek", "12.5", "--playpause"]);
+        Assert.Equal(["playPause", "next", "volume", "seek", "quit"], options.Controls.Select(c => c.Name));
+        Assert.Equal(35, options.Controls.Single(c => c.Name == "volume").Value);
+        Assert.Equal(12.5, options.Controls.Single(c => c.Name == "seek").Value);
+        Assert.Empty(options.Files);
+        Assert.False(options.OnlyQuit);
+        Assert.True(StartupOptions.Parse(["--quit"]).OnlyQuit);
+        Assert.Equal("previous", Assert.Single(StartupOptions.Parse(["--prev"]).Controls).Name);
+        Assert.Equal("previous", Assert.Single(StartupOptions.Parse(["--previous"]).Controls).Name);
+    }
+
+    [Theory]
+    [InlineData("--volume", "101")]
+    [InlineData("--volume", "loud")]
+    [InlineData("--seek", "-3")]
+    [InlineData("--no-such-switch", "a.flac")]
+    public void Mistakes_are_reported_instead_of_starting(string option, string value)
+    {
+        var parsed = CommandLine.Parse([option, value]);
+        Assert.Null(parsed.Options);
+        Assert.NotEmpty(parsed.Result.Errors);
+    }
+
+    [Fact]
+    public void Help_and_version_are_answered_without_starting()
+    {
+        foreach (var help in new[] { "--help", "-h", "-?" })
+        {
+            var parsed = CommandLine.Parse([help]);
+            Assert.Null(parsed.Options);
+            Assert.NotNull(parsed.Result.Action);
+        }
+        Assert.Null(CommandLine.Parse(["--version"]).Options);
+        Assert.Empty(CommandLine.Parse(["--help"]).Result.Errors);
+    }
+
+    [Fact]
+    public void Portable_and_names_starting_with_at_are_not_special()
+    {
+        var options = StartupOptions.Parse(["--portable", "@home.flac"]);
+        Assert.Equal([Path.GetFullPath("@home.flac")], options.Files); // no response files
+        Assert.Empty(options.Controls);
     }
 
     [Fact]
@@ -31,6 +78,8 @@ public sealed class SystemIntegrationTests
         {
             Assert.Equal(FileAction.Enqueue, options.Action);
             Assert.Single(options.Files);
+            Assert.Equal("next", Assert.Single(StartupOptions.Parse(["/NEXT"]).Controls).Name);
+            Assert.Equal(20, Assert.Single(StartupOptions.Parse(["/volume", "20"]).Controls).Value);
         }
         else
         {
@@ -42,11 +91,13 @@ public sealed class SystemIntegrationTests
     [Fact]
     public void Commands_round_trip_as_json()
     {
-        var command = new InstanceCommand(FileAction.Enqueue, [@"C:\Music\ÆØÅ ♫.flac", "/home/a b/c.mp3"]);
+        var command = new InstanceCommand(FileAction.Enqueue, [@"C:\Music\ÆØÅ ♫.flac", "/home/a b/c.mp3"], [new("volume", 40), new("next")]);
         var back = InstanceCommand.Deserialize(command.Serialize());
         Assert.NotNull(back);
         Assert.Equal(command.Action, back.Action);
         Assert.Equal(command.Files, back.Files);
+        Assert.Equal(command.Controls, back.Controls);
+        Assert.Empty(InstanceCommand.Deserialize("""{"Action":"Default","Files":[]}""")!.Controls); // from an older sender
         Assert.Null(InstanceCommand.Deserialize("not json"));
         Assert.Null(InstanceCommand.Deserialize("{}"));
     }
@@ -77,6 +128,10 @@ public sealed class SystemIntegrationTests
         Assert.Equal(["a.flac"], InstanceBatch.Merge([plain], OpenFilesAction.Play).Play);
         Assert.Equal(["a.flac"], InstanceBatch.Merge([plain], OpenFilesAction.Enqueue).Enqueue);
         Assert.Equal(["a.flac"], InstanceBatch.Merge([new(FileAction.Open, ["a.flac"])], OpenFilesAction.Enqueue).Play);
+
+        var control = InstanceBatch.Merge([new(FileAction.Default, [], [new("next")]), new(FileAction.Default, [], [new("pause")])], OpenFilesAction.Play);
+        Assert.False(control.Activate); // a script's /next must not pull the player in front
+        Assert.Equal(["next", "pause"], control.Controls.Select(c => c.Name));
 
         var activate = InstanceBatch.Merge([new(FileAction.Default, [])], OpenFilesAction.Play);
         Assert.True(activate.Activate);

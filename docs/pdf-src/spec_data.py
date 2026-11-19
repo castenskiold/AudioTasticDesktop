@@ -341,9 +341,9 @@ S("System integration", "How the player works with the operating system. Platfor
  "<b>macOS:</b> UNUserNotificationCenter via native interop (needs a signed app bundle). <b>Linux:</b> org.freedesktop.Notifications via Tmds.DBus. "
  "<b>Components:</b> INotificationService.", "Settings › Interface: notify on track change (on/off)."),
 ("SI-08", "Command-line interface",
- "Controls the player from scripts and shortcuts. Built (P10 step 1): AudioTastic [files…], --open files…, --enqueue files… (on Windows also /open, /enqueue). To come: /play, /pause, /playpause, /stop, /next, /prev, /volume N, /seek s, /quit. If the player is running, the command is sent to it (SI-06); if not, it starts.",
- "Terminal / shortcuts. AudioTastic --help prints usage.",
- "<b>Components:</b> System.CommandLine (MIT) parser; commands forwarded through the single-instance pipe.", None),
+ "Controls the player from scripts and shortcuts: AudioTastic [files…], --open files…, --enqueue files…, --play, --pause, --playpause, --stop, --next, --prev (--previous), --volume N (0–100), --seek s (seconds), --quit; on Windows each may also be written /name (/next, /volume 40). Commands can be combined; they run after the files in a fixed order (transport, volume, seek, quit). If the player is running, the command is sent to it (SI-06) and does not bring it to the front; if not, it starts (except --quit alone, which then does nothing). Unknown options and invalid values are errors: printed on the console with exit code 1, and the player is not started.",
+ "Terminal / shortcuts. AudioTastic --help prints usage, --version the version (on Windows the GUI program attaches to the console it was started from).",
+ "<b>Components (built, 19 Nov 2026):</b> System.CommandLine 2.0 (MIT; the .NET 10 line) in CommandLine.Parse: response files off (a file named @x is a file), numbers parsed with the invariant culture (a Danish Windows read 12.5 as 125), any '--…' token that is not an option is an error rather than a file name; /name is rewritten to --name on Windows only (on macOS/Linux /… is an absolute path). The commands travel in the SI-06 InstanceCommand (ControlCommand name and value) and run through the same actions as the buttons and keys.", None),
 ])
 
 S("Equalizer and DSP", "Sound-shaping features. The equalizer window (EQ) is one of the docked player windows.", [

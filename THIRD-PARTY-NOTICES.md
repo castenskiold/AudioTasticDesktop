@@ -1,12 +1,12 @@
 # Third-party notices
 
-AudioTastic uses the components below. Every entry must meet the licence policy in `CLAUDE.md` (section 5): free and open source; LGPL only when dynamically linked; closed-source freeware only when no open-source option exists, with no licence key and no cost to the end user.
+AudioTastic uses the components below. Every entry must meet the project's license policy: free and open source; LGPL only when dynamically linked; closed-source freeware only when no open-source option exists, with no license key and no cost to the end user.
 
 When you add a package or native library, add it here in the same pull request.
 
 ## .NET packages (shipped)
 
-| Component | Licence | Used for | Since |
+| Component | License | Used for | Since |
 |---|---|---|---|
 | Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent | MIT | UI framework | P0 |
 | Microsoft.Extensions.DependencyInjection, .Logging, .Logging.Abstractions | MIT | DI container, logging abstractions | P0 |
@@ -19,17 +19,18 @@ When you add a package or native library, add it here in the same pull request.
 | NJsonSchema (with NJsonSchema.Annotations, Namotion.Reflection, Newtonsoft.Json) | MIT | skin.json schema validation (UI-03) | P2 |
 | TagLibSharp | LGPL-2.1 (separate, replaceable DLL) | Tag reading (MD-01) | P3 |
 | MeltySynth | MIT (includes code from C# Synth and TinySoundFont/SFZero, also MIT) | MIDI synthesizer in the MIDI plugin (FM-08) | P4 |
+| System.CommandLine | MIT (.NET Foundation) | Command-line parsing (SI-08) | P10 |
 
 ## .NET packages (development only, not shipped)
 
-| Component | Licence | Used for |
+| Component | License | Used for |
 |---|---|---|
 | xunit.v3, xunit.v3.assert (with Microsoft.Testing.Platform) | Apache-2.0 / MIT | Unit tests |
 | Microsoft.Extensions.Logging.Console | MIT | Console logging in tools/AudioTastic.SoakTest |
 
 ## Native libraries (fetched or built by `native/`)
 
-| Component | Licence | Used for | Since |
+| Component | License | Used for | Since |
 |---|---|---|---|
 | FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build | LGPL-2.1-or-later | Decoding (from P1), encoding (P11, P13) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
@@ -39,13 +40,13 @@ When you add a package or native library, add it here in the same pull request.
 | openmpt-mpg123 (mpg123, shipped with libopenmpt on Windows) | LGPL-2.1 (separate, replaceable DLL) | MP3-compressed samples inside modules | P4 |
 | openmpt-ogg, openmpt-vorbis (libogg, libvorbis, shipped with libopenmpt on Windows) | BSD-3-Clause | Vorbis-compressed samples inside modules | P4 |
 | openmpt-zlib (zlib, shipped with libopenmpt on Windows) | zlib | Compressed module formats | P4 |
-| OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (licence-policy exception: no open-source decoder exists, no licence key, free for the end user). The licence allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. **Not part of the AudioTastic package** (since 19 Nov 2026): the OptimFROG plugin is a separate `.atplugin` download that contains the libraries. | OptimFROG plugin (FM-06), x64 only | P4 |
+| OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (license-policy exception: no open-source decoder exists, no license key, free for the end user). The license allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. **Not part of the AudioTastic package** (since 19 Nov 2026): the OptimFROG plugin is a separate `.atplugin` download that contains the libraries. | OptimFROG plugin (FM-06), x64 only | P4 |
 
-The licence texts of libopenmpt and its helper libraries are shipped next to them in the plugin folder (`plugins/AudioTastic.Input.OpenMpt/runtimes/<rid>/native/libopenmpt-*.txt`).
+The license texts of libopenmpt and its helper libraries are shipped next to them in the plugin folder (`plugins/AudioTastic.Input.OpenMpt/runtimes/<rid>/native/libopenmpt-*.txt`).
 
 ## Fonts and assets
 
-| Component | Licence | Used for |
+| Component | License | Used for |
 |---|---|---|
 | Inter (`docs/pdf-src/fonts`) | SIL Open Font License 1.1 | Project PDF documents; default skin font from P2 |
 | AudioTastic logo (`assets/branding`) | Owned by Big Apps ApS | App icon, branding |

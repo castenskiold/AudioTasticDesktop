@@ -18,4 +18,8 @@ public sealed class LinuxPlatformServices : IPlatformServices
     public void AllowOtherProcessToActivate()
     {
     }
+
+    public void AttachToParentConsole()
+    {
+    }
 }

@@ -13,6 +13,8 @@
     <!-- Skins (UI-03): SVG rendering (MIT) and skin.json schema validation (MIT; not JsonSchema.Net, whose binaries carry a maintenance-fee EULA) -->
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.17" />
     <PackageVersion Include="NJsonSchema" Version="11.6.2" />
+    <!-- SI-08: command-line parser (MIT, .NET Foundation); 2.0.x is the .NET 10 line. -->
+    <PackageVersion Include="System.CommandLine" Version="2.0.15" />
     <!-- Hosting and logging abstractions (MIT) -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />

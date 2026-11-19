@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -803,9 +804,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     /// </summary>
     private void ApplyBatch(Integration.InstanceBatch batch, bool activate)
     {
-        if (batch.Play.Count > 0 || batch.Enqueue.Count > 0)
+        if (batch.Play.Count > 0 || batch.Enqueue.Count > 0 || batch.Controls.Count > 0)
         {
-            _logger.LogInformation("Opening {Play} and enqueueing {Enqueue} files", batch.Play.Count, batch.Enqueue.Count);
+            _logger.LogInformation("Opening {Play} and enqueueing {Enqueue} files; commands: {Commands}", batch.Play.Count, batch.Enqueue.Count,
+                string.Join(' ', batch.Controls.Select(c => c.Value is { } v ? $"{c.Name} {v.ToString(CultureInfo.InvariantCulture)}" : c.Name)));
             Run(async () =>
             {
                 if (batch.Play.Count > 0)
@@ -815,6 +817,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 if (batch.Enqueue.Count > 0)
                 {
                     await _playlists.AddAsync(batch.Enqueue);
+                }
+                foreach (var control in batch.Controls) // SI-08: after the files, in the order given
+                {
+                    RunControl(control);
                 }
             });
         }
@@ -827,6 +833,26 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         if (activate && batch.Activate)
         {
             BringToFront();
+        }
+    }
+
+    /// <summary>SI-08: a player command from the command line (the same actions as the buttons and keys).</summary>
+    private void RunControl(ControlCommand control)
+    {
+        switch (control.Name)
+        {
+            case "play" or "pause" or "playPause" or "stop" or "next" or "previous":
+                Execute(control.Name, _main!);
+                break;
+            case "volume" when control.Value is { } volume:
+                Player.Volume = (int)Math.Round(Math.Clamp(volume, 0, 100));
+                break;
+            case "seek" when control.Value is { } seconds:
+                Run(() => Player.Player.SeekAsync(TimeSpan.FromSeconds(Math.Max(0, seconds))));
+                break;
+            case "quit":
+                Exit();
+                break;
         }
     }
 

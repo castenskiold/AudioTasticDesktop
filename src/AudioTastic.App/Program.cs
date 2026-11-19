@@ -23,9 +23,16 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        var options = StartupOptions.Parse(args);
-        var paths = AppPaths.ForCurrentProcess(args).EnsureCreated();
         var platform = PlatformServicesFactory.Create();
+        // SI-08: --help, --version and mistakes are answered on the console the program was started from.
+        var parsed = AudioTastic.App.CommandLine.Parse(args);
+        if (parsed.Options is not { } options)
+        {
+            platform.AttachToParentConsole();
+            Console.WriteLine();
+            return parsed.Result.Invoke();
+        }
+        var paths = AppPaths.ForCurrentProcess(args).EnsureCreated();
 
         // SI-06: a second start hands its files to the running player and ends (before logging, whose file the
         // running player holds).
@@ -33,6 +40,10 @@ internal static class Program
         if (instance is null)
         {
             return forwarded ? 0 : 1;
+        }
+        if (options.OnlyQuit)
+        {
+            return 0; // --quit with no player running: nothing to do, and nothing to start
         }
         var inbox = new AudioTastic.App.Integration.InstanceInbox();
         instance.Listen(inbox.Post);

@@ -29,8 +29,11 @@ Useful switches:
 - `--portable`: keep all data in a `Data` folder next to the executable (TL-05). Creating an empty file named `portable` next to the executable does the same.
 - `--crash-test`: throw an exception after start-up, to check crash reporting (TL-03). The next start offers the report.
 - `--open files…`: add the files, folders or playlists to the active playlist and play the first one.
-- `--enqueue files…`: only add them to the end of the active playlist (`/enqueue` works too on Windows).
-- Any other argument is a file, folder or playlist to open; *Settings › System integration* decides whether it is played (default) or enqueued. The rest of the command line (`/play`, `/next`, …; SI-08) comes later in P10.
+- `--enqueue files…`: only add them to the end of the active playlist.
+- Any other argument is a file, folder or playlist to open; *Settings › System integration* decides whether it is played (default) or enqueued.
+- Player commands (SI-08), sent to the running player: `--play`, `--pause`, `--playpause`, `--stop`, `--next`, `--prev`, `--volume N` (0–100), `--seek s` (seconds, e.g. `12.5`), `--quit`. They can be combined, e.g. `AudioTastic --next --volume 40`, and run after any files. If AudioTastic is not running, it starts (except for `--quit`).
+- On Windows every option can also be written with a slash: `/next`, `/volume 40`, `/enqueue song.flac`.
+- `--help` lists everything, `--version` prints the version; mistakes (an unknown option, `--volume 300`) are reported on the console with exit code 1 and the player is not started.
 
 **Single instance and context menu (Windows):**
 - AudioTastic runs once per user (a portable copy runs on its own). Starting it again hands the files to the running player and brings it to the front; files opened together, e.g. several selected in Explorer, are added as one batch.

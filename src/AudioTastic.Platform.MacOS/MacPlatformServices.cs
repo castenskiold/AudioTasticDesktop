@@ -18,4 +18,8 @@ public sealed class MacPlatformServices : IPlatformServices
     public void AllowOtherProcessToActivate()
     {
     }
+
+    public void AttachToParentConsole()
+    {
+    }
 }

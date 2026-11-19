@@ -24,4 +24,10 @@ public interface IPlatformServices
     /// bring its window to the front (Windows only lets the process the user just started do that).
     /// </summary>
     void AllowOtherProcessToActivate();
+
+    /// <summary>
+    /// SI-08: lets a GUI program print to the console it was started from (--help). Windows gives a GUI program no
+    /// console of its own; elsewhere standard output already works.
+    /// </summary>
+    void AttachToParentConsole();
 }

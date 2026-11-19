@@ -7,12 +7,17 @@ using AudioTastic.Data.Settings;
 
 namespace AudioTastic.App.Integration;
 
-/// <summary>SI-06: a request handed from a second start to the running player. No files means "come to the front".</summary>
-public sealed record InstanceCommand(FileAction Action, IReadOnlyList<string> Files)
+/// <summary>
+/// SI-06 / SI-08: a request handed from a second start to the running player: files and player commands. Neither
+/// means "come to the front".
+/// </summary>
+public sealed record InstanceCommand(FileAction Action, IReadOnlyList<string> Files, IReadOnlyList<ControlCommand>? Controls = null)
 {
     private static readonly JsonSerializerOptions Json = new() { Converters = { new JsonStringEnumConverter() } };
 
-    public static InstanceCommand From(StartupOptions options) => new(options.Action, options.Files);
+    public IReadOnlyList<ControlCommand> Controls { get; init; } = Controls ?? [];
+
+    public static InstanceCommand From(StartupOptions options) => new(options.Action, options.Files, options.Controls);
 
     public string Serialize() => JsonSerializer.Serialize(this, Json);
 
@@ -21,7 +26,7 @@ public sealed record InstanceCommand(FileAction Action, IReadOnlyList<string> Fi
         try
         {
             var command = JsonSerializer.Deserialize<InstanceCommand>(text, Json);
-            return command is { Files: not null } ? command : null;
+            return command is { Files: not null } ? command with { Controls = command.Controls ?? [] } : null;
         }
         catch (JsonException)
         {
@@ -213,14 +218,17 @@ public sealed class InstanceInbox
 /// SI-06: commands that arrive close together are handled as one. Explorer starts one process per selected file,
 /// in no reliable order, so files from several commands are sorted by path; a single command keeps its order.
 /// </summary>
-public sealed record InstanceBatch(IReadOnlyList<string> Play, IReadOnlyList<string> Enqueue, bool Activate)
+/// <remarks>Player commands (SI-08) run after the files, in the order they arrived; they do not bring the player forward.</remarks>
+public sealed record InstanceBatch(IReadOnlyList<string> Play, IReadOnlyList<string> Enqueue, bool Activate, IReadOnlyList<ControlCommand>? Controls = null)
 {
+    public IReadOnlyList<ControlCommand> Controls { get; init; } = Controls ?? [];
+
     public static InstanceBatch Merge(IReadOnlyList<InstanceCommand> commands, OpenFilesAction defaultAction)
     {
         var play = commands.Where(c => Resolve(c.Action, defaultAction) == FileAction.Open && c.Files.Count > 0).ToArray();
         var enqueue = commands.Where(c => Resolve(c.Action, defaultAction) == FileAction.Enqueue && c.Files.Count > 0).ToArray();
-        var activate = commands.Any(c => c.Files.Count == 0) || play.Length > 0;
-        return new InstanceBatch(Files(play), Files(enqueue), activate);
+        var activate = commands.Any(c => c.Files.Count == 0 && c.Controls.Count == 0) || play.Length > 0;
+        return new InstanceBatch(Files(play), Files(enqueue), activate, [.. commands.SelectMany(c => c.Controls)]);
     }
 
     private static FileAction Resolve(FileAction action, OpenFilesAction defaultAction) => action switch

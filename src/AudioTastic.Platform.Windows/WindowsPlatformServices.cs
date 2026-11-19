@@ -19,6 +19,15 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
 
     public void AllowOtherProcessToActivate() => AllowSetForegroundWindow(AsfwAny);
 
+    public void AttachToParentConsole() => AttachConsole(AttachParentProcess);
+
+    private const int AttachParentProcess = -1;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool AttachConsole(int processId);
+
     [LibraryImport("user32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
