@@ -16,6 +16,14 @@ if(AT_RID STREQUAL "")
 endif()
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/out/${AT_RID}" CACHE PATH "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# The installed libraries find each other in their own folder (libSoundTouchDLL needs libSoundTouch): without this,
+# Linux and macOS refuse to load the wrapper even though its dependency sits next to it (seen in CI, 19 Nov 2026).
+if(APPLE)
+  set(CMAKE_INSTALL_NAME_DIR "@rpath")
+  set(CMAKE_INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+  set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
 
 include(FetchContent)
 

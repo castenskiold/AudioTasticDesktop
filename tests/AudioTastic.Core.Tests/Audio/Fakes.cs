@@ -198,6 +198,17 @@ internal sealed class FakeAudioOutput : IAudioOutput
         var buffer = new float[BlockFrames * Format!.Value.Channels];
         while (_running)
         {
+            // This device pulls several times faster than real time. On a slow or busy machine (CI runners) the decoder
+            // threads fall behind and the mixer would render underrun silence that a real device, pulling in real time,
+            // never sees; so wait (up to 500 ms) until the decks can deliver, like the offline renderers do.
+            if (_renderer is MixerGraph graph)
+            {
+                var deadline = Environment.TickCount64 + 500;
+                while (_running && (!graph.DeckA.CanRender(BlockFrames) || !graph.DeckB.CanRender(BlockFrames)) && Environment.TickCount64 < deadline)
+                {
+                    Thread.Sleep(1);
+                }
+            }
             _renderer!.Render(buffer);
             Interlocked.Increment(ref Renders);
             if (Capture)
