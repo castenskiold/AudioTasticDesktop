@@ -225,29 +225,31 @@ S("Playlists", "Everything shown in the playlist window (PW).", [
 
 S("Metadata", "Reading, editing and showing information about the tracks.", [
 ("MD-01", "Tag reading and editing",
- "Reads and writes tags: ID3v1/v2.3/v2.4 (MP3, AIFF, WAV), Vorbis comments (FLAC, Ogg, Opus), APEv2 (APE, WV, MPC), MP4 atoms (M4A/ALAC), ASF (WMA). Edits title, artist, album artist, album, track/disc number, year, genre, comment, composer, lyrics and cover art. Several files can be edited at once (fields that differ show '(multiple values)').",
- "Playlist context menu › Edit tags… (Ctrl+E) opens the Tag editor dialog. Changes refresh the playlist and display.",
- "<b>Libraries:</b> TagLibSharp (LGPL). Formats TagLibSharp cannot write (e.g. DSF, tracker modules) are read-only via FFmpeg metadata. "
- "<b>Components:</b> TagService (AudioTastic.Metadata); TagEditorDialog. Writes are skipped for files that are currently being decoded until playback moves on.", None),
+ "Reads and writes tags: ID3v1/v2 (MP3, AIFF, WAV), Vorbis comments (FLAC, Ogg, Opus), APEv2 (APE, WV, MPC), MP4 atoms (M4A/ALAC), ASF (WMA). Edits title, artist, album artist, album, track n of m, disc n of m, year, genre, composer, comment, lyrics and the front cover. Several files can be edited at once: fields that differ show '(multiple values)' and are left alone unless typed in; only changed fields are written. Files and formats TagLib cannot write (TTA, DSD, MIDI, tracker modules, streams, read-only files) are left out with a note. "
+ "A file the player has open (the current, preloaded or fading track) is written when it is released (next track or stop); a file another reader still holds is tried again for about 3 s and then waits the same way. The waveform, loudness, beats, resume position and other cached data move to the edited file.",
+ "Playlist context menu › Edit tags… (Ctrl+E): the selected files, or the playing track when nothing is selected. The dialog is resizable (the lyrics field grows). Changes refresh the playlist rows in every tab.",
+ "<b>Libraries:</b> TagLibSharp (LGPL). Formats TagLibSharp cannot write are read-only (read via FFmpeg metadata). "
+ "<b>Components:</b> TagService (reading, cached), TagWriter (editable fields, write, CacheStore.Rekey keeps the cached data), TagWriteService (off the UI thread; waits for files in use: PlaybackEngine.IsDecoding), TagEditorWindow. "
+ "<b>Tested:</b> every field and the cover round-trip on WAV, AIFF, FLAC, MP3, Opus, Vorbis, AAC/ALAC M4A, WavPack and WMA with the decoded audio bit-identical (P9 exit criterion).", None),
 ("MD-02", "Album art",
- "Shows the cover of the current track: embedded picture first, then folder images (cover/folder/front .jpg/.png). A small thumbnail sits in the main window; clicking it opens the Art & Lyrics window with the full image.",
- "MW2: thumbnail in the display panel. AL1: large art in the Art & Lyrics window (docks to the other windows).",
- "<b>Components:</b> ArtService (TagLibSharp pictures + folder lookup), thumbnail cache (resized PNG in the data folder). Rendered in the skin's rounded frame.",
- "Settings › Metadata: album art on/off."),
+ "Shows the cover of the current track: the embedded front cover (or first picture) first, then an image in its folder named cover, folder, front or albumart (.jpg, .jpeg, .png). A small thumbnail sits in the main window; clicking it opens the Art & Lyrics window with the large image. Without a cover (or with album art off) the logo is shown.",
+ "MW2: thumbnail in the display panel. AL1: large art at the top of the Art & Lyrics window (Alt+L, Main menu › Windows), which docks to the right of the main window on first show, snaps, resizes, is hidden in the mini player and remembers its position and size.",
+ "<b>Components:</b> ArtService (TagLibSharp pictures + folder lookup), ArtCoordinator (finds and decodes the cover off the UI thread on track changes, after tag writes and when the setting changes; no disk cache needed), skin element <i>art</i> and skin window <i>art</i>. Rendered in the skin's rounded frame (cornerRadius).",
+ "Settings › Metadata: album art on/off (default on)."),
 ("MD-03", "Online lookup",
- "Looks up missing tags and cover art. MusicBrainz for tags (search by artist/title/duration, or CD disc ID for FM-11), Cover Art Archive for covers. (A Discogs fallback for covers is deferred; it would need a personal access token per user.) Never overwrites tags without confirmation: results are shown side by side with the current tags for the user to accept.",
- "Tag editor › Look up online… ; Art & Lyrics window › right-click art › Find cover online.",
- "<b>APIs:</b> MusicBrainz WS/2 (JSON, max 1 request/s, descriptive User-Agent required), Cover Art Archive (no account needed). "
- "<b>Components:</b> OnlineLookupService with rate limiter (System.Threading.RateLimiting) and an HTTP cache.",
- "Settings › Metadata: online lookup on/off, services to use (MusicBrainz tags, Cover Art Archive covers)."),
+ "Looks up tags and covers for one file on request. MusicBrainz for tags (recording search by title, artist and length ±10 s; retried without the length when nothing matches; CD disc ID for FM-11 later), Cover Art Archive for the release's front cover. Never overwrites tags without confirmation: matches are listed, the chosen one is shown next to the current tags with a tick per field (ticked where they differ), and Use copies the ticked values and the cover into the tag editor; nothing is written until Save. (A Discogs fallback for covers is deferred.)",
+ "Tag editor › Look up online… (single file); playlist context menu › Look up online… opens the tag editor and starts the search.",
+ "<b>APIs:</b> MusicBrainz WS/2 (JSON; at most one request per second, also for concurrent requests; User-Agent 'AudioTastic/version ( https://the-end.dk )'), Cover Art Archive (front-500 images; no account). "
+ "<b>Components:</b> OnlineLookupService with RequestSpacer (own minimum-interval limiter, tested on a fake clock) and a session cache of answers and covers; LookupWindow.",
+ "Settings › Metadata: online lookup on/off, services to use (MusicBrainz tags, Cover Art Archive covers); all on, and lookups only happen when asked for."),
 ("MD-04", "Lyrics",
- "Shows lyrics for the current track. Synced lyrics (LRC: from a .lrc file next to the audio file, or embedded SYLT/LYRICS with timestamps) scroll and highlight the current line; clicking a line seeks there. Plain lyrics (USLT, LYRICS tag) are shown as scrollable text.",
- "AL2: lyrics pane in the Art & Lyrics window (below the art). Hidden when the feature is off.",
- "<b>Components:</b> LyricsService (LRC parser including [offset:] tag; TagLibSharp for embedded lyrics).", "Settings › Metadata: lyrics on/off."),
+ "Shows lyrics for the current track, from (in order) a .lrc file with the same name next to it (UTF-8, else Latin-1), an ID3v2 SYLT frame, or embedded lyrics (USLT, LYRICS, ©lyr), which count as synced when they carry LRC time tags. Synced lyrics highlight the current line, keep it in the middle and seek when a line is clicked; plain lyrics scroll as text. LRC: several time tags per line, [mm:ss.xx] and [mm:ss:xx], [offset:], enhanced word tags ignored. CUE tracks use the whole file's lyrics times.",
+ "AL2: lyrics pane below the art in the Art & Lyrics window, taking most of its height (Anders); the mouse wheel scrolls, no scroll bar is drawn. Hidden when the feature is off. Lyrics are edited in the tag editor.",
+ "<b>Components:</b> LyricsService and LrcParser (Metadata), LyricsCoordinator (follows the 10 Hz position), skin element <i>lyrics</i>.", "Settings › Metadata: lyrics on/off (default on)."),
 ("MD-05", "File info dialog",
- "Shows the technical details of a file: path, container and codec, bitrate (average and current), sample rate, bit depth, channels, duration, file size, ReplayGain values, BPM, encoder (e.g. LAME settings) and all tags read-only.",
- "Playlist context menu › File info… (Alt+3, as in Winamp), or double-click the format indicators (MW5).",
- "<b>Components:</b> FileInfoDialog using FFmpeg probe data plus TagService and cache values.", None),
+ "Shows the technical details of a file, read-only: location, type, size and date; codec (with TagLib's description, e.g. MPEG Version 1 Audio, Layer 3), lossless or lossy, sample rate, bit depth, channels, exact length in samples, bitrate (the file's average when the decoder gives none), encoder; ReplayGain from the tags and from our own loudness analysis (LUFS, gain, sample peak); BPM, confidence, beat start/end and breaks; all tags; the CUE range for CUE tracks. Values can be selected; Copy puts everything on the clipboard.",
+ "Playlist context menu › File info… (Alt+3); Alt+3 in the main window or a double-click on the format badges (MW5) shows the playing track.",
+ "<b>Components:</b> FileInfoReader (decoder info and metadata, TagLib codec description, file size) plus TagService, AnalysisService and BeatInfoService values; FileInfoWindow.", None),
 ])
 
 S("User interface and skins", "Window layout, skins and the visual elements of the player. See section 2 for the UI map.", [
