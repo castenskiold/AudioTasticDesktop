@@ -371,9 +371,10 @@ PROGRESS = {
     "P10": dict(status="In progress", date="", outcome=[
                         "Step 1 (19 Nov 2026, Windows): single instance (SI-06) with a JSON command pipe, the --open and --enqueue switches (part of SI-08), and Explorer's 'Open in AudioTastic' / 'Enqueue in AudioTastic' context menu entries with the app icon (part of SI-05); Settings › System integration (play or enqueue opened files, context menu on/off). Checked by Anders: the entries show with the icon, Open plays, Enqueue only adds.",
                         "Step 2 (19 Nov 2026): the full command line (SI-08) with System.CommandLine: --play, --pause, --playpause, --stop, --next, --prev, --volume, --seek, --quit (also /name on Windows), --help and --version on the console; commands go to the running player (exit criterion 'CLI commands work against a running instance' checked on Windows: volume, seek and quit sent to a running player).",
+                        "Step 3 (19 Nov 2026, Windows): file associations (SI-05): AudioTastic registered for every audio and playlist type its plugins play, shown in Open with and Settings › Default apps; the first start asks whether to use it for audio files (Anders) and opens Default apps. Exit criterion 'double-clicking a FLAC enqueues/plays in the running instance' checked by Anders on Windows.",
                         "UI-01 (Anders, 19 Nov 2026): resizing the playlist or Art & Lyrics window snaps its right and bottom edges to the player's and other windows' edges and to the screen edge, like moving does.",
                         "Fixed on the way: the playlist drew rows for only part of its height at player sizes above 100 % (Avalonia's virtualizing panel under the scale transform), and format badges were cut off at the right edge."],
-               open=["File associations (ProgID, Default apps), tray, media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
+               open=["Tray, media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

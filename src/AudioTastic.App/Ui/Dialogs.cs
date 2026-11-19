@@ -45,6 +45,47 @@ public sealed class MessageWindow : Window
         new MessageWindow(title, message, details).ShowDialog(owner);
 }
 
+/// <summary>A question with two answers (SI-05 first-start question). Returns true for the first (default) button.</summary>
+public sealed class QuestionWindow : Window
+{
+    private bool _yes;
+
+    private QuestionWindow(string title, string message, string yes, string no)
+    {
+        Title = title;
+        Width = 480;
+        SizeToContent = SizeToContent.Height;
+        CanResize = false;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        var yesButton = new Button { Content = yes, IsDefault = true, MinWidth = 80 };
+        yesButton.Click += (_, _) =>
+        {
+            _yes = true;
+            Close();
+        };
+        var noButton = new Button { Content = no, IsCancel = true, MinWidth = 80 };
+        noButton.Click += (_, _) => Close();
+        Content = new StackPanel
+        {
+            Margin = new Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { yesButton, noButton } },
+            },
+        };
+        Opened += (_, _) => yesButton.Focus();
+    }
+
+    public static async Task<bool> AskAsync(Window owner, string title, string message, string yes, string no)
+    {
+        var window = new QuestionWindow(title, message, yes, no);
+        await window.ShowDialog(owner);
+        return window._yes;
+    }
+}
+
 /// <summary>A one-line text prompt (FM-10 Open URL). Returns the text, or null when cancelled or empty.</summary>
 public sealed class InputWindow : Window
 {

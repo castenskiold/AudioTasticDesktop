@@ -11,17 +11,36 @@ namespace AudioTastic.Platform;
 /// <param name="EnqueueText">Text of the entry that only adds the files.</param>
 public sealed record ContextMenuEntries(string ExecutablePath, IReadOnlyCollection<string> Extensions, string OpenText, string EnqueueText);
 
+/// <summary>
+/// SI-05: AudioTastic as a program that can open these file types. Opening such a file starts
+/// <see cref="ExecutablePath"/> with the file (no switch), so Settings › System integration decides whether it is
+/// played or enqueued (SI-06). Registering does not make AudioTastic the default: the user chooses that in the OS.
+/// </summary>
+public sealed record FileAssociations(string ExecutablePath, IReadOnlyCollection<string> AudioExtensions, IReadOnlyCollection<string> PlaylistExtensions);
+
 /// <summary>SI-05: registers AudioTastic with the OS file manager.</summary>
 public interface IShellIntegration
 {
     /// <summary>True when this OS supports the context menu entries (Windows so far).</summary>
     bool SupportsContextMenu { get; }
 
+    /// <summary>True when this OS supports registering file types (Windows so far).</summary>
+    bool SupportsFileAssociations { get; }
+
     /// <summary>
     /// Adds or updates the context menu entries for exactly <paramref name="entries"/>' extensions and removes the
     /// ones registered earlier for other extensions; null removes every entry.
     /// </summary>
     void SetContextMenu(ContextMenuEntries? entries);
+
+    /// <summary>
+    /// Registers AudioTastic for exactly <paramref name="associations"/>' file types (removing types registered earlier
+    /// and no longer given); null removes the registration. Returns true when anything changed.
+    /// </summary>
+    bool SetFileAssociations(FileAssociations? associations);
+
+    /// <summary>Opens the OS page where the user makes AudioTastic the default for file types.</summary>
+    void OpenDefaultAppsSettings();
 }
 
 /// <summary>Shell integration for systems that have none yet (macOS and Linux until they get their own).</summary>
@@ -31,7 +50,15 @@ public sealed class NoShellIntegration : IShellIntegration
 
     public bool SupportsContextMenu => false;
 
+    public bool SupportsFileAssociations => false;
+
     public void SetContextMenu(ContextMenuEntries? entries)
+    {
+    }
+
+    public bool SetFileAssociations(FileAssociations? associations) => false;
+
+    public void OpenDefaultAppsSettings()
     {
     }
 }

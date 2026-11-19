@@ -59,15 +59,17 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private readonly SleepTimerService _sleep;
     private bool _exiting;
     private readonly Integration.InstanceInbox _inbox;
+    private readonly Integration.ShellIntegrationService _shellIntegration;
     private readonly List<Integration.InstanceCommand> _pendingCommands = [];
     private DispatcherTimer? _commandTimer;
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
         AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
-        ILoggerFactory loggerFactory)
+        Integration.ShellIntegrationService shellIntegration, ILoggerFactory loggerFactory)
     {
         _inbox = inbox;
+        _shellIntegration = shellIntegration;
         _art = art;
         _lyrics = lyrics;
         _sleep = sleep;
@@ -764,6 +766,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         {
             Dispatcher.UIThread.Post(async () => await new CrashReportWindow(report, _crashReporter, _platform).ShowDialog(owner));
         }
+        else if (_shellIntegration.ShouldAskAboutFileTypes)
+        {
+            Dispatcher.UIThread.Post(async () => await AskAboutFileTypesAsync(owner)); // SI-05: once, on the first start
+        }
         if (_options.CrashTest)
         {
             // TL-03 exit criterion: a forced exception must produce a crash report.
@@ -836,6 +842,35 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         {
             BringToFront();
         }
+    }
+
+    /// <summary>
+    /// SI-05 (Anders, 19 Nov 2026): the first start asks whether to use AudioTastic for audio files. The answer is kept
+    /// (Settings › System integration changes it); Yes registers the file types and opens Windows' Default apps page.
+    /// </summary>
+    private async Task AskAboutFileTypesAsync(Window owner)
+    {
+        var yes = await QuestionWindow.AskAsync(owner, "Use AudioTastic for audio files?",
+            "AudioTastic can be the player for your audio files and playlists (FLAC, MP3, WAV, M3U and the other types it plays), " +
+            "so double-clicking one opens it here.\n\nWindows lets you choose the default yourself: Yes registers AudioTastic and opens " +
+            "Settings › Default apps, where you pick it for the file types you want. You can change this later in Settings › System integration.",
+            "Yes, set up", "Not now");
+        _settings.Update(SettingsGroup.SystemIntegration, s => s.SystemIntegration.FileAssociations = yes);
+        if (yes)
+        {
+            await ChooseDefaultAppsAsync();
+        }
+    }
+
+    /// <summary>SI-05: registers the file types (if not yet) and opens Windows' Default apps page for AudioTastic.</summary>
+    public async Task ChooseDefaultAppsAsync()
+    {
+        if (_settings.Current.SystemIntegration.FileAssociations != true)
+        {
+            _settings.Update(SettingsGroup.SystemIntegration, s => s.SystemIntegration.FileAssociations = true);
+        }
+        await _shellIntegration.Refresh(); // the registration must exist before Windows shows the page
+        _shellIntegration.OpenDefaultApps();
     }
 
     /// <summary>SI-08: a player command from the command line (the same actions as the buttons and keys).</summary>

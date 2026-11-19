@@ -149,7 +149,21 @@ public sealed class SettingsWindow : Window
         {
             Note(panel, "The file manager's context menu entries for this system come in a later step of phase P10.");
         }
-        Note(panel, "Hotkeys, media keys, the tray icon, taskbar buttons and notifications arrive later in phase P10.");
+
+        if (_platform.Shell.SupportsFileAssociations)
+        {
+            Heading(panel, "File types");
+            Check(panel, "Register AudioTastic for the audio and playlist types it plays", si.FileAssociations == true,
+                v => Update(s => s.FileAssociations = v));
+            var choose = new Button { Content = "Choose default apps…" };
+            Avalonia.Automation.AutomationProperties.SetName(choose, "Choose default apps");
+            choose.Click += async (_, _) => await _shell.ChooseDefaultAppsAsync();
+            panel.Children.Add(choose);
+            Note(panel, "Registering puts AudioTastic in 'Open with' and in Windows Settings › Default apps; Windows lets only you make it the default. " +
+                "'Choose default apps…' registers it and opens that page. Double-clicked files go to the running player and are played or enqueued as chosen above." +
+                (_paths.IsPortable ? " Portable mode: nothing is registered unless you switch it on." : ""));
+        }
+        Note(panel, "Hotkeys, media keys, the tray icon, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
     }
 
     /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>

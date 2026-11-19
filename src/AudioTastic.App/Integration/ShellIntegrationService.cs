@@ -9,10 +9,10 @@ using Microsoft.Extensions.Logging;
 namespace AudioTastic.App.Integration;
 
 /// <summary>
-/// SI-05: keeps the file manager's "Open in AudioTastic" / "Enqueue in AudioTastic" entries in line with the setting,
-/// the program's current location and the file types the enabled plugins play. Written at every start (the program
-/// may have moved), when the setting changes and when plugins change. In portable mode nothing is written unless the
-/// setting was switched on explicitly.
+/// SI-05: keeps the file manager's "Open in AudioTastic" / "Enqueue in AudioTastic" entries and the file type
+/// registration in line with the settings, the program's current location and the file types the enabled plugins
+/// play. Written at every start (the program may have moved), when the settings change and when plugins change.
+/// In portable mode nothing is written unless a setting was switched on explicitly.
 /// </summary>
 public sealed class ShellIntegrationService : IDisposable
 {
@@ -42,6 +42,14 @@ public sealed class ShellIntegrationService : IDisposable
 
     /// <summary>True when the entries should be there: the setting, or by default on unless portable.</summary>
     public static bool IsEnabled(SystemIntegrationSettings settings, bool portable) => settings.ContextMenu ?? !portable;
+
+    /// <summary>SI-05: true when the first start should ask whether to use AudioTastic for audio files.</summary>
+    public bool ShouldAskAboutFileTypes =>
+        _platform.Shell.SupportsFileAssociations && !_paths.IsPortable && _settings.Current.SystemIntegration.FileAssociations is null
+        && Environment.ProcessPath is { } exe && !IsDotnetHost(exe);
+
+    /// <summary>Opens Windows' Default apps page for AudioTastic.</summary>
+    public void OpenDefaultApps() => _platform.Shell.OpenDefaultAppsSettings();
 
     public void Start()
     {
@@ -92,6 +100,15 @@ public sealed class ShellIntegrationService : IDisposable
                 _platform.Shell.SetContextMenu(null);
                 _logger.LogInformation("Context menu entries removed");
             }
+            if (_platform.Shell.SupportsFileAssociations && settings.FileAssociations is { } associate)
+            {
+                var associations = associate ? Associations() : null;
+                if ((!associate || associations is not null) && _platform.Shell.SetFileAssociations(associations))
+                {
+                    _logger.LogInformation("File type registration {State} ({Count} types)", associate ? "written" : "removed",
+                        associations is null ? 0 : associations.AudioExtensions.Count + associations.PlaylistExtensions.Count);
+                }
+            }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or SecurityException)
         {
@@ -100,20 +117,23 @@ public sealed class ShellIntegrationService : IDisposable
     }
 
     /// <summary>The entries for this program, or null when it does not run from its own executable (e.g. via dotnet).</summary>
-    private ContextMenuEntries? Entries()
-    {
-        var exe = Environment.ProcessPath;
-        if (exe is null || Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-        var extensions = _plugins.LiveSourceFactories.SelectMany(f => f.Extensions)
-            .Concat(_playlists.Formats.SelectMany(f => f.Extensions))
-            .Where(e => e.StartsWith('.'))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        return new ContextMenuEntries(exe, extensions, OpenText, EnqueueText);
-    }
+    private ContextMenuEntries? Entries() => Executable() is { } exe
+        ? new ContextMenuEntries(exe, [.. AudioExtensions().Concat(PlaylistExtensions()).Distinct(StringComparer.OrdinalIgnoreCase)], OpenText, EnqueueText)
+        : null;
+
+    private FileAssociations? Associations() => Executable() is { } exe
+        ? new FileAssociations(exe, AudioExtensions(), PlaylistExtensions())
+        : null;
+
+    private static string? Executable() => Environment.ProcessPath is { } exe && !IsDotnetHost(exe) ? exe : null;
+
+    private static bool IsDotnetHost(string exe) => Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase);
+
+    private string[] AudioExtensions() =>
+        [.. _plugins.LiveSourceFactories.SelectMany(f => f.Extensions).Where(e => e.StartsWith('.')).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    private string[] PlaylistExtensions() =>
+        [.. _playlists.Formats.SelectMany(f => f.Extensions).Where(e => e.StartsWith('.')).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     public void Dispose()
     {

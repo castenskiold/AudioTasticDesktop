@@ -300,6 +300,12 @@ public sealed class SystemIntegrationSettings
     /// </summary>
     public bool? ContextMenu { get; set; }
 
+    /// <summary>
+    /// SI-05: AudioTastic registered for the audio and playlist types it plays ("Open with", Settings › Default apps).
+    /// Null = not decided yet: the first start asks (not in portable mode).
+    /// </summary>
+    public bool? FileAssociations { get; set; }
+
     /// <summary>SI-06: what files opened from the OS (double-click, file association, command line) do.</summary>
     public OpenFilesAction OpenFiles { get; set; } = OpenFilesAction.Play;
 }

@@ -35,8 +35,9 @@ Useful switches:
 - On Windows every option can also be written with a slash: `/next`, `/volume 40`, `/enqueue song.flac`.
 - `--help` lists everything, `--version` prints the version; mistakes (an unknown option, `--volume 300`) are reported on the console with exit code 1 and the player is not started.
 
-**Single instance and context menu (Windows):**
+**Single instance, file types and context menu (Windows):**
 - AudioTastic runs once per user (a portable copy runs on its own). Starting it again hands the files to the running player and brings it to the front; files opened together, e.g. several selected in Explorer, are added as one batch.
+- The first start asks whether to use AudioTastic for audio files. *Yes, set up* registers it for every audio and playlist type it plays and opens Windows' *Settings › Default apps*, where you choose it as the default (Windows lets only you do that). Double-clicked files then go to the running player. Change it later in *Settings › System integration* (*Choose default apps…*, or switch the registration off). Portable mode doesn't ask.
 - Right-clicking audio files and playlists in Explorer shows **Open in AudioTastic** and **Enqueue in AudioTastic** with the app icon. On Windows 11 they are under *Show more options* (or Shift+right-click). The entries are per user (no administrator rights), follow the program if you move it (they are rewritten at every start) and cover every file type the enabled plugins play. Switch them off in *Settings › System integration* before deleting the program; in portable mode they are off unless you switch them on.
 
 **Windows and controls:**

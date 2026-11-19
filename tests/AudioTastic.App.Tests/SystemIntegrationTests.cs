@@ -212,7 +212,7 @@ public sealed class SystemIntegrationTests
         }
         var testRoot = @"Software\AudioTasticTests\" + Guid.NewGuid().ToString("N");
         var classes = testRoot + @"\Classes";
-        var shell = new WindowsShellIntegration(Registry.CurrentUser, classes, testRoot + @"\State");
+        var shell = new WindowsShellIntegration(Registry.CurrentUser, testRoot);
         const string exe = @"C:\Programs\AudioTastic\AudioTastic.exe";
         try
         {
@@ -246,6 +246,85 @@ public sealed class SystemIntegrationTests
             using var mp3 = Registry.CurrentUser.OpenSubKey($@"{classes}\SystemFileAssociations\.mp3\shell");
             Assert.NotNull(mp3);
             Assert.Equal(["Other"], mp3.GetSubKeyNames());
+        }
+        finally
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(testRoot, throwOnMissingSubKey: false);
+            using var parent = Registry.CurrentUser.OpenSubKey(@"Software\AudioTasticTests", writable: true);
+            if (parent is { SubKeyCount: 0 })
+            {
+                Registry.CurrentUser.DeleteSubKey(@"Software\AudioTasticTests", throwOnMissingSubKey: false);
+            }
+        }
+    }
+
+    [Fact]
+    public void Windows_file_types_are_registered_without_taking_over_defaults_and_removed_cleanly()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows registry");
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var testRoot = @"Software\AudioTasticTests\" + Guid.NewGuid().ToString("N");
+        var classes = testRoot + @"\Classes";
+        var shell = new WindowsShellIntegration(Registry.CurrentUser, testRoot);
+        const string exe = @"C:\Programs\AudioTastic\AudioTastic.exe";
+        try
+        {
+            // Another player's registration and the user's own default must survive.
+            using (var other = Registry.CurrentUser.CreateSubKey(classes + @"\.mp3\OpenWithProgids"))
+            {
+                other.SetValue("OtherPlayer.mp3", Array.Empty<byte>(), RegistryValueKind.None);
+            }
+            using (var mp3 = Registry.CurrentUser.CreateSubKey(classes + @"\.mp3"))
+            {
+                mp3.SetValue("", "OtherPlayer.mp3");
+            }
+
+            Assert.True(shell.SetFileAssociations(new FileAssociations(exe, [".FLAC", ".mp3", ".m3u8"], [".m3u8", ".cue"])));
+            Assert.False(shell.SetFileAssociations(new FileAssociations(exe, [".flac", ".mp3", ".m3u8"], [".m3u8", ".cue"]))); // unchanged
+            Assert.Equal([".flac", ".mp3", ".cue", ".m3u8"], shell.AssociatedExtensions());
+
+            using (var open = Registry.CurrentUser.OpenSubKey($@"{classes}\{WindowsShellIntegration.AudioProgId}\shell\open\command"))
+            {
+                Assert.Equal($"\"{exe}\" \"%1\"", open!.GetValue(""));
+            }
+            using (var flac = Registry.CurrentUser.OpenSubKey(classes + @"\.flac\OpenWithProgids"))
+            {
+                Assert.Contains(WindowsShellIntegration.AudioProgId, flac!.GetValueNames());
+            }
+            using (var m3u8 = Registry.CurrentUser.OpenSubKey(classes + @"\.m3u8\OpenWithProgids"))
+            {
+                Assert.Equal([WindowsShellIntegration.PlaylistProgId], m3u8!.GetValueNames()); // a playlist, not audio
+            }
+            using (var mp3 = Registry.CurrentUser.OpenSubKey(classes + @"\.mp3"))
+            {
+                Assert.Equal("OtherPlayer.mp3", mp3!.GetValue("")); // never takes over the default
+            }
+            using (var capabilities = Registry.CurrentUser.OpenSubKey(testRoot + @"\AudioTastic\Capabilities\FileAssociations"))
+            {
+                Assert.Equal(WindowsShellIntegration.PlaylistProgId, capabilities!.GetValue(".cue"));
+                Assert.Equal(WindowsShellIntegration.AudioProgId, capabilities.GetValue(".flac"));
+            }
+            using (var registered = Registry.CurrentUser.OpenSubKey(testRoot + @"\RegisteredApplications"))
+            {
+                Assert.Equal(testRoot + @"\AudioTastic\Capabilities", registered!.GetValue("AudioTastic"));
+            }
+
+            // A type no longer played loses its registration.
+            Assert.True(shell.SetFileAssociations(new FileAssociations(exe, [".mp3"], [])));
+            Assert.Null(Registry.CurrentUser.OpenSubKey(classes + @"\.flac"));
+
+            Assert.True(shell.SetFileAssociations(null));
+            Assert.Empty(shell.AssociatedExtensions());
+            Assert.Null(Registry.CurrentUser.OpenSubKey($@"{classes}\{WindowsShellIntegration.AudioProgId}"));
+            Assert.Null(Registry.CurrentUser.OpenSubKey(testRoot + @"\AudioTastic\Capabilities"));
+            using (var mp3 = Registry.CurrentUser.OpenSubKey(classes + @"\.mp3\OpenWithProgids"))
+            {
+                Assert.Equal(["OtherPlayer.mp3"], mp3!.GetValueNames());
+            }
+            Assert.False(shell.SetFileAssociations(null));
         }
         finally
         {

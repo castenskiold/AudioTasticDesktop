@@ -111,7 +111,7 @@ sections2=[
 ("OS media controls","Windows: System Media Transport Controls (media overlay, lock screen, Bluetooth headset buttons). macOS: Now Playing / media keys. Linux: MPRIS."),
 ("Taskbar integration",f"Thumbnail toolbar buttons (previous/play/next) and progress on the taskbar icon {WO}. macOS: Dock menu."),
 ("System tray","Minimise to tray with a tray menu (menu bar icon on macOS)."),
-("File associations","Register as handler for audio and playlist files on all platforms. 'Enqueue in AudioTastic' context menu: Explorer (Windows), Finder Quick Action (macOS), .desktop actions (Linux)."),
+("File associations","Register as handler for audio and playlist files on all platforms. The first start asks whether to use AudioTastic for audio files (not in portable mode); the answer can be changed in General settings. 'Open in AudioTastic' and 'Enqueue in AudioTastic' context menu entries with the app icon: Explorer (Windows), Finder Quick Action (macOS), .desktop actions (Linux)."),
 ("Single instance","Opening files sends them to the running instance (play or enqueue)."),
 ("Notifications","Optional native notification on track change."),
 ("Command-line interface","Control playback from scripts (e.g. /play, /next, /enqueue)."),
@@ -243,4 +243,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.11  ·  19 November 2026", story, short_title="Required Features  ·  v1.11")
+ "Version 1.12  ·  19 November 2026", story, short_title="Required Features  ·  v1.12")
