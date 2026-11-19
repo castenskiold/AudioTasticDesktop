@@ -126,10 +126,11 @@ sections2=[
 ("Room correction","Load convolution impulse responses (e.g. from REW)."),
 ]),
 ("11. Casting and network",[
-("Chromecast","Cast audio to Chromecast devices."),
-("DLNA / UPnP renderers","Cast to Sonos, smart TVs and network receivers."),
+("Cast modes","Three ways to cast, chosen per device in the device picker (Anders, 19 November 2026): <b>audio only</b> (the music plays on the cast device); <b>audio and video</b> (the cast device plays the music and shows the visualisation on its screen); <b>video only</b> (only the visualisation goes to a screen, while the music keeps playing on the computer's own speakers, with the visuals kept in time with them). The video is the visualisation: the built-in spectrum/oscilloscope, or a visualisation plugin such as the MilkDrop-style plugin planned later. Video modes are offered only for devices with a screen (Chromecast on a TV, DLNA TVs); AirPlay (RAOP) is audio only."),
+("Chromecast","Cast audio, audio and video, or video only to Chromecast devices."),
+("DLNA / UPnP renderers","Cast to Sonos, smart TVs and network receivers; video modes to TVs that play video streams."),
 ("AirPlay","Stream to AirPlay speakers and Apple TV using original AirPlay (AirPlay 1 / RAOP). AirPlay 2 is not in scope for now. No AirPlay test device is available, so this needs community or later testing."),
-("Local HTTP streaming server","Serves the current track to cast targets that pull a URL. Transcodes formats the target cannot play on the fly (e.g. APE to FLAC)."),
+("Local HTTP streaming server","Serves the current track to cast targets that pull a URL. Transcodes formats the target cannot play on the fly (e.g. APE to FLAC). For the video modes it serves the visualisation as a live video stream (with the audio in audio-and-video mode)."),
 ("Device discovery","mDNS and SSDP discovery with a device picker in the UI."),
 ("Remote control","Web or mobile remote through a local REST/WebSocket API."),
 ("Configuration",f"All casting and network features are configured in {GS}."),
@@ -169,7 +170,7 @@ gs=[
 ("Output","Output device, exclusive/bit-perfect mode, high-resolution output (bit depth, sample rate, no resampling)."),
 ("Crossfading","Mode (Intro/Outro or Beat matching) and all settings in section 5."),
 ("Metadata","Album art on/off, online lookup on/off (and which services), lyrics on/off."),
-("Casting and network","Chromecast, DLNA/UPnP, AirPlay, streaming server (port, transcoding), discovery, remote control."),
+("Casting and network","Chromecast, DLNA/UPnP, AirPlay, cast modes (default per device; video resolution, frame rate, visualisation used, visual offset), streaming server (port, transcoding), discovery, remote control."),
 ("Interface","Skin/theme, player size (default 150 %), mini player, always on top, double size, scrolling title, visualisation, notifications, dark/light mode."),
 ("System integration","Global hotkeys, tray behaviour, file associations, context menu."),
 ("Equalizer and DSP","EQ presets, auto EQ rules, DSP chain order, VST plugins, room correction."),
@@ -202,6 +203,7 @@ tech=[
 ("DLNA / UPnP / mDNS","Own SSDP + AVTransport SOAP code; Makaretu.Dns.Multicast (MIT) for mDNS."),
 ("AirPlay","No mature free .NET sender library; own RAOP (AirPlay 1) implementation needed."),
 ("Streaming server","Kestrel / ASP.NET Core (MIT), embedded."),
+("Video encoding (cast modes)","FFmpeg (LGPL build) with the operating system's H.264 encoders (Media Foundation on Windows, VideoToolbox on macOS, VA-API on Linux) or a free software encoder such as libvpx (BSD) or OpenH264 (BSD); never x264 (GPL). Chosen in P11 after testing with the cast devices."),
 ("Local database","SQLite via Microsoft.Data.Sqlite (MIT)."),
 ("System integration","Global hotkeys: Windows RegisterHotKey, SharpHook (MIT) on macOS/Linux; SMTC through the Windows SDK projection (Windows); Tmds.DBus (MIT) for MPRIS (Linux); native interop for macOS Now Playing."),
 ("Logging","Serilog (Apache 2.0)."),
@@ -234,6 +236,7 @@ later=[
 ("Localisation","Not included."),
 ("VST2","Not included (VST3 only)."),
 ("AirPlay 2","Not included for now (original AirPlay only)."),
+("MilkDrop-style visualisation plugin","Planned later by Anders, as a visualisation plugin (for example on projectM, LGPL, dynamically linked, or own code). P11 prepares for it: visualisation plugins can render frames for casting, so its visuals can be cast to a screen."),
 ("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
 ("Discogs cover fallback","Deferred (Anders, 19 November 2026); may be revisited later. Online lookup uses MusicBrainz and the Cover Art Archive, which need no account. Discogs would need each user's personal access token."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
@@ -243,4 +246,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.14  ·  19 November 2026", story, short_title="Required Features  ·  v1.14")
+ "Version 1.15  ·  19 November 2026", story, short_title="Required Features  ·  v1.15")
