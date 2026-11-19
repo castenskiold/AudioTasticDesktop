@@ -119,7 +119,7 @@ jobs:
         run: python native/fetch_ffmpeg.py --rid ${{ matrix.rid }}
       - name: FFmpeg (built from source, LGPL)
         if: ${{ startsWith(matrix.rid, 'osx') }}
-        run: native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
+        run: bash native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
       - name: miniaudio and SoundTouch
         run: |
           cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} ${{ matrix.cmake_arch }}
@@ -130,7 +130,7 @@ jobs:
         run: python native/fetch_libopenmpt.py --rid ${{ matrix.rid }}
       - name: libopenmpt (built from source, FM-07)
         if: ${{ !startsWith(matrix.rid, 'win') }}
-        run: native/build_libopenmpt_unix.sh ${{ matrix.rid }}
+        run: bash native/build_libopenmpt_unix.sh ${{ matrix.rid }}
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.rid }}
