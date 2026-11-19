@@ -27,10 +27,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 BASE_URL = "http://losslessaudio.org/Downloads/A1C0/5100/"
 PACKAGES = {
-    # rid: (package, SHA-1, library files inside SDK/Library)
-    "win-x64": ("OptimFROG_Win_x64_5100.zip", "abf21227c5417c984ee51ba391e2bcb5546d033b", ("OptimFROG.dll",)),
-    "linux-x64": ("OptimFROG_Linux_x64_5100.zip", "e3dd9fd56ee11c544b1faadee24ae6adef661b6a", ("libOptimFROG.so", "libOptimFROG.so.0")),
-    "osx-x64": ("OptimFROG_OSX_x64_5100.zip", "c07eb7a6b877bd4900f4a1f3b950c5ed7f730e26", ("libOptimFROG.dylib", "libOptimFROG.0.dylib")),
+    # rid: (folder on the site, package, SHA-1, library files inside SDK/Library). The site moved the packages into
+    # per-OS folders (seen 19 Nov 2026); the files are unchanged (same SHA-1).
+    "win-x64": ("Win", "OptimFROG_Win_x64_5100.zip", "abf21227c5417c984ee51ba391e2bcb5546d033b", ("OptimFROG.dll",)),
+    "linux-x64": ("Linux", "OptimFROG_Linux_x64_5100.zip", "e3dd9fd56ee11c544b1faadee24ae6adef661b6a", ("libOptimFROG.so", "libOptimFROG.so.0")),
+    "osx-x64": ("OSX", "OptimFROG_OSX_x64_5100.zip", "c07eb7a6b877bd4900f4a1f3b950c5ed7f730e26", ("libOptimFROG.dylib", "libOptimFROG.0.dylib")),
 }
 
 
@@ -42,13 +43,13 @@ def sha1(path):
     return digest.hexdigest()
 
 
-def fetch(package, expected):
+def fetch(site_folder, package, expected):
     folder = HERE / "downloads" / "optimfrog"
     folder.mkdir(parents=True, exist_ok=True)
     archive = folder / package
     if archive.exists() and sha1(archive) == expected:
         return archive
-    url = BASE_URL + package
+    url = f"{BASE_URL}{site_folder}/{package}"
     print(f"Downloading {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "AudioTastic-build"})
     with urllib.request.urlopen(request, timeout=120) as response, open(archive, "wb") as out:
@@ -64,8 +65,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rid", action="append", choices=sorted(PACKAGES), help="runtime identifier (default: win-x64)")
     for rid in parser.parse_args().rid or ["win-x64"]:
-        package, expected, libraries = PACKAGES[rid]
-        archive = fetch(package, expected)
+        site_folder, package, expected, libraries = PACKAGES[rid]
+        archive = fetch(site_folder, package, expected)
         target = HERE / "out" / "optimfrog" / "runtimes" / rid / "native"
         if target.exists():
             shutil.rmtree(target)
