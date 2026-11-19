@@ -245,6 +245,9 @@ public sealed class InterfaceSettings
     /// <summary>UI-06: scroll the title when it does not fit.</summary>
     public bool ScrollTitle { get; set; } = true;
 
+    /// <summary>SI-07: a native notification when the track changes (not while the player has the focus). Off by default.</summary>
+    public bool NotifyOnTrackChange { get; set; }
+
     /// <summary>UI-06: scroll speed in pixels per second; 0 = the skin's speed.</summary>
     public int ScrollSpeed { get; set; }
 

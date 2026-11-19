@@ -64,6 +64,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private readonly Integration.MediaControlsService _mediaControls;
     private readonly Integration.TaskbarService _taskbar;
 
+    /// <summary>SI-07: track-change notifications (the settings page asks whether this system has them).</summary>
+    public Integration.NotificationService Notifications { get; }
+
     /// <summary>SI-01: the global hotkeys (the settings page shows which could not be registered).</summary>
     public Integration.HotkeyManager Hotkeys { get; }
     private bool _inTray;
@@ -77,8 +80,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
         AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
-        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, Integration.HotkeyManager hotkeys, Integration.TaskbarService taskbar, ILoggerFactory loggerFactory)
+        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, Integration.HotkeyManager hotkeys, Integration.TaskbarService taskbar, Integration.NotificationService notifications, ILoggerFactory loggerFactory)
     {
+        Notifications = notifications;
         _taskbar = taskbar;
         Hotkeys = hotkeys;
         _mediaControls = mediaControls;
@@ -242,6 +246,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _mediaControls.Start(_main.TryGetPlatformHandle()?.Handle ?? 0);
         // SI-03: taskbar buttons and progress on the player windows' taskbar buttons (hooked before they are shown).
         _taskbar.Start([_main, _mini], ExecuteFromTray);
+        // SI-07: notifications on track change, unless a player window has the focus.
+        Notifications.Start(() => _platform.IsInForeground()
+            ?? new Window?[] { _main, _mini, _playlist, _equalizer, _artWindow }.Any(w => w is { IsVisible: true, IsActive: true }));
         // SI-01: global hotkeys run the same actions as the buttons and keys ("showHide" like a click on the tray icon).
         Hotkeys.Start(action => ExecuteFromTray(action == "showHide" ? "trayToggle" : action));
         // SI-04: the tray icon and its menu.

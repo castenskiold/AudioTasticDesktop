@@ -502,6 +502,15 @@ public sealed class SettingsWindow : Window
         Check(panel, "Main window always on top", ui.AlwaysOnTop, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.AlwaysOnTop = v));
         Check(panel, "Mini player always on top", ui.MiniPlayerAlwaysOnTop, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.MiniPlayerAlwaysOnTop = v));
         Check(panel, "Scroll the title when it does not fit", ui.ScrollTitle, v => _settings.Update(SettingsGroup.Interface, s => s.Interface.ScrollTitle = v));
+        if (_shell.Notifications.IsSupported)
+        {
+            Check(panel, "Show a notification when the track changes (not while AudioTastic is in front)", ui.NotifyOnTrackChange,
+                v => _settings.Update(SettingsGroup.Interface, s => s.Interface.NotifyOnTrackChange = v));
+            if (_paths.IsPortable)
+            {
+                Note(panel, "Portable mode: Windows shows notifications only for programs with a Start menu shortcut (Settings › System integration › Start menu).");
+            }
+        }
 
         var speed = new NumericUpDown { Minimum = 0, Maximum = 200, Increment = 5, Value = ui.ScrollSpeed, FormatString = "0", Width = 140 };
         speed.ValueChanged += (_, e) =>

@@ -24,6 +24,11 @@ public sealed class MacPlatformServices : IPlatformServices
     /// <summary>SI-03 is Windows only (a macOS Dock menu may come later).</summary>
     public ITaskbar Taskbar => NoTaskbar.Instance;
 
+    /// <summary>SI-07 for this OS comes later.</summary>
+    public INotifications Notifications => NoNotifications.Instance;
+
+    public bool? IsInForeground() => null;
+
     public void AllowOtherProcessToActivate()
     {
     }

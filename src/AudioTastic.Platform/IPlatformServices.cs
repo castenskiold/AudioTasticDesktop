@@ -28,6 +28,15 @@ public interface IPlatformServices
     /// <summary>SI-03 [Windows only]: taskbar thumbnail buttons and progress.</summary>
     ITaskbar Taskbar { get; }
 
+    /// <summary>SI-07: native notifications (uses the identity from <see cref="SetAppIdentity"/>).</summary>
+    INotifications Notifications { get; }
+
+    /// <summary>
+    /// SI-07: true when the window in front belongs to this process (a player window or one of its dialogs), false when
+    /// another program is in front, null when the OS cannot tell.
+    /// </summary>
+    bool? IsInForeground();
+
     /// <summary>
     /// SI-06: called by a second start before it hands its files to the running player, so that the player may
     /// bring its window to the front (Windows only lets the process the user just started do that).
