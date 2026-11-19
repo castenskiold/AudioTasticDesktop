@@ -35,3 +35,6 @@ Thumbs.db
 
 # P8 labelled test set: Anders's own tracks (not licence-free; never commit)
 tracks/
+
+# Private working notes for Claude sessions (Anders, 19 Nov 2026): kept local, not published.
+CLAUDE.md

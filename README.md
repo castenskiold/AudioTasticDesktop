@@ -1,9 +1,9 @@
 # AudioTastic Desktop
 
-A Winamp-style desktop audio player for Windows, macOS and Linux, built with .NET 10 and Avalonia.
+A Winamp replacement with extra features: a Winamp-style desktop audio player for Windows, macOS and Linux, built with .NET 10 and Avalonia.
 
-- **Specification and plan:** the PDFs in this folder (Required Features, Feature Specification, Implementation Plan).
-- **Working notes for developers and AI sessions:** `CLAUDE.md`.
+- **Specification and plan:** the PDFs in this folder (Required Features, Feature Specification, Implementation Plan). Their sources are in `docs/pdf-src/`.
+- **Skins and plugins:** `docs/skins/` (skin format) and `docs/plugins/` (plugin guide; the SDK is `src/AudioTastic.Sdk`).
 
 ## Requirements
 
@@ -86,3 +86,7 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 | `docs/pdf-src/` | Sources of the PDF documents |
 | `.vscode/` | VS Code tasks, launch configurations and recommended extensions |
 | `.github/workflows/` | CI workflow (build/test on 3 OSes, publish 6 RIDs, native libraries) |
+
+## Licence
+
+AudioTastic is free software under the MIT licence (`LICENSE`), copyright Big Apps ApS. Third-party components keep their own licences; see `THIRD-PARTY-NOTICES.md`.
