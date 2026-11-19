@@ -199,7 +199,7 @@ tech=[
 ("DSP / FFT","NWaves (MIT) or own code for EQ, filters, compressor and convolution; FftSharp (MIT) for spectrum/oscilloscope."),
 ("VST3","VST3 SDK (MIT since version 3.8, October 2025) through a small native C++ host shim."),
 ("Tags","TagLibSharp (LGPL, separate DLL); FFmpeg metadata as fallback."),
-("Chromecast","SharpCaster (open source) or own Cast v2 client."),
+("Chromecast","Own Cast v2 client (protobuf over TLS, Default Media Receiver); no library."),
 ("DLNA / UPnP / mDNS","Own SSDP, mDNS and AVTransport SOAP code (no library)."),
 ("AirPlay","No mature free .NET sender library; own RAOP (AirPlay 1) implementation needed."),
 ("Streaming server","Kestrel / ASP.NET Core (MIT), embedded."),
@@ -246,4 +246,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.16  ·  19 November 2026", story, short_title="Required Features  ·  v1.16")
+ "Version 1.17  ·  20 November 2026", story, short_title="Required Features  ·  v1.17")

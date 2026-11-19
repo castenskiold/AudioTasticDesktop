@@ -220,7 +220,7 @@ dict(id="P11", name="Casting and network", size="XL",
  features=[
   ("CN-04", "StreamServer on embedded Kestrel (range requests, random session URLs, LAN binding) and Transcoder (FLAC/MP3 via FFmpeg)."),
   ("CN-05", "CastService, own mDNS and SSDP discovery (no library), device picker popover on the CAST button."),
-  ("CN-01", "ChromecastTarget (SharpCaster or own Cast v2), format checks, 'process audio before casting' mode; completes the ICastTargetPlugin contract (PG-01) and hosts cast-target plugins in the device picker."),
+  ("CN-01", "ChromecastTarget (own Cast v2 client), format checks, 'process audio before casting' mode; completes the ICastTargetPlugin contract (PG-01) and hosts cast-target plugins in the device picker."),
   ("CN-02", "DLNA renderer target: device description, AVTransport, RenderingControl, ConnectionManager format checks."),
   ("CN-03", "AirPlay (RAOP) target: RTSP session, ALAC RTP stream, encryption, volume/metadata; tested against shairport-sync; marked untested on real hardware."),
   ("CN-06", "Remote control REST + WebSocket API with pairing, embedded web remote; off by default."),
@@ -384,7 +384,8 @@ PROGRESS = {
     "P11": dict(status="In progress", date="", outcome=[
                         "Step 1 (19 Nov 2026): CN-04 streaming server on Kestrel with random per-file URLs, local-network-only answers and range requests; files a device cannot play are served as 16-bit WAV (seekable, bit-exact for 16-bit sources). Test devices: Anders has a Samsung smart TV (DLNA) and a Chromecast; a Linux VM for AirPlay comes later.",
                         "Step 2 (19 Nov 2026): FLAC (bit-exact, 16/24-bit) and MP3 transcoding on the fly through a new SDK encoder interface (SDK 0.4.1, offered by the FFmpeg plugin), seeking by start time; the test suite now runs at most 4 test projects at once (timing tests failed under full parallel load).",
-                        "Step 3 (19 Nov 2026): device discovery (CN-05) with own mDNS and SSDP code: Chromecasts with their name, model and whether they have a screen, DLNA renderers with their control addresses; on Anders's network it found both test devices. The picker comes with the first target."],
+                        "Step 3 (19 Nov 2026): device discovery (CN-05) with own mDNS and SSDP code: Chromecasts with their name, model and whether they have a screen, DLNA renderers with their control addresses; on Anders's network it found both test devices. The picker comes with the first target.",
+                        "Step 4 (20 Nov 2026): own Chromecast client (CN-01, Cast v2 over TLS, no library), live-tested on Anders's Chromecast: plays a track from the streaming server at a given time, pause, seek, play and stop. Next: the player integration and the picker."],
                open=["MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere."]),
 }
 

@@ -94,6 +94,8 @@ public sealed class StreamServer : IAsyncDisposable
         app.UseRouting();
         app.Use(async (context, next) =>
         {
+            _logger.LogDebug("Stream request {Method} {Path} range={Range} from {Remote}", context.Request.Method, context.Request.Path,
+                context.Request.Headers.Range.ToString(), context.Connection.RemoteIpAddress);
             if (!IsLocalNetwork(context.Connection.RemoteIpAddress))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden; // only the local network
