@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "author": "AudioTastic",
   "description": "Plays .mid/.midi files through a SoundFont synthesizer (MeltySynth). Bundles the GeneralUser GS SoundFont by S. Christian Collins; another .sf2 can be chosen in its settings.",
-  "license": "MIT (part of AudioTastic); uses MeltySynth (MIT) and the GeneralUser GS SoundFont (GeneralUser GS License v2.0)",
+  "license": "MIT (part of AudioTastic); uses MeltySynth (MIT); the GeneralUser GS SoundFont (GeneralUser GS License v2.0) is downloaded on request",
   "sdkVersion": "0.4.0",
   "entryAssembly": "AudioTastic.Input.Midi.dll",
   "types": ["input"]

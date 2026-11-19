@@ -39,7 +39,7 @@ When you add a package or native library, add it here in the same pull request.
 | openmpt-mpg123 (mpg123, shipped with libopenmpt on Windows) | LGPL-2.1 (separate, replaceable DLL) | MP3-compressed samples inside modules | P4 |
 | openmpt-ogg, openmpt-vorbis (libogg, libvorbis, shipped with libopenmpt on Windows) | BSD-3-Clause | Vorbis-compressed samples inside modules | P4 |
 | openmpt-zlib (zlib, shipped with libopenmpt on Windows) | zlib | Compressed module formats | P4 |
-| OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (licence-policy exception: no open-source decoder exists, no licence key, free for the end user). The licence allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. | OptimFROG plugin (FM-06), x64 only | P4 |
+| OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (licence-policy exception: no open-source decoder exists, no licence key, free for the end user). The licence allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. **Not part of the AudioTastic package** (since 19 Nov 2026): the OptimFROG plugin is a separate `.atplugin` download that contains the libraries. | OptimFROG plugin (FM-06), x64 only | P4 |
 
 The licence texts of libopenmpt and its helper libraries are shipped next to them in the plugin folder (`plugins/AudioTastic.Input.OpenMpt/runtimes/<rid>/native/libopenmpt-*.txt`).
 
@@ -48,5 +48,5 @@ The licence texts of libopenmpt and its helper libraries are shipped next to the
 | Component | Licence | Used for |
 |---|---|---|
 | Inter (`docs/pdf-src/fonts`) | SIL Open Font License 1.1 | Project PDF documents; default skin font from P2 |
-| AudioTastic logo (`assets/branding`) | Owned by the AudioTastic project | App icon, branding |
-| GeneralUser GS v2.0.3 SoundFont by S. Christian Collins (`GeneralUser-GS.sf2`) | GeneralUser GS License v2.0 (custom, permissive: free use in software projects, private or commercial, no attribution required; approved by Anders, 17 Nov 2026). Shipped with its `LICENSE.txt` in `plugins/AudioTastic.Input.Midi/soundfont/`. | Bundled General MIDI SoundFont for the MIDI plugin (FM-08) |
+| AudioTastic logo (`assets/branding`) | Owned by Big Apps ApS | App icon, branding |
+| GeneralUser GS v2.0.3 SoundFont by S. Christian Collins (`GeneralUser-GS.sf2`) | GeneralUser GS License v2.0 (custom, permissive: free use in software projects, private or commercial, no attribution required; approved by Anders, 17 Nov 2026). **Not bundled** (since 19 Nov 2026): the MIDI plugin downloads it, unmodified, only when the user clicks Download on its settings page, from the `soundfont-generaluser-gs-2.0.3` release of this repository (SHA-256 checked), and saves its `LICENSE.txt` next to it. | General MIDI SoundFont for the MIDI plugin (FM-08) |

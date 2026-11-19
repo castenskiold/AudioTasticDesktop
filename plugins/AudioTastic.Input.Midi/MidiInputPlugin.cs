@@ -10,13 +10,16 @@ using Microsoft.Extensions.Logging;
 namespace AudioTastic.Input.Midi;
 
 /// <summary>
-/// FM-08: the MIDI input plugin. The SoundFont is the bundled GeneralUser GS, or the .sf2 chosen on the settings page
-/// (setting "soundFont"). It is loaded once and shared by every MIDI file.
+/// FM-08: the MIDI input plugin. The SoundFont is the .sf2 chosen on the settings page (setting "soundFont"), else
+/// GeneralUser GS downloaded on request into the plugin's data folder (it is not bundled any more). It is loaded once
+/// and shared by every MIDI file.
 /// </summary>
 public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
 {
     internal const string SoundFontKey = "soundFont";
-    internal const string BundledFileName = "GeneralUser-GS.sf2";
+    internal const string BundledFileName = SoundFontDownload.FileName;
+
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
     private readonly MidiSourceFactory _factory;
     private IPluginContext? _context;
@@ -39,10 +42,21 @@ public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
         }
     }
 
-    /// <summary>The bundled SoundFont inside the plugin folder.</summary>
-    internal string BundledPath => Path.Combine(_context?.PluginFolder ?? AppContext.BaseDirectory, "soundfont", BundledFileName);
+    /// <summary>Where GeneralUser GS is downloaded to (the plugin's data folder).</summary>
+    internal string DownloadFolder => Path.Combine(_context?.DataFolder ?? AppContext.BaseDirectory, "soundfont");
 
-    /// <summary>The SoundFont in use: the user's choice when it exists, else the bundled one.</summary>
+    /// <summary>GeneralUser GS: the download, or a copy bundled by an older build when that is all there is.</summary>
+    internal string BundledPath
+    {
+        get
+        {
+            var downloaded = Path.Combine(DownloadFolder, BundledFileName);
+            var oldBundled = Path.Combine(_context?.PluginFolder ?? AppContext.BaseDirectory, "soundfont", BundledFileName);
+            return !File.Exists(downloaded) && File.Exists(oldBundled) ? oldBundled : downloaded;
+        }
+    }
+
+    /// <summary>The SoundFont in use: the user's choice when it exists, else GeneralUser GS.</summary>
     internal string SoundFontPath =>
         _context?.Settings.GetValue<string?>(SoundFontKey, null) is { Length: > 0 } chosen && File.Exists(chosen) ? chosen : BundledPath;
 
@@ -51,7 +65,7 @@ public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
         var path = SoundFontPath;
         if (!File.Exists(path))
         {
-            throw new AudioSourceException("No SoundFont: choose a .sf2 file in Settings › Plugins › MIDI synthesizer.");
+            throw new AudioSourceException("No SoundFont yet: download GeneralUser GS or choose a .sf2 file in Settings › Plugins › MIDI synthesizer › Settings.");
         }
         _context?.Logger.LogInformation("Loading SoundFont {Path}", path);
         try
@@ -78,10 +92,37 @@ public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
     {
         var current = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 440, HorizontalAlignment = HorizontalAlignment.Left };
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.IndianRed, MaxWidth = 440, HorizontalAlignment = HorizontalAlignment.Left };
-        void Update() => current.Text = SoundFontPath == BundledPath
-            ? $"GeneralUser GS v2.0.3 by S. Christian Collins (bundled){(File.Exists(BundledPath) ? "" : " — missing from this build")}"
-            : SoundFontPath;
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray, FontSize = 12, MaxWidth = 440, HorizontalAlignment = HorizontalAlignment.Left };
+        var download = new Button { Content = $"Download GeneralUser GS ({SoundFontDownload.Size / 1_000_000} MB)" };
+        void Update()
+        {
+            var haveDefault = File.Exists(BundledPath);
+            current.Text = SoundFontPath == BundledPath
+                ? haveDefault ? "GeneralUser GS v2.0.3 by S. Christian Collins" : "None yet: MIDI files need a SoundFont."
+                : SoundFontPath;
+            download.IsVisible = !haveDefault;
+        }
         Update();
+        download.Click += async (_, _) =>
+        {
+            download.IsEnabled = false;
+            error.Text = null;
+            var progress = new Progress<double>(p => status.Text = $"Downloading… {p:P0}");
+            try
+            {
+                await new SoundFontDownload(Http).DownloadAsync(DownloadFolder, progress, CancellationToken.None);
+                status.Text = "Downloaded and checked.";
+                _factory.Reset();
+                _context?.Logger.LogInformation("Downloaded GeneralUser GS to {Folder}", DownloadFolder);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TaskCanceledException or UnauthorizedAccessException)
+            {
+                status.Text = null;
+                error.Text = $"The download failed: {ex.Message}";
+            }
+            download.IsEnabled = true;
+            Update();
+        };
 
         var choose = new Button { Content = "Choose SoundFont…" };
         choose.Click += async (_, _) =>
@@ -112,7 +153,7 @@ public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
             }
             Update();
         };
-        var bundled = new Button { Content = "Use the bundled SoundFont" };
+        var bundled = new Button { Content = "Use GeneralUser GS" };
         bundled.Click += (_, _) =>
         {
             _context!.Settings.Remove(SoundFontKey);
@@ -127,8 +168,15 @@ public sealed class MidiInputPlugin : IInputPlugin, IPluginSettingsPage
             {
                 new TextBlock { Text = "SoundFont", FontWeight = FontWeight.SemiBold },
                 current,
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { choose, bundled } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { download, choose, bundled } },
+                status,
                 error,
+                new TextBlock
+                {
+                    Text = "GeneralUser GS v2.0.3 by S. Christian Collins is free to use (its licence is saved next to it). It is downloaded from "
+                        + "AudioTastic's GitHub releases only when you click Download.",
+                    Foreground = Brushes.Gray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxWidth = 440, HorizontalAlignment = HorizontalAlignment.Left,
+                },
                 new TextBlock
                 {
                     Text = "Applies to the next MIDI file that starts.",

@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- FM-08: MIDI input plugin. MeltySynth (MIT) renders .mid files through a SoundFont; GeneralUser GS is bundled. -->
+  <!-- FM-08: MIDI input plugin. MeltySynth (MIT) renders .mid files through a SoundFont; GeneralUser GS is downloaded on
+       request from AudioTastic's GitHub release (not bundled: SignPath allows only open-source components, 19 Nov 2026). -->
   <PropertyGroup>
     <IsAudioTasticPlugin>true</IsAudioTasticPlugin>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
@@ -14,10 +15,5 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="AudioTastic.Input.Midi.Tests" />
-  </ItemGroup>
-  <!-- The bundled SoundFont (python native/fetch_soundfont.py; git-ignored). Without it, users pick their own .sf2. -->
-  <ItemGroup Condition="Exists('$(RepoRoot)native\downloads\soundfont\GeneralUser-GS.sf2')">
-    <None Include="$(RepoRoot)native\downloads\soundfont\GeneralUser-GS.sf2" Link="soundfont\GeneralUser-GS.sf2" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(RepoRoot)native\downloads\soundfont\LICENSE.txt" Link="soundfont\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 </Project>
