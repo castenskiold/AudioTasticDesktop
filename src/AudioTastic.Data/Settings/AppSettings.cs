@@ -198,6 +198,13 @@ public sealed class MetadataSettings
 
     /// <summary>MD-04: show lyrics in the Art &amp; Lyrics window (.lrc files and embedded lyrics).</summary>
     public bool Lyrics { get; set; } = true;
+
+    /// <summary>MD-03: Look up online… in the tag editor (only when the user asks; title, artist and length are sent).</summary>
+    public bool OnlineLookup { get; set; } = true;
+
+    /// <summary>MD-03: services used: tags from MusicBrainz, covers from the Cover Art Archive.</summary>
+    public bool LookupTags { get; set; } = true;
+    public bool LookupCovers { get; set; } = true;
 }
 
 public sealed class CastingNetworkSettings

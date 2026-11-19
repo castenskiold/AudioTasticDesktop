@@ -23,10 +23,24 @@ public sealed record TagWriteOutcome(int Written, int Deferred, IReadOnlyList<(s
 /// <summary>
 /// MD-01: writes tag edits off the UI thread, but never to a file the player is decoding (the current, preloaded or
 /// fading track): those edits wait (later edits to the same file are merged in) and are written by
-/// <see cref="Retry"/>, which the app calls when the playing track changes or playback stops.
+/// <see cref="Retry"/>, which the app calls when the playing track changes or playback stops. A file another reader
+/// still has open (a deck being unloaded, the art or analysis reading it) is tried again for a few seconds; if it is
+/// still busy, its edit waits like the others instead of failing.
 /// </summary>
-public sealed class TagWriteService(TagWriter writer, Func<string, bool> inUse, ILogger<TagWriteService> logger)
+public sealed class TagWriteService(TagWriter writer, Func<string, bool> inUse, ILogger<TagWriteService> logger, Func<TimeSpan, Task>? delay = null)
 {
+    /// <summary>Waits between attempts at a busy file (about 3 s in all).</summary>
+    private static readonly TimeSpan[] BusyRetries = [TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1.5)];
+
+    private readonly Func<TimeSpan, Task> _delay = delay ?? (t => Task.Delay(t));
+
+    private enum Result
+    {
+        Written,
+        Busy,
+        Failed,
+    }
+
     private readonly Dictionary<string, TagEdit> _pending = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly Lock _lock = new();
 
@@ -81,13 +95,15 @@ public sealed class TagWriteService(TagWriter writer, Func<string, bool> inUse, 
                     deferred++;
                     logger.LogInformation("Tag edit for {Path} waits until the player releases the file", path);
                 }
-                else if (TryWrite(path, edit) is { } failure)
-                {
-                    failures.Add((path, failure));
-                }
                 else
                 {
-                    written++;
+                    var (result, message) = TryWrite(path, edit);
+                    switch (result)
+                    {
+                        case Result.Written: written++; break;
+                        case Result.Busy: deferred++; break;
+                        default: failures.Add((path, message!)); break;
+                    }
                 }
             }
             return new TagWriteOutcome(written, deferred, failures);
@@ -106,25 +122,46 @@ public sealed class TagWriteService(TagWriter writer, Func<string, bool> inUse, 
                 _pending.Remove(path);
             }
         }
-        return due.Count(d => TryWrite(d.Path, d.Edit) is null);
+        return due.Count(d => TryWrite(d.Path, d.Edit).Result == Result.Written);
     });
 
-    /// <summary>Null when written, else the reason it was not.</summary>
-    private string? TryWrite(string path, TagEdit edit)
+    /// <summary>Writes, trying a busy file again for a while; a file still busy goes back to waiting.</summary>
+    private (Result Result, string? Message) TryWrite(string path, TagEdit edit)
     {
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            var tags = writer.Write(path, edit);
-            Written?.Invoke(this, new TagWrittenEventArgs(path, tags));
-            return null;
-        }
-        catch (TagWriteException ex)
-        {
-            logger.LogWarning("{Message}", ex.Message);
-            Failed?.Invoke(this, new TagWriteFailedEventArgs(path, ex.Message));
-            return ex.Message;
+            try
+            {
+                var tags = writer.Write(path, edit);
+                Written?.Invoke(this, new TagWrittenEventArgs(path, tags));
+                return (Result.Written, null);
+            }
+            catch (TagWriteException ex) when (IsBusy(ex) && attempt < BusyRetries.Length)
+            {
+                _delay(BusyRetries[attempt]).GetAwaiter().GetResult(); // a worker thread; never the UI thread
+            }
+            catch (TagWriteException ex) when (IsBusy(ex))
+            {
+                lock (_lock)
+                {
+                    // A newer edit that arrived meanwhile goes on top of this one.
+                    _pending[path] = _pending.TryGetValue(path, out var newer) ? Merge(edit, newer) : edit;
+                }
+                logger.LogInformation("{Path} is in use; its tag edit is written when the file is free", path);
+                return (Result.Busy, null);
+            }
+            catch (TagWriteException ex)
+            {
+                logger.LogWarning("{Message}", ex.Message);
+                Failed?.Invoke(this, new TagWriteFailedEventArgs(path, ex.Message));
+                return (Result.Failed, ex.Message);
+            }
         }
     }
+
+    /// <summary>A sharing or lock violation: another reader has the file open (Windows); not a missing or read-only file.</summary>
+    private static bool IsBusy(TagWriteException ex) =>
+        ex.InnerException is IOException io and not FileNotFoundException and not DirectoryNotFoundException && (io.HResult & 0xFFFF) is 32 or 33;
 
     /// <summary>A later edit on top of an earlier one: its fields and cover win.</summary>
     internal static TagEdit Merge(TagEdit earlier, TagEdit later)

@@ -93,6 +93,24 @@ public sealed class TagWriterTests : IDisposable
     }
 
     [Theory]
+    [MemberData(nameof(WritableFormats))]
+    public void Editing_fields_keeps_the_cover(string name)
+    {
+        var path = Copy(name);
+        _writer.Write(path, new TagEdit(new Dictionary<TagField, string?> { [TagField.Title] = "Before" }, new CoverChange(new TagPicture(Png, "image/png"))));
+
+        _writer.Write(path, new TagEdit(new Dictionary<TagField, string?>
+        {
+            [TagField.Title] = "After", [TagField.Artist] = "Demonizz", [TagField.Album] = "Ad Infinitum", [TagField.Year] = "2008", [TagField.Track] = "4", [TagField.TrackCount] = "10",
+        }));
+
+        var read = _writer.Read(path)!;
+        Assert.Equal("After", read[TagField.Title]);
+        Assert.Equal(Png, read.Cover?.Data);
+        Assert.Equal(Png, new ArtService(NullLogger<ArtService>.Instance).Find(path)?.Picture.Data);
+    }
+
+    [Theory]
     [InlineData("sine1k.tta.tta")]
     [InlineData("sine1k.dsd64.dff")]
     [InlineData("arpeggio.mid")]
@@ -153,6 +171,36 @@ public sealed class TagWriterTests : IDisposable
         var read = _writer.Read(playing)!;
         Assert.Equal(("Second", "2020"), (read[TagField.Album], read[TagField.Year])); // both edits, the later one winning
         Assert.Equal(0, service.PendingCount);
+    }
+
+    [Fact]
+    public async Task A_file_another_reader_holds_is_retried_then_waits_instead_of_failing()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Sharing violations are a Windows file-locking behaviour.");
+        var path = Copy("sine1k.flac.flac");
+        var waits = new List<TimeSpan>();
+        var service = new TagWriteService(_writer, _ => false, NullLogger<TagWriteService>.Instance, t =>
+        {
+            waits.Add(t);
+            return Task.CompletedTask;
+        });
+        var failed = false;
+        service.Failed += (_, _) => failed = true;
+        var edit = new TagEdit(new Dictionary<TagField, string?> { [TagField.Title] = "Written later" });
+
+        TagWriteOutcome outcome;
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) // a reader without write sharing
+        {
+            outcome = await service.WriteAsync([path], edit);
+        }
+
+        Assert.Equal((0, 1), (outcome.Written, outcome.Deferred));
+        Assert.Equal(4, waits.Count); // tried again for a while first
+        Assert.False(failed);
+        Assert.True(service.IsPending(path));
+
+        Assert.Equal(1, await service.Retry());
+        Assert.Equal("Written later", _writer.Read(path)![TagField.Title]);
     }
 
     [Fact]

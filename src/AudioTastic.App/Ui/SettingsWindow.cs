@@ -134,6 +134,13 @@ public sealed class SettingsWindow : Window
             v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.AlbumArt = v));
         Check(panel, "Show lyrics (a .lrc file next to the track, or lyrics in its tags)", m.Lyrics,
             v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.Lyrics = v));
+        Check(panel, "Online lookup (Look up online… in the tag editor and the playlist menu)", m.OnlineLookup,
+            v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.OnlineLookup = v));
+        var services = new StackPanel { Spacing = 6, Margin = new Thickness(24, 0, 0, 0) };
+        Check(services, "Tags from MusicBrainz", m.LookupTags, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupTags = v));
+        Check(services, "Covers from the Cover Art Archive", m.LookupCovers, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupCovers = v));
+        panel.Children.Add(services);
+        Note(panel, "Lookups happen only when you ask for them; they send the track's title, artist and length to MusicBrainz. Results are shown for you to accept before anything is saved.");
         Note(panel, "Album art shows in the main window and in the Art & Lyrics window (Alt+L), lyrics below the art; click a line of synced lyrics to jump there. Tags, covers and lyrics are edited with Edit tags… (Ctrl+E) in the playlist.");
     }
 

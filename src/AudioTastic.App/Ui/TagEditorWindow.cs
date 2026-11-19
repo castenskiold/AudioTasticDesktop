@@ -12,7 +12,8 @@ namespace AudioTastic.App.Ui;
 /// <summary>
 /// MD-01: Playlist context menu › Edit tags… (Ctrl+E). Edits one or several files; fields whose values differ between
 /// the files show "(multiple values)" and are left alone unless typed in. Only changed fields are written.
-/// <see cref="ShowAsync"/> returns the edit, or null when cancelled or nothing changed.
+/// <see cref="ShowAsync"/> returns the edit, or null when cancelled or nothing changed. With a single file, Look up
+/// online… (MD-03) fills the fields from MusicBrainz and the cover from the Cover Art Archive, for review before Save.
 /// </summary>
 public sealed class TagEditorWindow : Window
 {
@@ -32,10 +33,13 @@ public sealed class TagEditorWindow : Window
     private readonly IReadOnlyList<EditableTags> _files;
     private CoverChange? _cover;
     private TagEdit? _result;
+    private readonly Action<TagPicture?, string?> _showCover;
+    private readonly TagLookup? _lookup;
 
-    private TagEditorWindow(IReadOnlyList<EditableTags> files, string heading, string? note)
+    private TagEditorWindow(IReadOnlyList<EditableTags> files, string heading, string? note, TagLookup? lookup)
     {
         _files = files;
+        _lookup = files.Count == 1 ? lookup : null;
         Title = files.Count == 1 ? "Edit tags" : $"Edit tags ({files.Count} files)";
         // Resizable; the lyrics field takes the extra height (Anders: it was too small).
         Width = 600;
@@ -85,6 +89,7 @@ public sealed class TagEditorWindow : Window
             coverText.Text = text ?? (picture is null ? "No cover" : $"{picture.MimeType}, {picture.Data.Length / 1024.0:0.#} KB");
             remove.IsEnabled = picture is not null || text is not null;
         }
+        _showCover = ShowCover;
         var covers = files.Select(f => f.Cover).ToList();
         var same = covers.Skip(1).All(c => SameCover(c, covers[0]));
         ShowCover(same ? covers[0] : null, same ? null : "(multiple covers)");
@@ -125,7 +130,21 @@ public sealed class TagEditorWindow : Window
         cancel.Click += (_, _) => Close();
 
         var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 10) };
-        top.Children.Add(new TextBlock { Text = heading, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeight.SemiBold });
+        var headingRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        headingRow.Children.Add(new TextBlock { Text = heading, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        if (_lookup is not null)
+        {
+            var lookupButton = new Button { Content = "Look up online…" };
+            ToolTip.SetTip(lookupButton, "Find tags on MusicBrainz and a cover on the Cover Art Archive");
+            lookupButton.Click += (_, _) => _ = LookUpAsync();
+            Grid.SetColumn(lookupButton, 1);
+            headingRow.Children.Add(lookupButton);
+            if (_lookup.StartAtOnce)
+            {
+                Opened += (_, _) => _ = LookUpAsync();
+            }
+        }
+        top.Children.Add(headingRow);
         if (note is not null)
         {
             top.Children.Add(new TextBlock { Text = note, FontSize = 12, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap });
@@ -138,12 +157,49 @@ public sealed class TagEditorWindow : Window
     }
 
     /// <summary>Shows the editor for the files' tags; returns the changes, or null.</summary>
-    public static async Task<TagEdit?> ShowAsync(Window owner, IReadOnlyList<EditableTags> files, string heading, string? note)
+    public static async Task<TagEdit?> ShowAsync(Window owner, IReadOnlyList<EditableTags> files, string heading, string? note, TagLookup? lookup = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        var window = new TagEditorWindow(files, heading, note);
+        var window = new TagEditorWindow(files, heading, note, lookup);
         await window.ShowDialog(owner);
         return window._result is { IsEmpty: false } edit ? edit : null;
+    }
+
+    /// <summary>MD-03: searches with the title and artist typed (else the file name) and copies the accepted values in.</summary>
+    private async Task LookUpAsync()
+    {
+        if (_lookup is null)
+        {
+            return;
+        }
+        var title = _boxes[TagField.Title].Box.Text?.Trim();
+        var artist = _boxes[TagField.Artist].Box.Text?.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            // "Artist - Title" file names are common.
+            var name = Path.GetFileNameWithoutExtension(_lookup.FileName);
+            var dash = name.IndexOf(" - ", StringComparison.Ordinal);
+            (artist, title) = dash > 0 && string.IsNullOrEmpty(artist) ? (name[..dash].Trim(), name[(dash + 3)..].Trim()) : (artist, name);
+        }
+        var current = _boxes.Where(b => !string.IsNullOrEmpty(b.Value.Box.Text)).ToDictionary(b => b.Key, b => b.Value.Box.Text!);
+        var choice = await LookupWindow.ShowAsync(this, new LookupRequest(_lookup.Service, title, string.IsNullOrEmpty(artist) ? null : artist, _lookup.Length,
+            current, _lookup.Tags, _lookup.Covers));
+        if (choice is null)
+        {
+            return;
+        }
+        foreach (var (field, value) in choice.Fields)
+        {
+            if (_boxes.TryGetValue(field, out var box))
+            {
+                box.Box.Text = value;
+            }
+        }
+        if (choice.Cover is { } cover)
+        {
+            _cover = new CoverChange(cover);
+            _showCover(cover, null);
+        }
     }
 
     private TextBox Box(TagField field, string name, double? width = null)
@@ -203,3 +259,7 @@ public sealed class TagEditorWindow : Window
         }
     }
 }
+
+/// <summary>MD-03: online lookup for the tag editor (single file): the service, the track's length and file name, the
+/// services switched on, and whether to start searching when the editor opens (playlist menu › Look up online…).</summary>
+public sealed record TagLookup(OnlineLookupService Service, TimeSpan? Length, string FileName, bool Tags, bool Covers, bool StartAtOnce);

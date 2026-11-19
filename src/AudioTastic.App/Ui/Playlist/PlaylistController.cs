@@ -30,6 +30,8 @@ public sealed class PlaylistController : IDisposable
     private readonly TagWriter? _writer;
     private readonly TagWriteService? _writes;
     private readonly FileInfoReader? _info;
+    private readonly OnlineLookupService? _lookup;
+    private readonly Data.Settings.SettingsStore? _settings;
 
     /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
     public string? AnalysisStatus => _analysis?.Status is { Total: > 0 } s ? $"Analysing {s.Done + 1}/{s.Total}" : null;
@@ -40,9 +42,12 @@ public sealed class PlaylistController : IDisposable
 
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
         IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
-        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null, FileInfoReader? info = null)
+        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null, FileInfoReader? info = null,
+        OnlineLookupService? lookup = null, Data.Settings.SettingsStore? settings = null)
     {
         _info = info;
+        _lookup = lookup;
+        _settings = settings;
         _beats = beats;
         _writer = writer;
         _writes = writes;
@@ -355,7 +360,7 @@ public sealed class PlaylistController : IDisposable
                 () => StopAfterCurrentRequested?.Invoke(this, EventArgs.Empty), isPlaying),
             Item("File info…  Alt+3", () => ShowFileInfo(source, current: false), _info is not null && first is not null),
             Item("Edit tags…  Ctrl+E", () => EditTags(source), _writes is not null && selection.Any(e => !e.IsUrl)),
-            Item("Look up online…", null),
+            Item("Look up online…", () => EditTags(source, lookUp: true), LookupEnabled && selection.Count(e => !e.IsUrl) == 1),
             Item("Convert…", null),
             Item("Reset resume position", () =>
             {
@@ -390,7 +395,10 @@ public sealed class PlaylistController : IDisposable
     /// MD-01: Edit tags… (Ctrl+E) for the selected files, or the playing track when nothing is selected. Files whose
     /// tags cannot be written are skipped (and said so); the playing track is written once the player releases it.
     /// </summary>
-    public void EditTags(Control source)
+    /// <summary>MD-03: online lookup is available (a service and Settings › Metadata allow it).</summary>
+    private bool LookupEnabled => _lookup is not null && _settings?.Current.Metadata is { OnlineLookup: true } m && (m.LookupTags || m.LookupCovers);
+
+    public void EditTags(Control source, bool lookUp = false)
     {
         if (_writer is null || _writes is null || TopLevel.GetTopLevel(source) is not Window owner)
         {
@@ -421,7 +429,14 @@ public sealed class PlaylistController : IDisposable
             var heading = writable.Count == 1 ? Path.GetFileName(writable[0].Path) : $"{writable.Count} files";
             var skipped = paths.Count - writable.Count;
             var note = skipped > 0 ? $"{skipped} of {paths.Count} files cannot be written (read-only file or format) and are left out." : null;
-            if (await TagEditorWindow.ShowAsync(owner, [.. writable.Select(r => r.Tags!)], heading, note) is not { } edit)
+            TagLookup? lookup = null;
+            if (LookupEnabled && writable.Count == 1)
+            {
+                var m = _settings!.Current.Metadata;
+                var entry = entries.First(e => string.Equals(e.Path, writable[0].Path, StringComparison.OrdinalIgnoreCase));
+                lookup = new TagLookup(_lookup!, entry.Duration, entry.Path, m.LookupTags, m.LookupCovers, StartAtOnce: lookUp);
+            }
+            if (await TagEditorWindow.ShowAsync(owner, [.. writable.Select(r => r.Tags!)], heading, note, lookup) is not { } edit)
             {
                 return;
             }
