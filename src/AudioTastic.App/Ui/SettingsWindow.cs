@@ -163,7 +163,26 @@ public sealed class SettingsWindow : Window
                 "'Choose default apps…' registers it and opens that page. Double-clicked files go to the running player and are played or enqueued as chosen above." +
                 (_paths.IsPortable ? " Portable mode: nothing is registered unless you switch it on." : ""));
         }
-        Note(panel, "Hotkeys, media keys, the tray icon, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+        Heading(panel, "Tray");
+        Check(panel, "Show the tray icon (player menu, sleep timer; click it to show or hide the player)", si.TrayIcon, v =>
+        {
+            // Without the icon there is no way back from the tray, so its options go off with it (Anders).
+            Update(s =>
+            {
+                s.TrayIcon = v;
+                if (!v)
+                {
+                    s.MinimiseToTray = false;
+                    s.CloseToTray = false;
+                }
+            });
+            ShowPage();
+        });
+        var trayOptions = new StackPanel { Spacing = 6, Margin = new Thickness(24, 0, 0, 0), IsEnabled = si.TrayIcon };
+        Check(trayOptions, "Minimise to the tray", si.MinimiseToTray, v => Update(s => s.MinimiseToTray = v));
+        Check(trayOptions, "Close to the tray (exit from the tray menu or Main menu › Exit)", si.CloseToTray, v => Update(s => s.CloseToTray = v));
+        panel.Children.Add(trayOptions);
+        Note(panel, "Hotkeys, media keys, taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
     }
 
     /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>

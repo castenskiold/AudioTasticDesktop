@@ -306,6 +306,15 @@ public sealed class SystemIntegrationSettings
     /// </summary>
     public bool? FileAssociations { get; set; }
 
+    /// <summary>SI-04: the tray icon (menu bar icon on macOS) with the player menu.</summary>
+    public bool TrayIcon { get; set; } = true;
+
+    /// <summary>SI-04: minimising the player hides it to the tray (needs the tray icon).</summary>
+    public bool MinimiseToTray { get; set; }
+
+    /// <summary>SI-04: closing the player hides it to the tray instead of exiting (needs the tray icon).</summary>
+    public bool CloseToTray { get; set; }
+
     /// <summary>SI-06: what files opened from the OS (double-click, file association, command line) do.</summary>
     public OpenFilesAction OpenFiles { get; set; } = OpenFilesAction.Play;
 }

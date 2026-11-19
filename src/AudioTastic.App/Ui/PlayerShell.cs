@@ -60,6 +60,12 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private bool _exiting;
     private readonly Integration.InstanceInbox _inbox;
     private readonly Integration.ShellIntegrationService _shellIntegration;
+    private TrayController? _tray;
+    private bool _inTray;
+    private bool _mainBeforeTray;
+    private bool _playlistBeforeTray;
+    private bool _equalizerBeforeTray;
+    private bool _artBeforeTray;
     private readonly List<Integration.InstanceCommand> _pendingCommands = [];
     private DispatcherTimer? _commandTimer;
 
@@ -210,11 +216,25 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             {
                 if (!_exiting)
                 {
-                    e.Cancel = true; // Alt+F4 on a player window exits the app cleanly
-                    Exit();
+                    e.Cancel = true; // Alt+F4 on a player window exits the app cleanly (or hides it to the tray, SI-04)
+                    Close();
+                }
+            };
+            // SI-04: minimising hides the player to the tray when Settings › System integration says so.
+            window.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == Window.WindowStateProperty && window.WindowState == WindowState.Minimized
+                    && _settings.Current.SystemIntegration.MinimiseToTray && TrayShown && !_exiting)
+                {
+                    Dispatcher.UIThread.Post(HideToTray);
                 }
             };
         }
+        // SI-04: the tray icon and its menu.
+        _tray = new TrayController(Player, _sleep, ExecuteFromTray, () => PlayerShown)
+        {
+            IsVisible = _settings.Current.SystemIntegration.TrayIcon,
+        };
         _skins.SkinChanged += (_, _) => BuildWindows();
         _settings.Changed += OnSettingsChanged;
         _main.Opened += (_, _) => OnFirstShown();
@@ -281,7 +301,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "plList": _playlists.ShowListMenu(source); break;
             case "menu": ShowMainMenu(source); break;
             case "minimize": window.WindowState = WindowState.Minimized; break;
-            case "close": case "exit": Exit(); break;
+            case "close": Close(); break;
+            case "exit": Exit(); break;
             case "miniPlayer": case "expand": case "titleDoubleClick": ToggleMiniPlayer(); break;
             case "doubleSize": _settings.Update(SettingsGroup.Interface, s => s.Interface.DoubleSize = !s.Interface.DoubleSize); break;
             case "settings": ShowSettings(); break;
@@ -632,6 +653,22 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
     {
+        if (e.Group == SettingsGroup.SystemIntegration)
+        {
+            var trayIcon = e.Settings.SystemIntegration.TrayIcon;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_tray is not null)
+                {
+                    _tray.IsVisible = trayIcon;
+                }
+                if (!trayIcon && _inTray)
+                {
+                    ShowFromTray(); // the icon was the only way back
+                }
+            });
+            return;
+        }
         if (e.Group != SettingsGroup.Interface)
         {
             return;
@@ -716,6 +753,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             return;
         }
         _exiting = true;
+        _tray?.Dispose(); // no ghost icon in the notification area
+        _tray = null;
         SavePositions();
         _settingsWindow?.Close();
         _playlists.Service.Flush();
@@ -893,9 +932,127 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
     }
 
+    // ---- tray (SI-04) ----------------------------------------------------------------------------------
+
+    private bool TrayShown => _tray is { IsVisible: true };
+
+    /// <summary>True when a player window is on screen (not hidden to the tray, not minimised).</summary>
+    private bool PlayerShown => !_inTray
+        && ((_main!.IsVisible && _main.WindowState != WindowState.Minimized) || (_mini!.IsVisible && _mini.WindowState != WindowState.Minimized));
+
+    /// <summary>The close button and Alt+F4: exit, or hide to the tray when Settings › System integration says so.</summary>
+    private void Close()
+    {
+        if (_settings.Current.SystemIntegration.CloseToTray && TrayShown)
+        {
+            HideToTray();
+        }
+        else
+        {
+            Exit();
+        }
+    }
+
+    private void ExecuteFromTray(string action)
+    {
+        switch (action)
+        {
+            case "trayToggle":
+                if (PlayerShown)
+                {
+                    HideToTray();
+                }
+                else
+                {
+                    ShowFromTray();
+                }
+                break;
+            case "exit":
+                Exit();
+                break;
+            case "sleepTimer": // a dialog needs a visible owner
+                ShowFromTray();
+                Execute("sleepTimer", _mini!.IsVisible ? _mini : _main!);
+                break;
+            default:
+                Execute(action, _main!);
+                break;
+        }
+    }
+
+    /// <summary>SI-04: hides every player window; the tray icon brings them back as they were.</summary>
+    private void HideToTray()
+    {
+        if (_inTray || _exiting)
+        {
+            return;
+        }
+        if (!TrayShown)
+        {
+            (_mini!.IsVisible ? _mini : _main!).WindowState = WindowState.Minimized; // never hide without a way back
+            return;
+        }
+        _mainBeforeTray = _main!.IsVisible || !_mini!.IsVisible;
+        if (_main.IsVisible)
+        {
+            _playlistBeforeTray = _playlist!.IsVisible;
+            _equalizerBeforeTray = _equalizer!.IsVisible;
+            _artBeforeTray = _artWindow!.IsVisible;
+        }
+        SavePositions();
+        _inTray = true;
+        _playlist!.Hide();
+        _equalizer!.Hide();
+        _artWindow!.Hide();
+        _main.Hide();
+        _mini!.Hide();
+        _tray?.Refresh();
+    }
+
+    /// <summary>SI-04: shows the player again as it was before it went to the tray.</summary>
+    private void ShowFromTray()
+    {
+        if (!_inTray)
+        {
+            var visible = _mini!.IsVisible ? _mini : _main!;
+            if (visible.WindowState == WindowState.Minimized)
+            {
+                visible.WindowState = WindowState.Normal;
+            }
+            visible.Activate();
+            return;
+        }
+        _inTray = false;
+        var window = _mainBeforeTray ? _main! : _mini!;
+        window.WindowState = WindowState.Normal;
+        window.Show();
+        if (_mainBeforeTray)
+        {
+            if (_artBeforeTray)
+            {
+                _artWindow!.Show(_main!);
+            }
+            if (_equalizerBeforeTray)
+            {
+                _equalizer!.Show(_main!);
+            }
+            if (_playlistBeforeTray)
+            {
+                ShowPlaylist();
+            }
+        }
+        window.Activate();
+        _tray?.Refresh();
+    }
+
     /// <summary>SI-06: shows the player (main window or mini player) in front of other programs.</summary>
     private void BringToFront()
     {
+        if (_inTray)
+        {
+            ShowFromTray();
+            return;
+        }
         var window = _mini!.IsVisible ? _mini : _main!;
         if (window.WindowState == WindowState.Minimized)
         {

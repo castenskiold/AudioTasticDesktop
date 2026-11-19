@@ -343,7 +343,7 @@ PROGRESS = {
                         "Checked by Anders: gapless, fades, speed, A-B, queue, badges and session resume. His feedback applied: a second badge row (the first was full, so STOP and the sleep badge were cut off) and short confirmations for Q, Shift+V, [ and the sleep timer."],
                open=["Exclusive mode on a local sound card (Anders tested over Remote Desktop, whose audio has no exclusive mode); macOS hog mode and Linux ALSA hw: rely on miniaudio's exclusive mode and are untested.",
                      "Output plugins are hosted (listed in Settings › Output, guarded, safe to switch off; covered by tests with a test plugin); Anders checks them by hand once a real output plugin exists.",
-                     "Tray entry for the sleep timer comes in P10; macOS/Linux."]),
+                     "macOS/Linux. (The tray entry for the sleep timer was added in P10.)"]),
     "P7": dict(status="Done on Windows", date="18 Nov 2026",
                outcome=["DSP chain between the deck mix and the volume (no allocations or locks on the audio thread, bypassed for DoP) with our own equalizer, compressor, look-ahead limiter, reverb and stereo widening; every built-in effect together uses 2.5 % of one core at 96 kHz (exit criterion: under 5 %).",
                         "Graphic EQ (Winamp's ten bands, preamp, automatic headroom) and parametric EQ (six filter types, up to ten bands): the measured response is within 0.1 dB of the calculated curve (exit criterion, tests at 44.1 and 96 kHz).",
@@ -372,9 +372,10 @@ PROGRESS = {
                         "Step 1 (19 Nov 2026, Windows): single instance (SI-06) with a JSON command pipe, the --open and --enqueue switches (part of SI-08), and Explorer's 'Open in AudioTastic' / 'Enqueue in AudioTastic' context menu entries with the app icon (part of SI-05); Settings › System integration (play or enqueue opened files, context menu on/off). Checked by Anders: the entries show with the icon, Open plays, Enqueue only adds.",
                         "Step 2 (19 Nov 2026): the full command line (SI-08) with System.CommandLine: --play, --pause, --playpause, --stop, --next, --prev, --volume, --seek, --quit (also /name on Windows), --help and --version on the console; commands go to the running player (exit criterion 'CLI commands work against a running instance' checked on Windows: volume, seek and quit sent to a running player).",
                         "Step 3 (19 Nov 2026, Windows): file associations (SI-05): AudioTastic registered for every audio and playlist type its plugins play, shown in Open with and Settings › Default apps; the first start asks whether to use it for audio files (Anders) and opens Default apps. Exit criterion 'double-clicking a FLAC enqueues/plays in the running instance' checked by Anders on Windows.",
+                        "Step 4 (19 Nov 2026, Windows): tray icon (SI-04) with Play/Pause, Stop, Previous, Next, a Sleep timer submenu (closes the PB-10 tray item), Show/Hide and Exit; tooltip with the title; click hides or shows the player and its docked windows; minimise/close to the tray. Checked by Anders; after his feedback, switching the icon off also switches off the two tray options.",
                         "UI-01 (Anders, 19 Nov 2026): resizing the playlist or Art & Lyrics window snaps its right and bottom edges to the player's and other windows' edges and to the screen edge, like moving does.",
                         "Fixed on the way: the playlist drew rows for only part of its height at player sizes above 100 % (Avalonia's virtualizing panel under the scale transform), and format badges were cut off at the right edge."],
-               open=["Tray, media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
+               open=["Tray on macOS/Linux, media controls, hotkeys, taskbar, notifications and installers; the macOS Finder Quick Action and Linux .desktop actions."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

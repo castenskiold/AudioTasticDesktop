@@ -149,7 +149,7 @@ S("Playback engine", "Engine-level behaviour. All features in this section are c
  "<b>Components:</b> QueueService in Core, consulted before shuffle/repeat (also for gapless preloading).", "Settings › Playback: clear queue on stop (on/off)."),
 ("PB-10", "Sleep timer",
  "Stops playback after a chosen time (15, 30, 45, 60, 90 min or custom) or at the end of the current track or playlist. Optionally fades out over the last 30 s. Optionally closes the app afterwards.",
- "Main menu › Sleep timer… (dialog: 15/30/45/60/90 min, custom, end of track, end of playlist, turn off); tray menu in P10. The second badge row in MW5 shows 'SLEEP n MIN' (or 'SLEEP' for end of track/playlist).",
+ "Main menu › Sleep timer… (dialog: 15/30/45/60/90 min, custom, end of track, end of playlist, turn off); tray menu Sleep timer submenu (SI-04, P10). The second badge row in MW5 shows 'SLEEP n MIN' (or 'SLEEP' for end of track/playlist).",
  "<b>Components:</b> SleepTimerService (Core) using PeriodicTimer; the fade-out lowers the master gain over the last n seconds.", "Settings › Playback: fade out (on/off), fade length, close app when finished."),
 ])
 
@@ -320,9 +320,9 @@ S("System integration", "How the player works with the operating system. Platfor
  "<b>macOS:</b> NSApplication dock menu via native interop (Avalonia NativeMenu on the dock if supported). "
  "<b>Components:</b> ITaskbarService.", "Settings › System integration: show progress on taskbar (on/off)."),
 ("SI-04", "System tray",
- "Tray icon (menu bar icon on macOS) with a menu: Play/Pause, Stop, Previous, Next, Sleep timer, Show/Hide AudioTastic, Exit. Tooltip shows the current title. Clicking the icon shows/hides the player. Optionally minimises/closes to tray.",
+ "Tray icon (menu bar icon on macOS) with a menu: Play/Pause (the text follows the state), Stop, Previous, Next, Sleep timer (submenu: Off, 15/30/45 minutes, 1, 1½ and 2 hours, at the end of this track or of the playlist, Other… for the dialog; the item shows the time left), Show/Hide AudioTastic, Exit. Tooltip: 'AudioTastic' and the current title (cut to Windows' 127 characters). Clicking the icon hides the player with its docked windows, or brings them back as they were (main window or mini player). Optionally minimises/closes to the tray; Exit in the tray menu or Main menu always exits. Starting AudioTastic again (SI-06) also brings it back from the tray.",
  "OS tray / menu bar.",
- "<b>Components:</b> Avalonia TrayIcon and NativeMenu (built in). Linux tray depends on the desktop environment supporting StatusNotifierItem.", "Settings › System integration: show tray icon, minimise to tray, close to tray."),
+ "<b>Components (built on Windows, 19 Nov 2026):</b> TrayController (App) over Avalonia TrayIcon and NativeMenu, following PlayerViewModel (Title, State) and SleepTimerService; PlayerShell.HideToTray/ShowFromTray. The icon is disposed on exit, so no ghost icon remains. Linux tray depends on the desktop environment supporting StatusNotifierItem.", "Settings › System integration › Tray: show tray icon (default on), minimise to the tray, close to the tray (both default off; switching the icon off switches them off and greys them out, Anders)."),
 ("SI-05", "File associations and context menu",
  "Registers AudioTastic as a handler for the supported audio and playlist file types and adds 'Open in AudioTastic' (adds the files and plays the first) and 'Enqueue in AudioTastic' (only adds them) entries, with the app icon, to the file manager's context menu.",
  "First start: 'Use AudioTastic for audio files?' (Yes, set up / Not now; asked once, not in portable mode). Settings › System integration: context menu on/off, register for the file types on/off, 'Choose default apps…' (built, Windows). OS file managers.",

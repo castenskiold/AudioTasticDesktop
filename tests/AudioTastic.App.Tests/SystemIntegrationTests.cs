@@ -336,4 +336,14 @@ public sealed class SystemIntegrationTests
             }
         }
     }
+
+    [Fact]
+    public void Tray_tooltip_shows_the_title_within_the_windows_limit()
+    {
+        Assert.Equal("AudioTastic", AudioTastic.App.Ui.TrayController.ToolTipFor(null));
+        Assert.Equal("AudioTastic\nArtist - Title",AudioTastic.App.Ui.TrayController.ToolTipFor("  Artist - Title "));
+        var longTitle = AudioTastic.App.Ui.TrayController.ToolTipFor(new string('x', 300));
+        Assert.Equal(AudioTastic.App.Ui.TrayController.MaxToolTipLength, longTitle.Length);
+        Assert.EndsWith("…", longTitle, StringComparison.Ordinal);
+    }
 }
