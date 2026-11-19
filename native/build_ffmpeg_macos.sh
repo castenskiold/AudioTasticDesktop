@@ -27,7 +27,7 @@ if [ "$ARCH" != "$(uname -m)" ]; then
 fi
 ./configure \
   --prefix="$HERE/build/install-$RID" \
-  --arch="$ARCH" --cc="clang -arch $ARCH" "${CROSS[@]}" \
+  --arch="$ARCH" --cc="clang -arch $ARCH" ${CROSS[@]+"${CROSS[@]}"} \
   --enable-shared --disable-static \
   --disable-programs --disable-doc --disable-debug \
   --disable-gpl --disable-nonfree \
