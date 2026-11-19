@@ -542,28 +542,41 @@ internal sealed class MarqueeText : Control
         new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, _typeface, _fontSize, _brush);
 }
 
-/// <summary>UI-06: format indicators (codec, bit depth, kbps, kHz, channels) as outlined pills.</summary>
-internal sealed class IndicatorBar : StackPanel
+/// <summary>
+/// UI-06: format indicators (codec, bit depth, kbps, kHz, channels) as outlined pills. When a row of pills is wider
+/// than the element, the whole row is drawn a little smaller so that every pill stays whole (it was cut off at the
+/// right edge before).
+/// </summary>
+internal sealed class IndicatorBar : Decorator
 {
     private readonly Skin _skin;
     private readonly SkinElement _element;
+    private readonly StackPanel _row;
 
     public IndicatorBar(Skin skin, SkinElement element)
     {
         _skin = skin;
         _element = element;
-        Orientation = Orientation.Horizontal;
-        Spacing = element.Spacing ?? 3;
+        _row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = element.Spacing ?? 3 };
+        Child = new Viewbox
+        {
+            Child = _row,
+            Stretch = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
         ClipToBounds = true;
         IsHitTestVisible = false;
     }
 
     public void SetItems(IReadOnlyList<string> items)
     {
-        Children.Clear();
+        var children = _row.Children;
+        children.Clear();
         foreach (var item in items)
         {
-            Children.Add(new Border
+            children.Add(new Border
             {
                 BorderBrush = _skin.Brush(_element.Stroke),
                 BorderThickness = new Thickness(_element.Stroke is null ? 0 : 0.8),

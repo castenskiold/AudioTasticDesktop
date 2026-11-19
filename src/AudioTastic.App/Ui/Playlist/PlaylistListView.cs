@@ -167,6 +167,10 @@ internal sealed class PlaylistListView : Panel, IDisposable
             Padding = new Thickness(0),
             ItemTemplate = new FuncDataTemplate<RowItem>((_, _) => new PlaylistRow(_style, controller) { Height = _style.RowHeight }),
             ItemContainerTheme = RowTheme(_style),
+            // Under the player-size scale transform (UI-08) the virtualizing panel sees a viewport divided by the
+            // scale and realised only the top rows (2/3 of the list at 150 %; Anders saw empty space below them).
+            // The largest cache Avalonia allows (2 viewports each way) covers the scales in use.
+            ItemsPanel = new FuncTemplate<Panel?>(() => new VirtualizingStackPanel { CacheLength = 2 }),
         };
         // A slim, skin-coloured scroll bar instead of Fluent's expanding one (Anders, P3).
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -203,6 +207,64 @@ internal sealed class PlaylistListView : Panel, IDisposable
         controller.DetailsChanged += OnRepaint;
         controller.PlayingChanged += OnRepaint;
         Reload();
+        // UI-08: under the scale transform the panel can keep a too-small viewport from an earlier layout pass until the
+        // next scroll or resize (Anders: the rows filled only after resizing or scrolling). After each layout, if the
+        // drawn rows stop short of the list while more entries exist, the list's height is changed by one pixel and
+        // back, which makes the panel take its viewport again.
+        _list.LayoutUpdated += (_, _) => CheckRowsFill();
+    }
+
+    private bool _fillCheckPending;
+    private int _fillNudges;
+
+    private void CheckRowsFill()
+    {
+        if (_fillCheckPending)
+        {
+            return;
+        }
+        _fillCheckPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _fillCheckPending = false;
+            if (!RowsStopShort())
+            {
+                _fillNudges = 0;
+                return;
+            }
+            if (_fillNudges++ >= 3)
+            {
+                return; // give up until something else changes; never loop
+            }
+            _list.Margin = new Thickness(0, 0, 0, 1);
+            Dispatcher.UIThread.Post(() => _list.Margin = default, DispatcherPriority.Background);
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>True when the last realised row ends above the list's bottom although later entries exist.</summary>
+    private bool RowsStopShort()
+    {
+        var height = _list.Bounds.Height;
+        if (_list.ItemCount == 0 || height <= 0)
+        {
+            return false;
+        }
+        Control? last = null;
+        var lastIndex = -1;
+        foreach (var container in _list.GetRealizedContainers())
+        {
+            var index = _list.IndexFromContainer(container);
+            if (index > lastIndex)
+            {
+                (last, lastIndex) = (container, index);
+            }
+        }
+        if (last is null || lastIndex >= _list.ItemCount - 1)
+        {
+            return last is null;
+        }
+        var bottom = last.TranslatePoint(new Point(0, last.Bounds.Height), _list)?.Y ?? height;
+        return bottom < height - 1;
     }
 
     public IReadOnlyList<PlaylistEntry> SelectedEntries =>
