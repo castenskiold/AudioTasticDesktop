@@ -104,6 +104,37 @@ public sealed class SnapGeometryTests
     }
 
     [Fact]
+    public void Resizing_snaps_the_right_edge_to_the_player_above()
+    {
+        var player = new PixelRect(400, 300, 495, 201);
+        var playlist = new PixelRect(400, 501, 488, 348); // right edge 7 px short of the player's
+
+        Assert.Equal(new PixelVector(7, 0), SnapGeometry.SnapResize(playlist, [player], [Screen], 10));
+        Assert.Equal(new PixelVector(-6, 0), SnapGeometry.SnapResize(new PixelRect(400, 501, 501, 348), [player], [Screen], 10));
+        Assert.Equal(default, SnapGeometry.SnapResize(new PixelRect(400, 501, 470, 348), [player], [Screen], 10)); // a free resize
+    }
+
+    [Fact]
+    public void Resizing_snaps_the_bottom_edge_to_a_window_or_the_screen()
+    {
+        var art = new PixelRect(895, 300, 300, 540);
+        var playlist = new PixelRect(400, 501, 495, 334); // bottom 5 px above the art window's bottom
+
+        Assert.Equal(new PixelVector(0, 5), SnapGeometry.SnapResize(playlist, [art], [Screen], 10));
+        Assert.Equal(new PixelVector(0, 4), SnapGeometry.SnapResize(new PixelRect(100, 700, 300, 376), [], [Screen], 10));
+    }
+
+    [Fact]
+    public void Resizing_ignores_windows_far_away_on_the_other_axis()
+    {
+        var far = new PixelRect(400, 900, 495, 100);
+        var art = new PixelRect(1000, 100, 300, 300);
+
+        Assert.Equal(default, SnapGeometry.SnapResize(new PixelRect(400, 100, 498, 300), [far], [], 10));
+        Assert.Equal(new PixelVector(-3, 0), SnapGeometry.SnapResize(new PixelRect(400, 100, 603, 300), [art], [], 10)); // touch on the right
+    }
+
+    [Fact]
     public void Docked_group_follows_touching_edges_transitively()
     {
         var main = new PixelRect(100, 100, 330, 128);

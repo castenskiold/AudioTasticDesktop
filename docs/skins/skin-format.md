@@ -97,7 +97,7 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `playlistSearch` | — | Search field (PW3). Takes `font`, `fontSize`, `color`, `stroke`, `fill`, `cornerRadius`; `text` is the placeholder. |
 | `playlistList` | — | Track list (PW4). `font`, `fontSize` and `rowHeight` set the text and rows. `color` is for rows, `mutedColor` for numbers, durations and the scroll bar, `playingColor` for the playing row and its bar, `selectionColor` for selected rows. |
 | `playlistInfo` | — | Selection / total duration (PW6). Takes `font`, `fontSize`, `color`, `align`. |
-| `resizeGrip` | — | Drag to resize a resizable window. |
+| `resizeGrip` | — | Drag to resize a resizable window from its bottom-right corner; the right and bottom edges snap to other player windows and the screen edge within 10 px. |
 
 ### States (buttons and toggles)
 

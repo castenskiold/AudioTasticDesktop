@@ -311,6 +311,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void BeginDrag(Control source, PointerPressedEventArgs e) => _snap.BeginDrag(source, e);
 
+    public void BeginResize(Control source, PointerPressedEventArgs e) => _snap.BeginResize(source, e);
+
     public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam" or "crossfade";
 
     private void ShowDialog(Window dialog)

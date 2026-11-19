@@ -40,7 +40,7 @@ Useful switches:
 - Right-clicking audio files and playlists in Explorer shows **Open in AudioTastic** and **Enqueue in AudioTastic** with the app icon. On Windows 11 they are under *Show more options* (or Shift+right-click). The entries are per user (no administrator rights), follow the program if you move it (they are rewritten at every start) and cover every file type the enabled plugins play. Switch them off in *Settings › System integration* before deleting the program; in portable mode they are off unless you switch them on.
 
 **Windows and controls:**
-- The player has a skinned main window, mini player (Ctrl+W) and playlist window (Alt+E), docked together.
+- The player has a skinned main window, mini player (Ctrl+W), playlist (Alt+E), equalizer (Alt+G) and Art & Lyrics (Alt+L) windows, docked together. Windows snap to each other and to the screen edges within 10 px when moved, and when the playlist or Art & Lyrics window is resized by its corner (e.g. its right edge lines up with the player's).
 - Open files with L or the eject button, or drop files and folders on any player window; they are added to the active playlist and played.
 - Internet radio: Ctrl+L (Open URL) takes stream URLs and `.m3u`/`.pls` links.
 - Winamp keys work: Z/X/C/V/B transport, J search, S shuffle, R repeat, Up/Down volume, Ctrl+P settings.

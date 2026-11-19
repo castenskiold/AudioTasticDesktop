@@ -63,6 +63,45 @@ public static class SnapGeometry
         return new PixelVector(bestX ?? 0, bestY ?? 0);
     }
 
+    /// <summary>
+    /// UI-01: while a window is resized by its bottom-right corner, the change to add to its right and bottom edges so
+    /// that they line up with a nearby window edge (another window's right edge, e.g. the player's, or its left edge
+    /// when side by side) or a screen working-area edge within <paramref name="distance"/>; zero where nothing is close.
+    /// The top-left corner does not move.
+    /// </summary>
+    public static PixelVector SnapResize(PixelRect resized, IEnumerable<PixelRect> windows, IEnumerable<PixelRect> screens, int distance)
+    {
+        int? bestX = null, bestY = null;
+
+        void Consider(ref int? best, int candidate)
+        {
+            if (Math.Abs(candidate) <= distance && (best is null || Math.Abs(candidate) < Math.Abs(best.Value)))
+            {
+                best = candidate;
+            }
+        }
+
+        foreach (var w in windows)
+        {
+            if (resized.Y < w.Bottom + distance && resized.Bottom > w.Y - distance)
+            {
+                Consider(ref bestX, w.Right - resized.Right); // right edges aligned (e.g. with the player above)
+                Consider(ref bestX, w.X - resized.Right);     // touching a window on the right
+            }
+            if (resized.X < w.Right + distance && resized.Right > w.X - distance)
+            {
+                Consider(ref bestY, w.Bottom - resized.Bottom); // bottoms aligned
+                Consider(ref bestY, w.Y - resized.Bottom);      // touching a window below
+            }
+        }
+        foreach (var s in screens)
+        {
+            Consider(ref bestX, s.Right - resized.Right);
+            Consider(ref bestY, s.Bottom - resized.Bottom);
+        }
+        return new PixelVector(bestX ?? 0, bestY ?? 0);
+    }
+
     /// <summary>True when the two rectangles share an edge (within <paramref name="tolerance"/>) and overlap along it.</summary>
     public static bool Touch(PixelRect a, PixelRect b, int tolerance = 1)
     {

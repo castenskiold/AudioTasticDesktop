@@ -25,6 +25,9 @@ public interface ISkinHost
     /// <summary>Starts moving the window (and its docked group) with the pointer.</summary>
     void BeginDrag(Control source, PointerPressedEventArgs e);
 
+    /// <summary>UI-01: starts resizing the window by its corner grip, with edge snapping.</summary>
+    void BeginResize(Control source, PointerPressedEventArgs e);
+
     /// <summary>MW9: right-click on the volume slider opens the output device menu (PB-04).</summary>
     void ShowDeviceMenu(Control source);
 
@@ -340,10 +343,9 @@ public sealed class SkinView : Border, IDisposable
                 var grip = new Border { Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.BottomRightCorner) };
                 grip.PointerPressed += (_, args) =>
                 {
-                    if (TopLevel.GetTopLevel(grip) is Window w && args.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
+                    if (args.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
                     {
-                        w.BeginResizeDrag(WindowEdge.SouthEast, args);
-                        args.Handled = true;
+                        _host.BeginResize(grip, args); // our own resize, so the edges snap (UI-01)
                     }
                 };
                 ToolTip.SetTip(grip, "Resize");
