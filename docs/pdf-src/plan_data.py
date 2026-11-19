@@ -381,7 +381,9 @@ PROGRESS = {
                         "Also: resizing snaps to the player's edges (UI-01); playlist rows fill the list at any player size; badges no longer cut off. Anders's rules: Enqueue only adds; every notification has its own on/off setting."],
                open=["Deferred (Anders): after installing and uninstalling the Windows setup, the media box is empty, media keys don't reach AudioTastic, and every program's query of Windows' media sessions fails (RPC_E_CALL_CANCELED); suspected Windows state, to retest after a sign-out or restart.",
                      "The macOS .dmg (signing fix pending CI) and the Linux AppImage are not tried by hand; tray, media controls, hotkeys, notifications and file types on macOS/Linux are still to build."]),
-    "P11": dict(status="Next", date="", outcome=[], open=[]),
+    "P11": dict(status="In progress", date="", outcome=[
+                        "Step 1 (19 Nov 2026): CN-04 streaming server on Kestrel with random per-file URLs, local-network-only answers and range requests; files a device cannot play are served as 16-bit WAV (seekable, bit-exact for 16-bit sources). FLAC/MP3 transcoding next. Test devices: Anders has a Samsung smart TV (DLNA) and a Chromecast; a Linux VM for AirPlay comes later."],
+               open=[]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).
@@ -395,7 +397,7 @@ PREREQ_STATUS = {
     "macOS machine or runner for osx builds": "Pending (CI runner once the repository exists).",
     "Apple Developer ID for signing/notarising the macOS app (needed for notifications and Gatekeeper; developer cost only, free for end users)": "Deferred (Anders, 19 Nov 2026): needed once macOS builds start.",
     "Optional: Windows code-signing certificate (avoids SmartScreen warnings)": "Deferred: SignPath Foundation declined for now (too little public adoption); releases stay unsigned (Anders, 19 Nov 2026).",
-    "Chromecast with a screen (e.g. Chromecast with Google TV, or a TV with Cast built in) for audio and video testing": "Asked (P11 start, 19 Nov 2026).",
-    "DLNA renderer for testing (a smart TV that plays video streams, Sonos, or software such as Kodi or gmrender-resurrect)": "Asked (P11 start, 19 Nov 2026).",
-    "shairport-sync on a Linux machine/VM as AirPlay receiver": "Asked (P11 start, 19 Nov 2026).",
+    "Chromecast with a screen (e.g. Chromecast with Google TV, or a TV with Cast built in) for audio and video testing": "Available: Anders has a Chromecast (19 Nov 2026).",
+    "DLNA renderer for testing (a smart TV that plays video streams, Sonos, or software such as Kodi or gmrender-resurrect)": "Available: Anders has a Samsung smart TV (19 Nov 2026).",
+    "shairport-sync on a Linux machine/VM as AirPlay receiver": "Later: Anders sets up a Linux VM when AirPlay (CN-03) is built.",
 }

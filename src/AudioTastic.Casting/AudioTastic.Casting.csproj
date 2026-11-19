@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Chromecast, DLNA, AirPlay, discovery, streaming server and remote control (CN-01 to CN-06). Built in P11. -->
+  <!-- Chromecast, DLNA, AirPlay, discovery, streaming server and remote control (CN-01 to CN-06, CN-09). Built in P11. -->
+  <ItemGroup>
+    <!-- CN-04: the streaming server is Kestrel (ASP.NET Core, MIT), part of the shared framework. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AudioTastic.Core\AudioTastic.Core.csproj" />
   </ItemGroup>

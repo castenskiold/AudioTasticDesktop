@@ -29,6 +29,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/AudioTastic.Analysis.Tests/AudioTastic.Analysis.Tests.csproj" />
     <Project Path="tests/AudioTastic.App.Tests/AudioTastic.App.Tests.csproj" />
+    <Project Path="tests/AudioTastic.Casting.Tests/AudioTastic.Casting.Tests.csproj" />
     <Project Path="tests/AudioTastic.Core.Tests/AudioTastic.Core.Tests.csproj" />
     <Project Path="tests/AudioTastic.Data.Tests/AudioTastic.Data.Tests.csproj" />
     <Project Path="tests/AudioTastic.Input.Ffmpeg.Tests/AudioTastic.Input.Ffmpeg.Tests.csproj" />

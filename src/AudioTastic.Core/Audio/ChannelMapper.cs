@@ -5,7 +5,7 @@ namespace AudioTastic.Core.Audio;
 /// Mono is copied to both sides; multichannel is downmixed using FFmpeg's default channel order
 /// (FL FR FC LFE BL/SL BR/SR ...): centre and surrounds at −3 dB, LFE dropped, then normalised to avoid clipping.
 /// </summary>
-internal static class ChannelMapper
+public static class ChannelMapper
 {
     private const float MinusThreeDb = 0.70710677f;
 
