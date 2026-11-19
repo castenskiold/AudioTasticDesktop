@@ -43,6 +43,9 @@ public sealed class SkinWindows
 
     /// <summary>EQ-01: the equalizer window (EQ1–EQ4); skins without one use the default skin's.</summary>
     public SkinWindowDefinition? Equalizer { get; set; }
+
+    /// <summary>MD-02/MD-04: the Art &amp; Lyrics window (AL1, AL2); skins without one use the default skin's.</summary>
+    public SkinWindowDefinition? Art { get; set; }
 }
 
 public sealed class SkinWindowDefinition

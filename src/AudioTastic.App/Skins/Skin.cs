@@ -36,6 +36,7 @@ public sealed class Skin : IDisposable
         "mini" => Definition.Windows.Mini,
         "playlist" => Definition.Windows.Playlist,
         "equalizer" => Definition.Windows.Equalizer,
+        "art" => Definition.Windows.Art,
         _ => null,
     };
 

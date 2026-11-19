@@ -55,7 +55,7 @@ public sealed class SkinView : Border, IDisposable
     private readonly Dictionary<string, SkinButton> _toggles = new(StringComparer.Ordinal);
 
     /// <summary>The logo, decoded once at a size that stays sharp in double size on high-DPI screens.</summary>
-    private static readonly Lazy<Avalonia.Media.Imaging.Bitmap> Logo = new(() =>
+    internal static readonly Lazy<Avalonia.Media.Imaging.Bitmap> Logo = new(() =>
         Avalonia.Media.Imaging.Bitmap.DecodeToWidth(Avalonia.Platform.AssetLoader.Open(new Uri("avares://AudioTastic/Assets/logo.png")), 256));
 
     private readonly bool _hasStateRow; // the skin has an indicators element with "bind": "state"
@@ -332,16 +332,6 @@ public sealed class SkinView : Border, IDisposable
                 area.DoubleTapped += (_, _) => _host.Execute("titleDoubleClick", area);
                 return area;
             }
-
-            case "art":
-                // MD-02 (P9) shows album art here; until then the logo.
-                return new Image
-                {
-                    Source = Logo.Value,
-                    Stretch = Stretch.Uniform,
-                    Opacity = 0.9,
-                    IsHitTestVisible = false,
-                };
 
             case "resizeGrip":
             {

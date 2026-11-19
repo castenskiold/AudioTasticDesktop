@@ -43,8 +43,11 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private SkinnedWindow? _mini;
     private SkinnedWindow? _playlist;
     private SkinnedWindow? _equalizer;
+    private SkinnedWindow? _artWindow;
     private bool _playlistBeforeMini;
     private bool _equalizerBeforeMini;
+    private bool _artBeforeMini;
+    private readonly ArtCoordinator _art;
     private readonly EqualizerController _eq;
     private bool _crossfadeOn;
     private readonly PlaylistController _playlists;
@@ -56,8 +59,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, ILoggerFactory loggerFactory)
     {
+        _art = art;
         _sleep = sleep;
         _eq = equalizer;
         // PB-10: the timer stopped playback; close the app when Settings › Playback says so.
@@ -141,16 +145,32 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _mini = new SkinnedWindow("mini", this);
         _playlist = new SkinnedWindow("playlist", this) { ShowInTaskbar = false };
         _equalizer = new SkinnedWindow("equalizer", this) { ShowInTaskbar = false };
+        _artWindow = new SkinnedWindow("art", this) { ShowInTaskbar = false };
         _snap.Register(_main, isMain: true);
         _snap.Register(_mini);
         _snap.Register(_playlist);
         _snap.Register(_equalizer);
+        _snap.Register(_artWindow);
         _snap.DragCompleted += (_, _) => SavePositions();
         BuildWindows();
         Restore(_main, UiSettings.MainWindow);
         Restore(_mini, UiSettings.MiniPlayerWindow);
         Restore(_playlist, UiSettings.PlaylistWindow);
         Restore(_equalizer, UiSettings.EqualizerWindow);
+        Restore(_artWindow, UiSettings.ArtWindow);
+        if (UiSettings.ArtSize is { } artSize)
+        {
+            _artWindow.Width = artSize.Width * Scale;
+            _artWindow.Height = artSize.Height * Scale;
+        }
+        _artWindow.Closing += (_, e) =>
+        {
+            if (!_exiting)
+            {
+                e.Cancel = true; // Alt+F4 on the Art & Lyrics window hides it
+                SetArtVisible(false);
+            }
+        };
         _equalizer.Closing += (_, e) =>
         {
             if (!_exiting)
@@ -228,6 +248,8 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "playlist": SetPlaylistVisible(!_playlist!.IsVisible); break;
             case "hide" when window == _playlist: SetPlaylistVisible(false); break;
             case "hide" when window == _equalizer: SetEqualizerVisible(false); break;
+            case "hide" when window == _artWindow: SetArtVisible(false); break;
+            case "artWindow": SetArtVisible(!_artWindow!.IsVisible); break; // MD-02: Alt+L, click on the MW2 art
             case "equalizer": SetEqualizerVisible(!_equalizer!.IsVisible); break; // EQ-01: Alt+G, EQ toggle
             case "crossfade": // XF (MW10)
                 _settings.Update(SettingsGroup.Crossfading, s => s.Crossfading.Enabled = !s.Crossfading.Enabled);
@@ -292,8 +314,24 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     {
         "visualisation" => new VisualisationView(skin, element, _engine.Graph.Visualisation, _settings), // UI-07
         "eqSlider" or "eqCurve" or "eqParametric" => EqualizerViews.Create(skin, element, _eq), // EQ-01, EQ-04
+        "art" => CreateArt(element), // MD-02
         _ => PlaylistViews.Create(skin, element, _playlists),
     };
+
+    /// <summary>MD-02: album art; outside the Art &amp; Lyrics window a click opens that window.</summary>
+    private ArtView CreateArt(SkinElement element)
+    {
+        ArtView? view = null;
+        view = new ArtView(element, _art, SkinView.Logo.Value, () =>
+        {
+            if (TopLevel.GetTopLevel(view) != _artWindow)
+            {
+                SetArtVisible(true);
+                _artWindow!.Activate();
+            }
+        });
+        return view;
+    }
 
     /// <summary>Files dropped on a player window: added to the active playlist; on the main window or mini player they play (PL-04).</summary>
     public void DropFiles(IReadOnlyList<string> paths, Window window) =>
@@ -372,6 +410,16 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
             _equalizer!.Build(_fallbackSkin, _fallbackSkin.Window("equalizer")!, scale);
         }
+        if (skin.Window("art") is { } art)
+        {
+            _artWindow!.Build(skin, art, scale);
+        }
+        else
+        {
+            // A skin without an Art & Lyrics window uses the default skin's (skin-format.md).
+            _fallbackSkin ??= _skins.Load(SkinManager.DefaultSkinId);
+            _artWindow!.Build(_fallbackSkin, _fallbackSkin.Window("art")!, scale);
+        }
     }
 
     /// <summary>UI-01: shows or hides the playlist window (PL toggle, Alt+E, Windows menu); the choice is saved.</summary>
@@ -432,6 +480,34 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _mini!.Refresh();
     }
 
+    /// <summary>MD-02: shows or hides the Art &amp; Lyrics window (Alt+L, the MW2 art, Windows menu); the choice is saved.</summary>
+    private void SetArtVisible(bool visible)
+    {
+        if (visible == _artWindow!.IsVisible)
+        {
+            return;
+        }
+        if (visible)
+        {
+            if (UiSettings.ArtWindow is null)
+            {
+                // First time: dock it to the right of the main window, top edges aligned.
+                var main = WindowSnapManager.Bounds(_main!);
+                _artWindow.WindowStartupLocation = WindowStartupLocation.Manual;
+                _artWindow.Position = new PixelPoint(main.Right, main.Y);
+            }
+            _artWindow.Show(_main!);
+        }
+        else
+        {
+            SavePositions();
+            _artWindow.Hide();
+        }
+        _settings.Update(SettingsGroup.Interface, s => s.Interface.ArtVisible = visible);
+        _main!.Refresh();
+        _mini!.Refresh();
+    }
+
     /// <summary>
     /// First time: dock the equalizer below the main window (Winamp's order); a playlist docked there moves down
     /// to make room.
@@ -487,11 +563,17 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         {
             _playlistBeforeMini = _playlist!.IsVisible;
             _equalizerBeforeMini = _equalizer!.IsVisible;
+            _artBeforeMini = _artWindow!.IsVisible;
             _playlist.Hide();
             _equalizer.Hide();
+            _artWindow.Hide();
         }
         else
         {
+            if (_artBeforeMini)
+            {
+                _artWindow!.Show(_main!);
+            }
             if (_equalizerBeforeMini)
             {
                 _equalizer!.Show(_main!);
@@ -548,6 +630,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             _mini!.Refresh();
             _playlist!.Refresh();
             _equalizer!.Refresh();
+            _artWindow!.Refresh();
         });
     }
 
@@ -575,6 +658,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         var playlistVisible = _playlist.IsVisible;
         var equalizer = _equalizer!.Position;
         var equalizerVisible = _equalizer.IsVisible;
+        var art = _artWindow!.Position;
+        var artSize = new WindowSize(_artWindow.Width / Scale, _artWindow.Height / Scale);
+        var artVisible = _artWindow.IsVisible;
         var mainKnown = _main.IsVisible || UiSettings.MainWindow is null;
         var miniKnown = _mini.IsVisible || UiSettings.MiniPlayerWindow is null;
         _settings.Update(SettingsGroup.Interface, s =>
@@ -596,6 +682,11 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             {
                 s.Interface.EqualizerWindow = new WindowPlacement(equalizer.X, equalizer.Y);
             }
+            if (artVisible)
+            {
+                s.Interface.ArtWindow = new WindowPlacement(art.X, art.Y);
+                s.Interface.ArtSize = artSize;
+            }
         });
     }
 
@@ -611,6 +702,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         _playlists.Service.Flush();
         _playlist?.Close();
         _equalizer?.Close();
+        _artWindow?.Close();
         VisualisationPluginWindow.Current?.Close();
         _main?.Close();
         _mini?.Close();
@@ -636,6 +728,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         if (UiSettings.EqualizerVisible && _main.IsVisible)
         {
             _equalizer!.Show(_main);
+        }
+        if (UiSettings.ArtVisible && _main.IsVisible)
+        {
+            _artWindow!.Show(_main);
         }
         if (UiSettings.PlaylistVisible && _main.IsVisible)
         {
@@ -950,7 +1046,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                     [
                         Item("Equalizer", "equalizer", check: _equalizer!.IsVisible),
                         Item("Playlist", "playlist", check: _playlist!.IsVisible),
-                        Item("Art & Lyrics", enabled: false),
+                        Item("Art & Lyrics", "artWindow", check: _artWindow!.IsVisible),
                         Item("Mini player", "miniPlayer", check: _mini.IsVisible),
                         .. PanelItems(),
                     ],

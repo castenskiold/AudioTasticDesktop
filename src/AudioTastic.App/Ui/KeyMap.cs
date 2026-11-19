@@ -33,7 +33,8 @@ public static class KeyMap
         [(Key.Q, KeyModifiers.None)] = "queue",
         [(Key.K, KeyModifiers.Control | KeyModifiers.Shift)] = "visPlugin",
         [(Key.E, KeyModifiers.Control)] = "editTags", // MD-01
-        // Reserved for later phases: Alt+L window (AL), Alt+3 file info.
+        [(Key.L, KeyModifiers.Alt)] = "artWindow", // MD-02: Art & Lyrics window
+        // Reserved for later phases: Alt+3 file info.
         [(Key.G, KeyModifiers.Alt)] = "equalizer",
         [(Key.E, KeyModifiers.Alt)] = "playlist",
     };

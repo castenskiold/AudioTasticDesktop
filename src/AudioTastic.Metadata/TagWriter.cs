@@ -179,7 +179,7 @@ public sealed class TagWriter(TagService tags, CacheStore? cache, ILogger<TagWri
         value is null ? [] : [.. value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 
     /// <summary>The front cover, or the first picture when none is marked as the front cover.</summary>
-    private static TagPicture? Cover(TagLib.IPicture[] pictures)
+    internal static TagPicture? Cover(TagLib.IPicture[] pictures)
     {
         var picture = pictures.FirstOrDefault(p => p.Type == TagLib.PictureType.FrontCover) ?? pictures.FirstOrDefault();
         return picture?.Data is { Count: > 0 } data ? new TagPicture(data.Data, picture.MimeType ?? "image/jpeg") : null;

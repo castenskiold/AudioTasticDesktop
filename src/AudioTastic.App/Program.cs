@@ -78,6 +78,8 @@ internal static class Program
                 .AddSingleton<AudioTastic.Metadata.TagLoader>()
                 // P9 tag editing (MD-01): writes wait while the player has the file open.
                 .AddSingleton<AudioTastic.Metadata.TagWriter>()
+                .AddSingleton<AudioTastic.Metadata.ArtService>() // MD-02
+                .AddSingleton<AudioTastic.App.Ui.ArtCoordinator>()
                 .AddSingleton(sp => new AudioTastic.Metadata.TagWriteService(sp.GetRequiredService<AudioTastic.Metadata.TagWriter>(),
                     sp.GetRequiredService<PlaybackEngine>().IsDecoding, sp.GetRequiredService<ILogger<AudioTastic.Metadata.TagWriteService>>()))
                 // P5 analysis (AN-01), waveforms (CO-07) and ReplayGain (PB-03).

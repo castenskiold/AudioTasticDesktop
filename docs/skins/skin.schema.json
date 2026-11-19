@@ -32,7 +32,8 @@
         "main": { "$ref": "#/definitions/window" },
         "mini": { "$ref": "#/definitions/window" },
         "playlist": { "$ref": "#/definitions/window" },
-        "equalizer": { "$ref": "#/definitions/window" }
+        "equalizer": { "$ref": "#/definitions/window" },
+        "art": { "$ref": "#/definitions/window" }
       }
     }
   },

@@ -193,6 +193,8 @@ public enum TempoReturnMode
 
 public sealed class MetadataSettings
 {
+    /// <summary>MD-02: show album art (MW2 thumbnail and the Art &amp; Lyrics window); off shows the logo.</summary>
+    public bool AlbumArt { get; set; } = true;
 }
 
 public sealed class CastingNetworkSettings
@@ -245,6 +247,11 @@ public sealed class InterfaceSettings
     /// <summary>UI-01 / EQ-01: saved equalizer window position and visibility.</summary>
     public WindowPlacement? EqualizerWindow { get; set; }
     public bool EqualizerVisible { get; set; }
+
+    /// <summary>UI-01 / MD-02: saved Art &amp; Lyrics window position, size (layout units) and visibility.</summary>
+    public WindowPlacement? ArtWindow { get; set; }
+    public WindowSize? ArtSize { get; set; }
+    public bool ArtVisible { get; set; }
 
     /// <summary>UI-07: what MW6 shows (clicking it cycles).</summary>
     public VisualisationType Visualisation { get; set; } = VisualisationType.Spectrum;

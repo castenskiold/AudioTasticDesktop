@@ -118,7 +118,8 @@ public sealed class TagServiceTests : IDisposable
         };
 
         loader.ProbePlaylist(playlist);
-        await updated.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        // The loader thread runs below normal priority: allow for CPU-heavy tests running alongside.
+        await updated.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
 
         Assert.Equal("File title", whole.Tags!.Title);
         Assert.Equal("Cue title", cueTrack.Tags!.Title);

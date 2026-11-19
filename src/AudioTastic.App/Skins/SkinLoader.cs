@@ -129,7 +129,7 @@ public static partial class SkinLoader
             }
         }
 
-        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini), ("playlist", skin.Windows.Playlist), ("equalizer", skin.Windows.Equalizer) })
+        foreach (var (windowName, window) in new[] { ("main", skin.Windows.Main), ("mini", skin.Windows.Mini), ("playlist", skin.Windows.Playlist), ("equalizer", skin.Windows.Equalizer), ("art", skin.Windows.Art) })
         {
             if (window is null)
             {

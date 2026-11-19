@@ -90,7 +90,7 @@ public sealed class SettingsWindow : Window
                 CrossfadingPage(panel);
                 break;
             case SettingsGroup.Metadata:
-                Note(panel, "Album art, online lookup and lyrics arrive in phase P9.");
+                MetadataPage(panel);
                 break;
             case SettingsGroup.CastingNetwork:
                 Note(panel, "Casting, the streaming server and remote control arrive in phase P11.");
@@ -124,6 +124,15 @@ public sealed class SettingsWindow : Window
         };
         panel.Children.Add(reset);
         _page.Content = panel;
+    }
+
+    /// <summary>MD-02..MD-04: album art, lyrics and online lookup.</summary>
+    private void MetadataPage(StackPanel panel)
+    {
+        var m = _settings.Current.Metadata;
+        Check(panel, "Show album art (embedded cover, else cover/folder/front .jpg or .png in the folder)", m.AlbumArt,
+            v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.AlbumArt = v));
+        Note(panel, "Album art shows in the main window and in the Art & Lyrics window (Alt+L). Tags and covers are edited with Edit tags… (Ctrl+E) in the playlist.");
     }
 
     private void PlaybackPage(StackPanel panel)

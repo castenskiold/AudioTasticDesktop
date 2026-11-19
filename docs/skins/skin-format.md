@@ -54,6 +54,7 @@ Add `"$schema": "https://audiotastic.app/schemas/skin-1.json"` (or a relative pa
 | `windows.mini` | The mini player (UI-05). If it is missing, the default skin's mini player is used. |
 | `windows.playlist` | The playlist window (PL-01, regions PW1–PW6). Resizable. If it is missing, the default skin's is used. |
 | `windows.equalizer` | The equalizer window (EQ-01, regions EQ1–EQ4). If it is missing, the default skin's is used. |
+| `windows.art` | The Art & Lyrics window (MD-02, MD-04, regions AL1–AL2). Resizable. If it is missing, the default skin's is used. |
 
 ### Windows
 
@@ -86,7 +87,7 @@ Every element has a `type`, a position (`x`, `y`) and a size (`width`, `height`)
 | `waveform` | — | The waveform seek bar (CO-07, MW7): the track's peaks, played part in `fillColor`, the rest in `trackColor`, position line in `thumbColor`. Click or drag to seek. A thin centre line shows progress while the waveform is made; streams show a scrolling live waveform. |
 | `indicators` | `state` (optional) | Format indicators and badges (UI-06): bitrate, kHz, channels, and `RG` when ReplayGain is applied (PB-03). With `"bind": "state"` the element shows the player-state badges instead: `OUT` (output rate differs from the file, PB-05), speed such as `1.25×` (PB-06), `A-B` (PB-08), `STOP AFTER` (PB-09), `SLEEP 30 MIN` (PB-10). A skin without a state element shows those badges at the start of its format row. `font`, `fontSize`, `color`, `stroke`, `spacing`. |
 | `dragArea` | — | Dragging moves the window, together with the windows docked to it. Double-click toggles the mini player. |
-| `art` | — | Album art thumbnail (MW2). Shows the logo until album art (MD-02) arrives. |
+| `art` | — | Album art (MD-02): the cover of the playing track (embedded, else cover/folder/front/albumart .jpg/.png in its folder), drawn uniformly scaled and centred; the logo when there is none or album art is off. `cornerRadius` rounds the image. In the main window (MW2) a click opens the Art & Lyrics window; in that window (AL1) it is the large art. |
 | `visualisation` | — | Spectrum analyser or oscilloscope of the audio after the DSP chain (UI-07, MW6); clicking cycles spectrum → oscilloscope → off. Bars and the scope line use `fillColor`, peak caps `thumbColor`, the idle baseline `trackColor`. |
 | `eqSlider` | `preamp`, `band0` … `band9` | A vertical ±12 dB slider for the preamp or one of the ten bands (60 Hz … 16 kHz). Drag, wheel (0.5 dB), double-click resets. Hidden in parametric mode. `trackColor`, `fillColor` (from 0 dB to the value), `thumbColor`, `thumbSize`. |
 | `eqCurve` | — | The equalizer's response curve (EQ3): `fillColor` for the curve (dimmed while the EQ is off), `trackColor` for the 0 dB line, `color`/`font`/`fontSize` for the preset name. |
