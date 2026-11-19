@@ -37,17 +37,20 @@ public sealed class TagEditorWindow : Window
     {
         _files = files;
         Title = files.Count == 1 ? "Edit tags" : $"Edit tags ({files.Count} files)";
-        Width = 560;
-        SizeToContent = SizeToContent.Height;
-        CanResize = false;
+        // Resizable; the lyrics field takes the extra height (Anders: it was too small).
+        Width = 600;
+        Height = 760;
+        MinWidth = 480;
+        MinHeight = 600;
+        CanResize = true;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 10, RowSpacing = 6 };
         var row = 0;
-        void AddRow(string label, Control control)
+        void AddRow(string label, Control control, bool grow = false)
         {
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+            grid.RowDefinitions.Add(new RowDefinition(grow ? GridLength.Star : GridLength.Auto));
+            var text = new TextBlock { Text = label, VerticalAlignment = grow ? VerticalAlignment.Top : VerticalAlignment.Center, Margin = grow ? new Thickness(0, 6, 0, 0) : default };
             Grid.SetRow(text, row);
             Grid.SetRow(control, row);
             Grid.SetColumn(control, 1);
@@ -65,8 +68,10 @@ public sealed class TagEditorWindow : Window
         var lyrics = Box(TagField.Lyrics, "Lyrics");
         lyrics.AcceptsReturn = true;
         lyrics.TextWrapping = TextWrapping.Wrap;
-        lyrics.Height = 90;
-        AddRow("Lyrics", lyrics);
+        lyrics.MinHeight = 140;
+        lyrics.VerticalAlignment = VerticalAlignment.Stretch;
+        lyrics.VerticalContentAlignment = VerticalAlignment.Top;
+        AddRow("Lyrics", lyrics, grow: true);
 
         // Cover: preview, choose, remove.
         var image = new Image { Width = 96, Height = 96, Stretch = Stretch.Uniform };
@@ -119,15 +124,16 @@ public sealed class TagEditorWindow : Window
         };
         cancel.Click += (_, _) => Close();
 
-        var panel = new StackPanel { Margin = new Thickness(16), Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = heading, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeight.SemiBold });
+        var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 10) };
+        top.Children.Add(new TextBlock { Text = heading, TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeight.SemiBold });
         if (note is not null)
         {
-            panel.Children.Add(new TextBlock { Text = note, FontSize = 12, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap });
+            top.Children.Add(new TextBlock { Text = note, FontSize = 12, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap });
         }
-        panel.Children.Add(grid);
-        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { cancel, save } });
-        Content = panel;
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), Children = { cancel, save } };
+        DockPanel.SetDock(top, Dock.Top);
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        Content = new DockPanel { Margin = new Thickness(16), Children = { top, buttons, grid } };
         Opened += (_, _) => _boxes[TagField.Title].Box.Focus();
     }
 

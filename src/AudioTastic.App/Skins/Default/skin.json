@@ -251,10 +251,10 @@
     },
     "art": {
       "width": 200,
-      "height": 232,
+      "height": 360,
       "resizable": true,
       "minWidth": 120,
-      "minHeight": 140,
+      "minHeight": 260,
       "background": "@panel",
       "border": "@text",
       "borderWidth": 1,
@@ -264,10 +264,14 @@
         { "type": "text", "x": 10, "y": 3, "width": 150, "height": 12, "text": "ART & LYRICS", "font": "title", "color": "@muted", "letterSpacing": 2 },
         { "type": "button", "bind": "hide", "x": 182, "y": 3, "width": 12, "height": 12, "anchor": "right top", "image": "images/circle.svg",
           "images": { "hover": "images/circle-filled.svg" }, "colors": { "normal": "@muted", "hover": "@text" }, "tooltip": "Close (Alt+L)" },
-        { "type": "rect", "x": 6, "y": 20, "width": 188, "height": 198, "anchor": "left right top bottom",
+        { "type": "rect", "x": 6, "y": 20, "width": 188, "height": 120, "anchor": "left right top",
           "fill": "@bg", "stroke": "@line", "strokeWidth": 1, "cornerRadius": 4 },
-        { "type": "art", "x": 10, "y": 24, "width": 180, "height": 190, "anchor": "left right top bottom", "cornerRadius": 3 },
-        { "type": "resizeGrip", "x": 184, "y": 216, "width": 16, "height": 16, "anchor": "right bottom" }
+        { "type": "art", "x": 10, "y": 24, "width": 180, "height": 112, "anchor": "left right top", "cornerRadius": 3 },
+        { "type": "rect", "x": 6, "y": 144, "width": 188, "height": 202, "anchor": "left right top bottom",
+          "fill": "@bg", "stroke": "@line", "strokeWidth": 1, "cornerRadius": 4 },
+        { "type": "lyrics", "x": 10, "y": 148, "width": 180, "height": 194, "anchor": "left right top bottom",
+          "font": "body", "fontSize": 7, "color": "@text", "mutedColor": "@muted" },
+        { "type": "resizeGrip", "x": 184, "y": 344, "width": 16, "height": 16, "anchor": "right bottom" }
       ]
     }
   }

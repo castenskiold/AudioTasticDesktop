@@ -104,7 +104,7 @@
       "properties": {
         "type": {
           "enum": ["rect", "image", "text", "button", "toggle", "slider", "waveform", "time", "marquee", "indicators", "dragArea", "art", "visualisation",
-            "playlistTabs", "playlistSearch", "playlistList", "playlistInfo", "resizeGrip", "eqSlider", "eqCurve", "eqParametric"]
+            "playlistTabs", "playlistSearch", "playlistList", "playlistInfo", "resizeGrip", "eqSlider", "eqCurve", "eqParametric", "lyrics"]
         },
         "bind": { "type": "string", "description": "What the element does or shows; allowed values depend on the type (see skin-format.md)." },
         "x": { "type": "number" },

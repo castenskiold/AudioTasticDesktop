@@ -195,6 +195,9 @@ public sealed class MetadataSettings
 {
     /// <summary>MD-02: show album art (MW2 thumbnail and the Art &amp; Lyrics window); off shows the logo.</summary>
     public bool AlbumArt { get; set; } = true;
+
+    /// <summary>MD-04: show lyrics in the Art &amp; Lyrics window (.lrc files and embedded lyrics).</summary>
+    public bool Lyrics { get; set; } = true;
 }
 
 public sealed class CastingNetworkSettings
@@ -250,7 +253,7 @@ public sealed class InterfaceSettings
 
     /// <summary>UI-01 / MD-02: saved Art &amp; Lyrics window position, size (layout units) and visibility.</summary>
     public WindowPlacement? ArtWindow { get; set; }
-    public WindowSize? ArtSize { get; set; }
+    public WindowSize? ArtWindowSize { get; set; }
     public bool ArtVisible { get; set; }
 
     /// <summary>UI-07: what MW6 shows (clicking it cycles).</summary>

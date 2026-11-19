@@ -48,6 +48,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private bool _equalizerBeforeMini;
     private bool _artBeforeMini;
     private readonly ArtCoordinator _art;
+    private readonly LyricsCoordinator _lyrics;
     private readonly EqualizerController _eq;
     private bool _crossfadeOn;
     private readonly PlaylistController _playlists;
@@ -59,9 +60,10 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
-        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, ILoggerFactory loggerFactory)
+        AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, ILoggerFactory loggerFactory)
     {
         _art = art;
+        _lyrics = lyrics;
         _sleep = sleep;
         _eq = equalizer;
         // PB-10: the timer stopped playback; close the app when Settings › Playback says so.
@@ -158,7 +160,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         Restore(_playlist, UiSettings.PlaylistWindow);
         Restore(_equalizer, UiSettings.EqualizerWindow);
         Restore(_artWindow, UiSettings.ArtWindow);
-        if (UiSettings.ArtSize is { } artSize)
+        if (UiSettings.ArtWindowSize is { } artSize)
         {
             _artWindow.Width = artSize.Width * Scale;
             _artWindow.Height = artSize.Height * Scale;
@@ -315,6 +317,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         "visualisation" => new VisualisationView(skin, element, _engine.Graph.Visualisation, _settings), // UI-07
         "eqSlider" or "eqCurve" or "eqParametric" => EqualizerViews.Create(skin, element, _eq), // EQ-01, EQ-04
         "art" => CreateArt(element), // MD-02
+        "lyrics" => new LyricsView(skin, element, _lyrics), // MD-04
         _ => PlaylistViews.Create(skin, element, _playlists),
     };
 
@@ -685,7 +688,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             if (artVisible)
             {
                 s.Interface.ArtWindow = new WindowPlacement(art.X, art.Y);
-                s.Interface.ArtSize = artSize;
+                s.Interface.ArtWindowSize = artSize;
             }
         });
     }

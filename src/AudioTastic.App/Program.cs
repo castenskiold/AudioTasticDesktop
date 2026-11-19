@@ -80,6 +80,8 @@ internal static class Program
                 .AddSingleton<AudioTastic.Metadata.TagWriter>()
                 .AddSingleton<AudioTastic.Metadata.ArtService>() // MD-02
                 .AddSingleton<AudioTastic.App.Ui.ArtCoordinator>()
+                .AddSingleton<AudioTastic.Metadata.LyricsService>() // MD-04
+                .AddSingleton<AudioTastic.App.Ui.LyricsCoordinator>()
                 .AddSingleton(sp => new AudioTastic.Metadata.TagWriteService(sp.GetRequiredService<AudioTastic.Metadata.TagWriter>(),
                     sp.GetRequiredService<PlaybackEngine>().IsDecoding, sp.GetRequiredService<ILogger<AudioTastic.Metadata.TagWriteService>>()))
                 // P5 analysis (AN-01), waveforms (CO-07) and ReplayGain (PB-03).

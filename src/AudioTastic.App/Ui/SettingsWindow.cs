@@ -132,7 +132,9 @@ public sealed class SettingsWindow : Window
         var m = _settings.Current.Metadata;
         Check(panel, "Show album art (embedded cover, else cover/folder/front .jpg or .png in the folder)", m.AlbumArt,
             v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.AlbumArt = v));
-        Note(panel, "Album art shows in the main window and in the Art & Lyrics window (Alt+L). Tags and covers are edited with Edit tags… (Ctrl+E) in the playlist.");
+        Check(panel, "Show lyrics (a .lrc file next to the track, or lyrics in its tags)", m.Lyrics,
+            v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.Lyrics = v));
+        Note(panel, "Album art shows in the main window and in the Art & Lyrics window (Alt+L), lyrics below the art; click a line of synced lyrics to jump there. Tags, covers and lyrics are edited with Edit tags… (Ctrl+E) in the playlist.");
     }
 
     private void PlaybackPage(StackPanel panel)
