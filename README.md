@@ -16,7 +16,7 @@ A Winamp replacement with extra features: a Winamp-style desktop audio player fo
 ```
 dotnet restore AudioTastic.slnx
 dotnet build AudioTastic.slnx
-dotnet test AudioTastic.slnx
+dotnet test AudioTastic.slnx --max-parallel-test-modules 4   # timing tests need some CPU to themselves
 dotnet run --project src/AudioTastic.App
 dotnet run --project src/AudioTastic.App -- --crash-test   # app switches go after --
 dotnet run --project src/AudioTastic.App -- song.flac other.mp3   # P1: play files

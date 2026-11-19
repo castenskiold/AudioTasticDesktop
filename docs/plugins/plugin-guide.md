@@ -52,7 +52,7 @@ An installed plugin with the same id replaces a built-in one.
   "description": "What it does, in one or two sentences.",
   "website": "https://example.com",
   "license": "MIT",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "0.4.1",
   "entryAssembly": "MyPlugin.dll",
   "types": ["general"],
   "priority": 0
@@ -105,6 +105,15 @@ Plugins of types not hosted yet already load, initialise and show in the plugin 
 - `LengthFrames` is null for live streams.
 - "Cannot play this file" is an `AudioSourceException`: the player shows it and skips to the next track. Any **other** exception counts as a plugin fault (see *Faults*).
 - All calls on a source come from one decoder thread, never the audio thread. They may block briefly (file I/O). For network input, see `IStreamMetadata` (now-playing titles).
+
+### Offering an encoder (input plugin, SDK 0.4.1)
+
+An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` (default: none). The player uses them to transcode for cast devices (CN-04) and, later, for format conversion (TL-01). The built-in FFmpeg plugin offers FLAC and, when its FFmpeg build has libmp3lame, MP3.
+
+- `IAudioEncoderFactory.Formats` lists what this machine can write (`EncodeFormat.Flac`, `EncodeFormat.Mp3`).
+- `Create(settings, format, output)` returns an `IAudioEncoder` writing to `output`, which may be **non-seekable** (a network response): never seek or read it.
+- `Write(samples)` takes interleaved float in the format given at creation, in any amount; `Finish()` writes the rest and the end of the stream.
+- "Cannot write this format here" is an `AudioSourceException`; an `IOException` from the output means the reader went away (not a fault). Other exceptions are plugin faults.
 
 ### Writing an output (output plugin)
 
@@ -199,5 +208,6 @@ Each plugin gets its own view of the API:
 
 - The SDK follows semantic versioning, but stays **0.x (pre-release)** until phase P8: DSP, visualisation and crossfading work may still change the contracts.
 - **While 0.x:** a plugin must be built for the same minor version (`0.4.x` runs on a 0.4 player).
+- **0.4.1** added encoders (`IAudioEncoderFactory`, `IAudioEncoder`, `IInputPlugin.EncoderFactories`). It is additive: plugins built for 0.4.0 keep working unchanged.
 - **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y.
 - Incompatible plugins are listed as *Incompatible* and are not loaded.

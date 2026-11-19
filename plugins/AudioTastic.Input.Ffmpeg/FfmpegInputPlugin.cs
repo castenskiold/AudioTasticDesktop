@@ -10,6 +10,11 @@ public sealed class FfmpegInputPlugin : IInputPlugin
 
     public IReadOnlyList<IAudioSourceFactory> SourceFactories => [_factory];
 
+    private readonly FfmpegEncoderFactory _encoders = new();
+
+    /// <summary>SDK 0.4.1: FLAC and MP3 encoders (cast transcoding, CN-04).</summary>
+    public IReadOnlyList<IAudioEncoderFactory> EncoderFactories => [_encoders];
+
     public void Initialize(IPluginContext context)
     {
         ArgumentNullException.ThrowIfNull(context);

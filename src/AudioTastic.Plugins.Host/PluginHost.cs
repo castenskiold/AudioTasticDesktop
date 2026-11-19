@@ -43,6 +43,7 @@ public sealed class PluginHost : IDisposable
     private List<PluginRecord> _plugins = [];
     private IReadOnlyList<IAudioSourceFactory> _sourceFactories = [];
     private IReadOnlyList<IPlaylistFormat> _playlistFormats = [];
+    private IReadOnlyList<IAudioEncoderFactory> _encoderFactories = [];
     private IPlayerApi? _player;
 
     public PluginHost(AppPaths paths, SettingsStore settings, ILoggerFactory loggerFactory, IEnumerable<string>? builtInFolders = null)
@@ -76,6 +77,12 @@ public sealed class PluginHost : IDisposable
     /// enumeration sees the plugins enabled at that moment.
     /// </summary>
     public IEnumerable<IAudioSourceFactory> LiveSourceFactories => new LiveView<IAudioSourceFactory>(() => SourceFactories);
+
+    /// <summary>SDK 0.4.1: encoders of the enabled input plugins (cast transcoding, conversion), guarded like decoders.</summary>
+    public IReadOnlyList<IAudioEncoderFactory> EncoderFactories => Volatile.Read(ref _encoderFactories);
+
+    /// <summary>A live view of <see cref="EncoderFactories"/>.</summary>
+    public IEnumerable<IAudioEncoderFactory> LiveEncoderFactories => new LiveView<IAudioEncoderFactory>(() => EncoderFactories);
 
     /// <summary>A live view of <see cref="PlaylistFormats"/>.</summary>
     public IEnumerable<IPlaylistFormat> LivePlaylistFormats => new LiveView<IPlaylistFormat>(() => PlaylistFormats);
@@ -487,6 +494,7 @@ public sealed class PluginHost : IDisposable
             .ToArray();
         var factories = new List<IAudioSourceFactory>();
         var formats = new List<IPlaylistFormat>();
+        var encoders = new List<IAudioEncoderFactory>();
         foreach (var record in enabled)
         {
             foreach (var input in record.Instances.OfType<IInputPlugin>())
@@ -495,11 +503,13 @@ public sealed class PluginHost : IDisposable
                 {
                     factories.AddRange(input.SourceFactories.Select(f => new GuardedSourceFactory(f, record, this)));
                     formats.AddRange(input.PlaylistFormats);
+                    encoders.AddRange(input.EncoderFactories.Select(e => new GuardedEncoderFactory(e, record, this)));
                 });
             }
         }
         Volatile.Write(ref _sourceFactories, factories);
         Volatile.Write(ref _playlistFormats, formats);
+        Volatile.Write(ref _encoderFactories, encoders);
         PluginsChanged?.Invoke(this, EventArgs.Empty);
     }
 

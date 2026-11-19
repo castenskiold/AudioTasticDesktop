@@ -22,6 +22,12 @@ public enum StreamFormat
 
     /// <summary>Decoded to 16-bit PCM WAV (stereo or mono): plays everywhere, no encoder, seekable.</summary>
     Wav,
+
+    /// <summary>Transcoded to FLAC on the fly (lossless, about half the size of WAV; keeps 24-bit sources at 24 bit).</summary>
+    Flac,
+
+    /// <summary>Transcoded to MP3 (320 kbps) on the fly, for devices that play nothing better.</summary>
+    Mp3,
 }
 
 /// <summary>A published file: what the device gets at its URL.</summary>
@@ -30,19 +36,24 @@ public sealed record StreamItem(string Path, StreamFormat Format, string Content
 /// <summary>
 /// CN-04: the built-in HTTP server cast devices pull audio from. Each published file gets a random, unguessable URL
 /// (128-bit token) that stops working when it is revoked; only devices on the local network (private, link-local and
-/// loopback addresses) get an answer. Originals and WAV both support range requests, so devices can seek.
-/// Kestrel (ASP.NET Core, MIT), embedded.
+/// loopback addresses) get an answer. Originals and WAV both support range requests, so devices can seek. FLAC and
+/// MP3 are encoded while they are sent (encoders from the input plugins, SDK 0.4.1); they have no fixed size, so a
+/// device seeks by asking for the URL with <c>?t=&lt;seconds&gt;</c>. Kestrel (ASP.NET Core, MIT), embedded.
 /// </summary>
 public sealed class StreamServer : IAsyncDisposable
 {
+    private const int TranscodeChunkFrames = 4096;
+
     private readonly IEnumerable<IAudioSourceFactory> _factories;
+    private readonly IEnumerable<IAudioEncoderFactory> _encoders;
     private readonly ILogger<StreamServer> _logger;
     private readonly ConcurrentDictionary<string, StreamItem> _items = new(StringComparer.Ordinal);
     private WebApplication? _app;
 
-    public StreamServer(IEnumerable<IAudioSourceFactory> factories, ILogger<StreamServer> logger)
+    public StreamServer(IEnumerable<IAudioSourceFactory> factories, IEnumerable<IAudioEncoderFactory> encoders, ILogger<StreamServer> logger)
     {
         _factories = factories;
+        _encoders = encoders;
         _logger = logger;
     }
 
@@ -53,6 +64,14 @@ public sealed class StreamServer : IAsyncDisposable
     public Uri? BaseAddress { get; private set; }
 
     public bool IsRunning => _app is not null;
+
+    /// <summary>The formats this machine can serve (WAV always; FLAC and MP3 when an encoder plugin offers them).</summary>
+    public IReadOnlyCollection<StreamFormat> Formats =>
+    [
+        StreamFormat.Original,
+        StreamFormat.Wav,
+        .. _encoders.SelectMany(e => e.Formats).Distinct().Select(f => f == EncodeFormat.Flac ? StreamFormat.Flac : StreamFormat.Mp3),
+    ];
 
     /// <summary>
     /// Starts listening on all interfaces at <paramref name="port"/> (0 = a free port chosen by the system).
@@ -65,7 +84,11 @@ public sealed class StreamServer : IAsyncDisposable
             return;
         }
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
-        builder.WebHost.UseKestrelCore().ConfigureKestrel(k => k.ListenAnyIP(port));
+        builder.WebHost.UseKestrelCore().ConfigureKestrel(k =>
+        {
+            k.ListenAnyIP(port);
+            k.AllowSynchronousIO = true; // encoders write synchronously to the response, on a worker thread
+        });
         builder.Services.AddRoutingCore();
         var app = builder.Build();
         app.UseRouting();
@@ -78,7 +101,7 @@ public sealed class StreamServer : IAsyncDisposable
             }
             await next(context).ConfigureAwait(false);
         });
-        app.MapMethods("/media/{token}/{name?}", ["GET", "HEAD"], (string token) => Serve(token));
+        app.MapMethods("/media/{token}/{name?}", ["GET", "HEAD"], (HttpContext context, string token) => Serve(context, token));
         await app.StartAsync(cancellationToken).ConfigureAwait(false);
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         Port = new Uri(address.Replace("[::]", "localhost", StringComparison.Ordinal).Replace("0.0.0.0", "localhost", StringComparison.Ordinal)).Port;
@@ -95,9 +118,15 @@ public sealed class StreamServer : IAsyncDisposable
             throw new InvalidOperationException("The streaming server is not running.");
         }
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        var contentType = format == StreamFormat.Wav ? "audio/wav" : ContentTypeOf(path);
+        var (contentType, extension) = format switch
+        {
+            StreamFormat.Wav => ("audio/wav", ".wav"),
+            StreamFormat.Flac => ("audio/flac", ".flac"),
+            StreamFormat.Mp3 => ("audio/mpeg", ".mp3"),
+            _ => (ContentTypeOf(path), Path.GetExtension(path)),
+        };
         _items[token] = new StreamItem(path, format, contentType);
-        var name = format == StreamFormat.Wav ? Path.GetFileNameWithoutExtension(path) + ".wav" : Path.GetFileName(path);
+        var name = Path.GetFileNameWithoutExtension(path) + extension;
         return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
     }
 
@@ -114,7 +143,11 @@ public sealed class StreamServer : IAsyncDisposable
     /// <summary>Stops answering every published URL.</summary>
     public void RevokeAll() => _items.Clear();
 
-    private IResult Serve(string token)
+    /// <summary>The URL of a transcoded stream that starts at <paramref name="start"/> (how a device seeks in FLAC/MP3).</summary>
+    public static Uri StartingAt(Uri url, TimeSpan start) =>
+        new UriBuilder(url) { Query = "t=" + start.TotalSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) }.Uri;
+
+    private IResult Serve(HttpContext context, string token)
     {
         if (!_items.TryGetValue(token, out var item))
         {
@@ -123,6 +156,10 @@ public sealed class StreamServer : IAsyncDisposable
         if (item.Format == StreamFormat.Original)
         {
             return File.Exists(item.Path) ? Results.File(item.Path, item.ContentType, enableRangeProcessing: true) : Results.NotFound();
+        }
+        if (item.Format is StreamFormat.Flac or StreamFormat.Mp3)
+        {
+            return Transcode(context, item);
         }
         var source = OpenSource(item.Path);
         if (source is null)
@@ -135,6 +172,62 @@ public sealed class StreamServer : IAsyncDisposable
             return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType); // live streams are passed on another way (later)
         }
         return Results.Stream(new WavStream(source), item.ContentType, enableRangeProcessing: true);
+    }
+
+    /// <summary>FLAC/MP3: decodes and encodes while sending, from <c>?t=</c> seconds; HEAD only answers the headers.</summary>
+    private IResult Transcode(HttpContext context, StreamItem item)
+    {
+        var wanted = item.Format == StreamFormat.Flac ? EncodeFormat.Flac : EncodeFormat.Mp3;
+        var encoderFactory = _encoders.FirstOrDefault(e => e.Formats.Contains(wanted));
+        if (encoderFactory is null)
+        {
+            return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
+        if (HttpMethods.IsHead(context.Request.Method))
+        {
+            context.Response.ContentType = item.ContentType;
+            return Results.Empty;
+        }
+        var source = OpenSource(item.Path);
+        if (source is null)
+        {
+            return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
+        if (double.TryParse(context.Request.Query["t"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds)
+            && seconds > 0 && source.CanSeek)
+        {
+            var frame = source.Format.TimeToFrames(TimeSpan.FromSeconds(seconds));
+            source.Seek(Math.Min(frame, source.LengthFrames ?? frame));
+        }
+        // 24-bit FLAC for sources with more than 16 bits; MP3 at 320 kbps.
+        var settings = new EncodeSettings(wanted, source.Info.BitsPerSample > 16 ? 24 : 16, 320);
+        return Results.Stream(output => Task.Run(() => Encode(source, encoderFactory, settings, output, item.Path), context.RequestAborted), item.ContentType);
+    }
+
+    private void Encode(IAudioSource source, IAudioEncoderFactory factory, EncodeSettings settings, Stream output, string path)
+    {
+        try
+        {
+            using (source)
+            using (var encoder = factory.Create(settings, source.Format, output))
+            {
+                var buffer = new float[TranscodeChunkFrames * source.Format.Channels];
+                int frames;
+                while ((frames = source.Read(buffer)) > 0)
+                {
+                    encoder.Write(buffer.AsSpan(0, frames * source.Format.Channels));
+                }
+                encoder.Finish();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+        {
+            _logger.LogDebug("The device stopped reading {Path}: {Message}", path, ex.Message); // normal when it seeks or stops
+        }
+        catch (AudioSourceException ex)
+        {
+            _logger.LogWarning(ex, "Could not transcode {Path}", path);
+        }
     }
 
     /// <summary>Opens <paramref name="path"/> with the first decoder plugin that can (as the player does).</summary>

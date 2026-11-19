@@ -42,7 +42,7 @@ When you add a package or native library, add it here in the same pull request.
 
 | Component | License | Used for | Since |
 |---|---|---|---|
-| FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build | LGPL-2.1-or-later | Decoding (from P1), encoding (P11, P13) | P0 pipeline / P1 use |
+| FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build; the Windows and Linux builds include LAME (libmp3lame, LGPL) | LGPL-2.1-or-later | Decoding (from P1); encoding FLAC and MP3 for casting (P11) and conversion (P13) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
 | SoundTouch, SoundTouchDLL | LGPL-2.1 | Time-stretch | P0 pipeline / P6 use |
 | Freeverb design by Jezar at Dreampoint (algorithm only; our own code) | Public domain | Reverb in the DSP chain (EQ-05) | P7 |

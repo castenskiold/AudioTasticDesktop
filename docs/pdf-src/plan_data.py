@@ -382,8 +382,9 @@ PROGRESS = {
                open=["Deferred (Anders): after installing and uninstalling the Windows setup, the media box is empty, media keys don't reach AudioTastic, and every program's query of Windows' media sessions fails (RPC_E_CALL_CANCELED); suspected Windows state, to retest after a sign-out or restart.",
                      "The macOS .dmg (signing fix pending CI) and the Linux AppImage are not tried by hand; tray, media controls, hotkeys, notifications and file types on macOS/Linux are still to build."]),
     "P11": dict(status="In progress", date="", outcome=[
-                        "Step 1 (19 Nov 2026): CN-04 streaming server on Kestrel with random per-file URLs, local-network-only answers and range requests; files a device cannot play are served as 16-bit WAV (seekable, bit-exact for 16-bit sources). FLAC/MP3 transcoding next. Test devices: Anders has a Samsung smart TV (DLNA) and a Chromecast; a Linux VM for AirPlay comes later."],
-               open=[]),
+                        "Step 1 (19 Nov 2026): CN-04 streaming server on Kestrel with random per-file URLs, local-network-only answers and range requests; files a device cannot play are served as 16-bit WAV (seekable, bit-exact for 16-bit sources). Test devices: Anders has a Samsung smart TV (DLNA) and a Chromecast; a Linux VM for AirPlay comes later.",
+                        "Step 2 (19 Nov 2026): FLAC (bit-exact, 16/24-bit) and MP3 transcoding on the fly through a new SDK encoder interface (SDK 0.4.1, offered by the FFmpeg plugin), seeking by start time; the test suite now runs at most 4 test projects at once (timing tests failed under full parallel load)."],
+               open=["MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

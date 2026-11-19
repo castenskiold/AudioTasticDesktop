@@ -54,7 +54,9 @@ jobs:
       - run: dotnet restore AudioTastic.slnx
       - run: dotnet build AudioTastic.slnx -c Release --no-restore
       # xunit v3 on Microsoft.Testing.Platform (global.json "test.runner").
-      - run: dotnet test AudioTastic.slnx -c Release --no-build --results-directory TestResults --report-xunit-trx
+      # At most 4 test projects at once: the timing tests (DSP load, analysis priority, 100k playlist) measure time and
+      # failed when every project ran in parallel with the CPU-heavy decoder/encoder tests.
+      - run: dotnet test AudioTastic.slnx -c Release --no-build --max-parallel-test-modules 4 --results-directory TestResults --report-xunit-trx
       - uses: actions/upload-artifact@v4
         if: always()
         with:
