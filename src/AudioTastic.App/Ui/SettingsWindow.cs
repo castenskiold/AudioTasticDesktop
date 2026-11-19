@@ -511,7 +511,7 @@ public sealed class SettingsWindow : Window
             }
         };
         Row(panel, "Analysis threads", threads,
-            "Background analysis of waveforms and loudness (and BPM later) runs at low priority on this many threads.");
+            "Background analysis of waveforms, loudness and beats runs at low priority on this many threads.");
 
         var open = new Button { Content = "Open data folder" };
         open.Click += (_, _) => _platform.OpenFolder(_paths.Root);

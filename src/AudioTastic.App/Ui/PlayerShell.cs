@@ -558,6 +558,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     {
         var toMini = !_mini!.IsVisible;
         var (show, hide) = toMini ? (_mini, _main!) : (_main!, _mini);
+        if (toMini)
+        {
+            // Recorded before the main window hides: the docked windows are owned by it, so hiding it hides them too
+            // and they would never come back when expanding.
+            _playlistBeforeMini = _playlist!.IsVisible;
+            _equalizerBeforeMini = _equalizer!.IsVisible;
+            _artBeforeMini = _artWindow!.IsVisible;
+        }
         SavePositions();
         show.Show();
         show.Activate();
@@ -565,12 +573,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         // UI-05: other windows are hidden in the mini player and come back when expanding.
         if (toMini)
         {
-            _playlistBeforeMini = _playlist!.IsVisible;
-            _equalizerBeforeMini = _equalizer!.IsVisible;
-            _artBeforeMini = _artWindow!.IsVisible;
-            _playlist.Hide();
-            _equalizer.Hide();
-            _artWindow.Hide();
+            _playlist!.Hide();
+            _equalizer!.Hide();
+            _artWindow!.Hide();
         }
         else
         {
