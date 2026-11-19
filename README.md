@@ -87,6 +87,31 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 | `.vscode/` | VS Code tasks, launch configurations and recommended extensions |
 | `.github/workflows/` | CI workflow (build/test on 3 OSes, publish 6 RIDs, native libraries) |
 
-## Licence
+## License
 
-AudioTastic is free software under the MIT licence (`LICENSE`), copyright Big Apps ApS. Third-party components keep their own licences; see `THIRD-PARTY-NOTICES.md`.
+AudioTastic is free software under the MIT license (`LICENSE`), copyright Big Apps ApS. Third-party components keep their own licenses; see `THIRD-PARTY-NOTICES.md`.
+
+## Downloads
+
+Releases are on the [Releases page](https://github.com/castenskiold/AudioTasticDesktop/releases): archives for Windows, macOS and Linux (x64 and ARM64) and the optional OptimFROG plugin. Each release's notes say what was tested.
+
+## Code signing policy
+
+Windows releases are to be signed through the SignPath Foundation (application in progress; until then releases are unsigned).
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [Big Apps ApS](https://github.com/castenskiold) (repository owner)
+- **Approvers:** [Big Apps ApS](https://github.com/castenskiold)
+
+Only release builds made by this repository's GitHub Actions workflow from its own source code are signed, and every signing request is approved by hand. The optional OptimFROG plugin (closed-source freeware libraries) and the GeneralUser GS SoundFont are separate downloads and are not part of the signed package.
+
+## Privacy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Specifically, it connects to the internet only when you:
+
+- play an internet radio stream or URL you opened;
+- click *Look up online…* in the tag editor or playlist (sends the track's title, artist and length to MusicBrainz, and fetches covers from the Cover Art Archive);
+- click *Download GeneralUser GS* in the MIDI plugin's settings (downloads the SoundFont from this repository's releases).
+
+It sends no telemetry and has no automatic updates. Settings, playlists and caches stay on your computer.

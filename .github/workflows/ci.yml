@@ -7,6 +7,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # A version tag (v0.9.0) also builds and publishes a GitHub release (release job below).
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -58,6 +60,13 @@ jobs:
         with:
           name: test-results-${{ matrix.os }}
           path: TestResults
+      # FM-06: the OptimFROG plugin is a separate download (closed-source libraries are not part of the app).
+      - uses: actions/upload-artifact@v4
+        if: ${{ matrix.os == 'windows-latest' }}
+        with:
+          name: optimfrog-plugin
+          path: artifacts/atplugins/Release/AudioTastic.Input.OptimFrog.atplugin
+          if-no-files-found: error
 
   publish:
     name: Publish ${{ matrix.rid }}
@@ -197,3 +206,49 @@ jobs:
         with:
           name: test-media
           path: tests/media/generated
+
+  release:
+    name: Release
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: [publish, build-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: AudioTastic-*
+      - uses: actions/download-artifact@v4
+        with:
+          name: optimfrog-plugin
+          path: dist
+      - name: Pack and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # The tag must match the version in Directory.Build.props.
+          grep -q "<Version>${version}</Version>" Directory.Build.props || { echo "Tag $GITHUB_REF_NAME does not match Directory.Build.props"; exit 1; }
+          test -f "docs/releases/${version}.md" || { echo "docs/releases/${version}.md is missing"; exit 1; }
+          cd dist
+          files=()
+          for rid in win-x64 win-arm64 osx-arm64 osx-x64 linux-x64 linux-arm64; do
+            folder="AudioTastic-${rid}"
+            name="AudioTastic-${version}-${rid}"
+            mv "$folder" "$name"
+            if [[ "$rid" == win-* ]]; then
+              zip -qr "${name}.zip" "$name"
+              files+=("${name}.zip")
+            else
+              # Artifacts lose the execute bit; tar keeps it for the app's launcher.
+              chmod +x "$name/AudioTastic"
+              tar -czf "${name}.tar.gz" "$name"
+              files+=("${name}.tar.gz")
+            fi
+          done
+          files+=(AudioTastic.Input.OptimFrog.atplugin)
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
+            --title "AudioTastic ${version}" --notes-file "../docs/releases/${version}.md"

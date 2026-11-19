@@ -13,8 +13,8 @@
     <Product>AudioTastic Desktop</Product>
     <Authors>Anders</Authors>
     <Copyright>Copyright © AudioTastic</Copyright>
-    <Version>0.1.0</Version>
-    <InformationalVersion>0.1.0-p0</InformationalVersion>
+    <Version>0.9.0</Version>
+    <InformationalVersion>0.9.0</InformationalVersion>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
   </PropertyGroup>
