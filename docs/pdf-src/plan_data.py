@@ -380,4 +380,5 @@ PREREQ_STATUS = {
     "A DoP-capable DAC (optional; otherwise DoP is verified by inspecting output data)": "Not needed: DoP verified by inspecting the output data.",
     ".NET SDK (current LTS) on all build machines": "Done on Windows (.NET SDK 10.0.300).",
     "macOS machine or runner for osx builds": "Pending (CI runner once the repository exists).",
+    "Apple Developer ID for signing/notarising the macOS app (needed for notifications and Gatekeeper; developer cost only, free for end users)": "Deferred (Anders, 19 Nov 2026): needed once macOS builds start.",
 }
