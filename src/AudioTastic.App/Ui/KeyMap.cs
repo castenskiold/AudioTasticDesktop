@@ -34,7 +34,7 @@ public static class KeyMap
         [(Key.K, KeyModifiers.Control | KeyModifiers.Shift)] = "visPlugin",
         [(Key.E, KeyModifiers.Control)] = "editTags", // MD-01
         [(Key.L, KeyModifiers.Alt)] = "artWindow", // MD-02: Art & Lyrics window
-        // Reserved for later phases: Alt+3 file info.
+        [(Key.D3, KeyModifiers.Alt)] = "fileInfo", // MD-05 (Winamp's Alt+3)
         [(Key.G, KeyModifiers.Alt)] = "equalizer",
         [(Key.E, KeyModifiers.Alt)] = "playlist",
     };

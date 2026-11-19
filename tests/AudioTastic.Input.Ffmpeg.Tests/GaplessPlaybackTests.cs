@@ -12,6 +12,7 @@ namespace AudioTastic.Input.Ffmpeg.Tests;
 /// P6 exit criterion (PB-01): gapless playback for MP3, AAC, FLAC, Opus (and Vorbis) pairs and CUE tracks. The
 /// engine's output must be exactly the two parts decoded on their own and joined: no gap, no overlap, no click.
 /// </summary>
+[Collection(nameof(RealTimeTests))] // plays in real time against a deadline: not alongside CPU-heavy tests
 public sealed class GaplessPlaybackTests : IDisposable
 {
     private readonly FakeAudioOutput _output = new() { Capture = true };
@@ -94,3 +95,7 @@ public sealed class GaplessPlaybackTests : IDisposable
         return Signals.ReadAll(source);
     }
 }
+
+/// <summary>Tests that play through the engine in real time; they run on their own so a busy CPU cannot starve them.</summary>
+[CollectionDefinition(nameof(RealTimeTests), DisableParallelization = true)]
+public sealed class RealTimeTests;

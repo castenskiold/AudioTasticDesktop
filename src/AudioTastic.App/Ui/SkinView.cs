@@ -302,6 +302,8 @@ public sealed class SkinView : Border, IDisposable
             case "indicators":
             {
                 var bar = new IndicatorBar(skin, e);
+                bar.DoubleTapped += (_, _) => _host.Execute("fileInfo", bar); // MD-05
+                ToolTip.SetTip(bar, "Double-click: file info (Alt+3)");
                 IReadOnlyList<string>? shownFormat = null;
                 IReadOnlyList<string>? shownState = null;
                 var stateRow = e.Bind == "state";

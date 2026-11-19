@@ -29,6 +29,7 @@ public sealed class PlaylistController : IDisposable
     private readonly Analysis.BeatInfoService? _beats;
     private readonly TagWriter? _writer;
     private readonly TagWriteService? _writes;
+    private readonly FileInfoReader? _info;
 
     /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
     public string? AnalysisStatus => _analysis?.Status is { Total: > 0 } s ? $"Analysing {s.Done + 1}/{s.Total}" : null;
@@ -39,8 +40,9 @@ public sealed class PlaylistController : IDisposable
 
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
         IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
-        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null)
+        Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null, FileInfoReader? info = null)
     {
+        _info = info;
         _beats = beats;
         _writer = writer;
         _writes = writes;
@@ -351,7 +353,7 @@ public sealed class PlaylistController : IDisposable
             Item("Remove from queue", () => Unqueue(selection), queued),
             Item(_engine.StopAfterCurrent && isPlaying ? "✓ Stop after this track" : "Stop after this track",
                 () => StopAfterCurrentRequested?.Invoke(this, EventArgs.Empty), isPlaying),
-            Item("File info…", null),
+            Item("File info…  Alt+3", () => ShowFileInfo(source, current: false), _info is not null && first is not null),
             Item("Edit tags…  Ctrl+E", () => EditTags(source), _writes is not null && selection.Any(e => !e.IsUrl)),
             Item("Look up online…", null),
             Item("Convert…", null),
@@ -432,6 +434,92 @@ public sealed class PlaylistController : IDisposable
                 ? "Tags saved; the playing track's tags are written when it stops or the next track starts"
                 : outcome.Written == 1 ? "Tags saved" : $"Tags saved to {outcome.Written} files");
         });
+    }
+
+    /// <summary>
+    /// MD-05: File info… (Alt+3) for the first selected entry, or (<paramref name="current"/>, the main window and the
+    /// format badges) the playing track: file and audio details, loudness and tempo, and all tags.
+    /// </summary>
+    public void ShowFileInfo(Control source, bool current)
+    {
+        var selected = Selection is { Count: > 0 } selection ? selection[0] : null;
+        var entry = current ? _engine.CurrentEntry ?? selected : selected ?? _engine.CurrentEntry;
+        if (_info is null || entry is null || TopLevel.GetTopLevel(source) is not Window owner)
+        {
+            return;
+        }
+        var info = _info;
+        Run(async () =>
+        {
+            var (details, tags) = await Task.Run(() => (info.Read(entry.Path), entry.IsUrl ? null : _tags.Read(entry.Path)));
+            if (details is null)
+            {
+                Message?.Invoke(this, $"No information: {entry.DisplayName} cannot be opened.");
+                return;
+            }
+            var file = details.File.ToList();
+            if (entry is { Start: { } start })
+            {
+                file.Add(new InfoRow("CUE track", $"{FileInfoReader.Time(start)} – {(entry.End is { } end ? FileInfoReader.Time(end) : "end")}"));
+            }
+            var heading = entry.Tags?.DisplayName ?? Path.GetFileName(entry.Path);
+            await new FileInfoWindow(heading,
+            [
+                ("File", file),
+                ("Audio", details.Audio),
+                ("Loudness and tempo", LoudnessAndTempo(entry, tags)),
+                ("Tags", details.Tags),
+            ]).ShowDialog(owner);
+        });
+    }
+
+    /// <summary>MD-05: ReplayGain from the tags and from our own analysis (PB-03), and the beat analysis (AN-02).</summary>
+    private List<InfoRow> LoudnessAndTempo(PlaylistEntry entry, Sdk.Metadata.TrackTags? tags)
+    {
+        static string Db(double value) => value.ToString("+0.00 dB;-0.00 dB;0.00 dB", System.Globalization.CultureInfo.InvariantCulture);
+        static string Peak(double value) => value.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture);
+        var rows = new List<InfoRow>();
+        if (tags?.ReplayGain is { } rg)
+        {
+            if (rg.TrackGainDb is { } tg)
+            {
+                rows.Add(new("ReplayGain track", rg.TrackPeak is { } tp ? $"{Db(tg)}, peak {Peak(tp)}" : Db(tg)));
+            }
+            if (rg.AlbumGainDb is { } ag)
+            {
+                rows.Add(new("ReplayGain album", rg.AlbumPeak is { } ap ? $"{Db(ag)}, peak {Peak(ap)}" : Db(ag)));
+            }
+        }
+        else if (!entry.IsUrl)
+        {
+            rows.Add(new("ReplayGain tags", "none"));
+        }
+        if (entry.IsUrl)
+        {
+            return rows;
+        }
+        if (_analysis?.TryGetLoudness(Analysis.AnalysisTarget.For(entry)) is { } loudness)
+        {
+            var lufs = double.IsFinite(loudness.IntegratedLufs) ? loudness.IntegratedLufs.ToString("0.0 'LUFS'", System.Globalization.CultureInfo.InvariantCulture) : "silent";
+            var peakDb = loudness.SamplePeak > 0 ? (20 * Math.Log10(loudness.SamplePeak)).ToString("0.0 'dBFS'", System.Globalization.CultureInfo.InvariantCulture) : "silent";
+            rows.Add(new("Loudness (analysed)", $"{lufs}, track gain {Db(loudness.GainDb)}, sample peak {peakDb}"));
+        }
+        else if (_analysis is not null)
+        {
+            rows.Add(new("Loudness (analysed)", "not analysed yet"));
+        }
+        if (_beats?.TryGet(entry) is { } beats)
+        {
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            rows.Add(new("BPM (analysed)", $"{beats.Bpm.ToString("0.0", c)} (confidence {beats.Confidence.ToString("0.00", c)})"));
+            rows.Add(new("Beat", $"{FileInfoReader.Time(TimeSpan.FromSeconds(beats.BeatStart))} – {FileInfoReader.Time(TimeSpan.FromSeconds(beats.BeatEnd))}"
+                + (beats.Breaks.Count > 0 ? $", {beats.Breaks.Count} break{(beats.Breaks.Count == 1 ? "" : "s")}" : string.Empty)));
+        }
+        else if (_beats is not null)
+        {
+            rows.Add(new("BPM (analysed)", "not analysed yet"));
+        }
+        return rows;
     }
 
     private void RetryTagWrites()
