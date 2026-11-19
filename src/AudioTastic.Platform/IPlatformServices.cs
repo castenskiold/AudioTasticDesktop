@@ -25,6 +25,9 @@ public interface IPlatformServices
     /// <summary>SI-01: system-wide hotkeys.</summary>
     IHotkeyService Hotkeys { get; }
 
+    /// <summary>SI-03 [Windows only]: taskbar thumbnail buttons and progress.</summary>
+    ITaskbar Taskbar { get; }
+
     /// <summary>
     /// SI-06: called by a second start before it hands its files to the running player, so that the player may
     /// bring its window to the front (Windows only lets the process the user just started do that).

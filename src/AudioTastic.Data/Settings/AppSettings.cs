@@ -321,6 +321,9 @@ public sealed class SystemIntegrationSettings
     /// <summary>SI-01: system-wide hotkeys on/off (Anders asked for the switch).</summary>
     public bool GlobalHotkeys { get; set; } = true;
 
+    /// <summary>SI-03 [Windows only]: playback progress on the taskbar button.</summary>
+    public bool TaskbarProgress { get; set; } = true;
+
     /// <summary>SI-01: action → hotkey text such as "Ctrl+Alt+Home" (actions as in PlayerShell.Execute; empty = none).</summary>
     public Dictionary<string, string> Hotkeys { get; set; } = DefaultHotkeys();
 

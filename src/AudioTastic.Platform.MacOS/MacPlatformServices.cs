@@ -21,6 +21,9 @@ public sealed class MacPlatformServices : IPlatformServices
     /// <summary>SI-01 for this OS comes later.</summary>
     public IHotkeyService Hotkeys => NoHotkeys.Instance;
 
+    /// <summary>SI-03 is Windows only (a macOS Dock menu may come later).</summary>
+    public ITaskbar Taskbar => NoTaskbar.Instance;
+
     public void AllowOtherProcessToActivate()
     {
     }

@@ -182,6 +182,13 @@ public sealed class SettingsWindow : Window
             HotkeysSection(panel, si);
         }
 
+        if (_platform.Taskbar.IsSupported)
+        {
+            Heading(panel, "Taskbar");
+            Check(panel, "Show playback progress on the taskbar button (previous / play / next are always under the taskbar preview)",
+                si.TaskbarProgress, v => Update(s => s.TaskbarProgress = v));
+        }
+
         Heading(panel, "Tray");
         Check(panel, "Show the tray icon (player menu, sleep timer; click it to show or hide the player)", si.TrayIcon, v =>
         {
@@ -201,7 +208,7 @@ public sealed class SettingsWindow : Window
         Check(trayOptions, "Minimise to the tray", si.MinimiseToTray, v => Update(s => s.MinimiseToTray = v));
         Check(trayOptions, "Close to the tray (exit from the tray menu or Main menu › Exit)", si.CloseToTray, v => Update(s => s.CloseToTray = v));
         panel.Children.Add(trayOptions);
-        Note(panel, "Taskbar buttons and notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+        Note(panel, "Notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
     }
 
     /// <summary>

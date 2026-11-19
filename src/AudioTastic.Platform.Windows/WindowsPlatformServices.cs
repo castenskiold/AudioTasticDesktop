@@ -19,6 +19,8 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
 
     public IHotkeyService Hotkeys { get; } = new WindowsHotkeys();
 
+    public ITaskbar Taskbar { get; } = new WindowsTaskbar();
+
 #if WINDOWS
     public IMediaControls MediaControls { get; } =
         OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763) ? new WindowsMediaControls() : NoMediaControls.Instance;
