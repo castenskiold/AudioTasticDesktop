@@ -77,6 +77,7 @@ public sealed class SsdpBrowser(HttpClient http, ILogger logger)
             if (key is not null && !details.ContainsKey(key))
             {
                 details[key] = new Uri(baseUri, control).ToString();
+                details[key + "Type"] = type.Trim();
             }
         }
         if (!details.ContainsKey("avTransport"))

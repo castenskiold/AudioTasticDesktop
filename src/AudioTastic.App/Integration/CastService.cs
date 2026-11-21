@@ -1,5 +1,6 @@
 using AudioTastic.Casting;
 using AudioTastic.Casting.Chromecast;
+using AudioTastic.Casting.Dlna;
 using AudioTastic.Casting.Discovery;
 using AudioTastic.Core.Playback;
 using AudioTastic.Data.Settings;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace AudioTastic.App.Integration;
 
 /// <summary>
-/// CN-01 / CN-05: casting in the player. Finds devices (DeviceDiscovery), starts the streaming server on first use
+/// CN-01 / CN-02 / CN-05: casting in the player. Finds devices (DeviceDiscovery), starts the streaming server on first use
 /// (CN-04), connects to the chosen device and hands playback to it (PlaybackEngine.SetRemoteAsync), and back to this
 /// computer. When the device goes away the engine continues here, paused, and this service lets go of the device.
 /// </summary>
@@ -26,7 +27,7 @@ public sealed class CastService : IDisposable
     private readonly DeviceDiscovery _discovery;
     private readonly SemaphoreSlim _switching = new(1, 1);
     private StreamServer? _server;
-    private ChromecastRemote? _remote;
+    private IAsyncDisposable? _remote;
 
     public CastService(PlaybackEngine engine, PluginHost plugins, TagService tags, ArtService art, SettingsStore settings, ILoggerFactory loggers)
     {
@@ -58,8 +59,8 @@ public sealed class CastService : IDisposable
         return devices;
     }
 
-    /// <summary>True for the device kinds this version can cast to (Chromecast now; DLNA and AirPlay follow).</summary>
-    public static bool CanCastTo(CastDevice device) => device.Kind == CastDeviceKind.Chromecast;
+    /// <summary>True for the device kinds this version can cast to (Chromecast and DLNA; AirPlay follows).</summary>
+    public static bool CanCastTo(CastDevice device) => device.Kind is CastDeviceKind.Chromecast or CastDeviceKind.Dlna;
 
     /// <summary>Moves playback to <paramref name="device"/> at the current track and position.</summary>
     public async Task CastToAsync(CastDevice device, CancellationToken cancellationToken = default)
@@ -72,10 +73,13 @@ public sealed class CastService : IDisposable
         try
         {
             var server = await EnsureServerAsync(cancellationToken).ConfigureAwait(false);
-            var remote = await ChromecastRemote.ConnectAsync(device, server, Extras, _loggers.CreateLogger<ChromecastRemote>(), cancellationToken)
-                .ConfigureAwait(false);
+            IRemotePlayer remote = device.Kind == CastDeviceKind.Dlna
+                ? await DlnaRemote.ConnectAsync(device, server, Extras, _engine.Volume, _loggers.CreateLogger<DlnaRemote>(), cancellationToken)
+                    .ConfigureAwait(false)
+                : await ChromecastRemote.ConnectAsync(device, server, Extras, _loggers.CreateLogger<ChromecastRemote>(), cancellationToken)
+                    .ConfigureAwait(false);
             var previous = _remote;
-            _remote = remote;
+            _remote = (IAsyncDisposable)remote;
             Current = device;
             await _engine.SetRemoteAsync(remote).ConfigureAwait(false);
             if (previous is not null)

@@ -94,11 +94,11 @@ public sealed class ChromecastSession : IAsyncDisposable
         }
         if (track.Image is not null)
         {
-            metadata["images"] = new JsonArray(new JsonObject { ["url"] = track.Image.ToString() });
+            metadata["images"] = new JsonArray(new JsonObject { ["url"] = track.Image.AbsoluteUri });
         }
         var media = new JsonObject
         {
-            ["contentId"] = track.Url.ToString(),
+            ["contentId"] = track.Url.AbsoluteUri, // escaped: ToString() would unescape spaces
             ["contentType"] = track.ContentType,
             ["streamType"] = live ? "LIVE" : "BUFFERED",
             ["metadata"] = metadata,

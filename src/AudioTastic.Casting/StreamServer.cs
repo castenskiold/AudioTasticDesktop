@@ -115,22 +115,25 @@ public sealed class StreamServer : IAsyncDisposable
         _logger.LogInformation("Streaming server listening on port {Port} ({Address})", Port, BaseAddress);
     }
 
-    /// <summary>Publishes <paramref name="path"/> and returns its URL. The URL ends in a readable file name for devices that show it.</summary>
-    public Uri Publish(string path, StreamFormat format)
+    /// <summary>
+    /// Publishes <paramref name="path"/> and returns its URL. The URL ends in a readable file name for devices that show
+    /// it. <paramref name="contentType"/> replaces the usual MIME type (DLNA renderers may list e.g. audio/x-flac).
+    /// </summary>
+    public Uri Publish(string path, StreamFormat format, string? contentType = null)
     {
         if (BaseAddress is null)
         {
             throw new InvalidOperationException("The streaming server is not running.");
         }
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        var (contentType, extension) = format switch
+        var (usualType, extension) = format switch
         {
             StreamFormat.Wav => ("audio/wav", ".wav"),
             StreamFormat.Flac => ("audio/flac", ".flac"),
             StreamFormat.Mp3 => ("audio/mpeg", ".mp3"),
             _ => (ContentTypeOf(path), Path.GetExtension(path)),
         };
-        _items[token] = new StreamItem(path, format, contentType);
+        _items[token] = new StreamItem(path, format, contentType ?? usualType);
         var name = Path.GetFileNameWithoutExtension(path) + extension;
         return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
     }
@@ -170,6 +173,7 @@ public sealed class StreamServer : IAsyncDisposable
         {
             return Results.NotFound();
         }
+        AddDlnaHeaders(context.Response.Headers, item);
         if (item.Data is { } data)
         {
             return Results.Bytes(data, item.ContentType);
@@ -194,6 +198,26 @@ public sealed class StreamServer : IAsyncDisposable
         }
         return Results.Stream(new WavStream(source), item.ContentType, enableRangeProcessing: true);
     }
+
+    /// <summary>
+    /// CN-02: the DLNA headers renderers ask for (getcontentFeatures.dlna.org) and some need before they play: streaming
+    /// transfer mode, and content features saying whether byte ranges work (originals and WAV) or the stream is
+    /// converted (FLAC/MP3 made on the fly, seeking by restarting).
+    /// </summary>
+    public static void AddDlnaHeaders(IHeaderDictionary headers, StreamItem item)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(item);
+        var image = item.Data is not null;
+        headers["transferMode.dlna.org"] = image ? "Interactive" : "Streaming";
+        headers["contentFeatures.dlna.org"] = ContentFeatures(item.Format, image);
+    }
+
+    /// <summary>The DLNA fourth field of a protocolInfo: operations (byte ranges or none), conversion flag, flags.</summary>
+    public static string ContentFeatures(StreamFormat format, bool image = false) =>
+        image ? "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00D00000000000000000000000000000"
+        : format is StreamFormat.Flac or StreamFormat.Mp3 ? "DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000"
+        : $"DLNA.ORG_OP=01;DLNA.ORG_CI={(format == StreamFormat.Original ? 0 : 1)};DLNA.ORG_FLAGS=01700000000000000000000000000000";
 
     /// <summary>FLAC/MP3: decodes and encodes while sending, from <c>?t=</c> seconds; HEAD only answers the headers.</summary>
     private IResult Transcode(HttpContext context, StreamItem item)

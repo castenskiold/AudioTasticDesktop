@@ -442,7 +442,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             var supported = device is null || Integration.CastService.CanCastTo(device);
             var item = new MenuItem
             {
-                Header = supported ? label : $"{label}  (DLNA: coming next)",
+                Header = supported ? label : $"{label}  (coming later)",
                 ToggleType = MenuItemToggleType.Radio,
                 IsChecked = device is null ? _cast.Current is null : _cast.Current?.Id == device.Id,
                 IsEnabled = supported,

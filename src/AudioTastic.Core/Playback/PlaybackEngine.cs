@@ -168,6 +168,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         : _remote is { } remote ? remote.Position : _sourceFormat.FramesToTime(_deck.PositionFrames);
 
     private IRemotePlayer? _remote;
+    private int _remoteFailures; // tracks the device refused in a row
 
     /// <summary>CN-01 / CN-02: the cast device playing instead of the local output, or null.</summary>
     public IRemotePlayer? Remote => _remote;
@@ -209,6 +210,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _graph.Paused = false;
         }
         _remote = remote;
+        _remoteFailures = 0;
         if (remote is not null)
         {
             remote.Lost += OnRemoteLost;
@@ -800,9 +802,24 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 catch (Exception ex)
 #pragma warning restore CA1031
                 {
-                    ReportError(path, ex is IOException or InvalidOperationException ? ex : new IOException(ex.Message, ex));
+                    ReportError(path, new IOException($"{remote.Name} could not play this track: {ex.Message}", ex));
+                    if (++_remoteFailures >= 2)
+                    {
+                        // CN-01/02: a device that refuses two tracks in a row is given up on: back to this computer,
+                        // paused at the track that was asked for, rather than skipping through the playlist.
+                        _logger.LogWarning("{Device} refused two tracks in a row; playback returns to this computer, paused", remote.Name);
+                        remote.Lost -= OnRemoteLost;
+                        _remote = null;
+                        _remoteFailures = 0;
+                        Raise(RemoteChanged, EventArgs.Empty);
+                        _startAt = startAt;
+                        _startPaused = true;
+                        await PlayIndexCoreAsync(index).ConfigureAwait(false);
+                        return;
+                    }
                     continue;
                 }
+                _remoteFailures = 0;
                 _index = i;
                 _entry = entry;
                 _track = track;

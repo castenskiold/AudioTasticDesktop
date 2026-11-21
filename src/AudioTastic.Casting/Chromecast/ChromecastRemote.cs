@@ -5,9 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.Casting.Chromecast;
 
-/// <summary>Album and cover for the track shown on the TV (read by the app; optional).</summary>
-public sealed record CastExtras(string? Album, byte[]? Cover, string? CoverType);
-
 /// <summary>
 /// CN-01: the engine's remote player for a Chromecast. Each track is published on the streaming server (CN-04) as
 /// the file itself when the Chromecast plays its codec (MP3, AAC, FLAC, Opus, Vorbis, 16-bit WAV), otherwise

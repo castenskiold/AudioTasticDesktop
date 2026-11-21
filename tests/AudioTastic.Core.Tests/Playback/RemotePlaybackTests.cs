@@ -113,6 +113,23 @@ public sealed class RemotePlaybackTests : IDisposable
         Assert.InRange(_engine.Position.TotalSeconds, 6.9, 7.5);
     }
 
+    [Fact]
+    public async Task A_device_that_refuses_two_tracks_in_a_row_is_given_up_on()
+    {
+        var list = new Playlist("l", [Entry("a"), Entry("b"), Entry("c")]);
+        await _engine.PlayAsync(list, list.Entries[0]);
+        await Wait.UntilAsync(() => _engine.Position > TimeSpan.FromMilliseconds(300));
+        _remote.Refuse = true;
+
+        await _engine.SetRemoteAsync(_remote);
+
+        Assert.Equal(2, _remote.Loads.Count); // a, then b, both refused; c is never tried there
+        Assert.Null(_engine.Remote);
+        Assert.Equal(PlaybackState.Paused, _engine.State);
+        Assert.Equal("a", _engine.CurrentTrack!.Title); // back on this computer at the track asked for
+        Assert.InRange(_engine.Position.TotalSeconds, 0.25, 3);
+    }
+
     private sealed class FakeRemote : IRemotePlayer
     {
         public List<(PlaylistEntry Entry, TimeSpan Start, bool Paused)> Loads { get; } = [];
@@ -133,9 +150,15 @@ public sealed class RemotePlaybackTests : IDisposable
 
         public void RaiseLost() => Lost?.Invoke(this, EventArgs.Empty);
 
+        public bool Refuse { get; set; }
+
         public Task LoadAsync(PlaylistEntry entry, TrackInfo track, TimeSpan start, bool paused)
         {
             Loads.Add((entry, start, paused));
+            if (Refuse)
+            {
+                throw new IOException("The device refused SetAVTransportURI (UPnP error 716).");
+            }
             Position = start;
             HasEnded = false;
             return Task.CompletedTask;
