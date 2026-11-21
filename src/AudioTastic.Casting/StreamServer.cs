@@ -30,8 +30,11 @@ public enum StreamFormat
     Mp3,
 }
 
-/// <summary>A published file: what the device gets at its URL.</summary>
-public sealed record StreamItem(string Path, StreamFormat Format, string ContentType);
+/// <summary>A published file (or, with <see cref="Data"/>, an in-memory image such as a cover): what the device gets at its URL.</summary>
+public sealed record StreamItem(string Path, StreamFormat Format, string ContentType)
+{
+    public byte[]? Data { get; init; }
+}
 
 /// <summary>
 /// CN-04: the built-in HTTP server cast devices pull audio from. Each published file gets a random, unguessable URL
@@ -132,6 +135,18 @@ public sealed class StreamServer : IAsyncDisposable
         return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
     }
 
+    /// <summary>Publishes bytes held in memory (a cover image for the TV) under a random URL.</summary>
+    public Uri PublishData(byte[] data, string contentType, string name)
+    {
+        if (BaseAddress is null)
+        {
+            throw new InvalidOperationException("The streaming server is not running.");
+        }
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        _items[token] = new StreamItem(name, StreamFormat.Original, contentType) { Data = data };
+        return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
+    }
+
     /// <summary>Stops answering <paramref name="url"/> (the token in it).</summary>
     public void Revoke(Uri url)
     {
@@ -154,6 +169,10 @@ public sealed class StreamServer : IAsyncDisposable
         if (!_items.TryGetValue(token, out var item))
         {
             return Results.NotFound();
+        }
+        if (item.Data is { } data)
+        {
+            return Results.Bytes(data, item.ContentType);
         }
         if (item.Format == StreamFormat.Original)
         {

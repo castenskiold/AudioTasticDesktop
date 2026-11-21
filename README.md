@@ -137,4 +137,6 @@ This program will not transfer any information to other networked systems unless
 - click *Look up online…* in the tag editor or playlist (sends the track's title, artist and length to MusicBrainz, and fetches covers from the Cover Art Archive);
 - click *Download GeneralUser GS* in the MIDI plugin's settings (downloads the SoundFont from this repository's releases).
 
+Casting stays on your local network: the device picker looks for cast devices there (mDNS and SSDP), and while you cast, a built-in web server sends the playing track to the chosen device and answers only local-network addresses.
+
 It sends no telemetry and has no automatic updates. Settings, playlists and caches stay on your computer.

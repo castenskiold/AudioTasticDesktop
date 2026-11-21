@@ -63,6 +63,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     private TrayController? _tray;
     private readonly Integration.MediaControlsService _mediaControls;
     private readonly Integration.TaskbarService _taskbar;
+    private readonly Integration.CastService _cast;
 
     /// <summary>SI-07: track-change notifications (the settings page asks whether this system has them).</summary>
     public Integration.NotificationService Notifications { get; }
@@ -80,8 +81,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     public PlayerShell(PlaybackEngine engine, SettingsStore settings, SkinManager skins, CrashReporter crashReporter,
         IPlatformServices platform, StartupOptions options, AppPaths paths, PlaylistController playlists, PluginHost plugins,
         AnalysisCoordinator analysis, SleepTimerService sleep, EqualizerController equalizer, ArtCoordinator art, LyricsCoordinator lyrics, Integration.InstanceInbox inbox,
-        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, Integration.HotkeyManager hotkeys, Integration.TaskbarService taskbar, Integration.NotificationService notifications, ILoggerFactory loggerFactory)
+        Integration.ShellIntegrationService shellIntegration, Integration.MediaControlsService mediaControls, Integration.HotkeyManager hotkeys, Integration.TaskbarService taskbar, Integration.NotificationService notifications, Integration.CastService cast, ILoggerFactory loggerFactory)
     {
+        _cast = cast;
+        cast.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            _main?.Refresh();
+            _mini?.Refresh();
+        });
         Notifications = notifications;
         _taskbar = taskbar;
         Hotkeys = hotkeys;
@@ -302,6 +309,9 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             case "hide" when window == _artWindow: SetArtVisible(false); break;
             case "artWindow": SetArtVisible(!_artWindow!.IsVisible); break; // MD-02: Alt+L, click on the MW2 art
             case "equalizer": SetEqualizerVisible(!_equalizer!.IsVisible); break; // EQ-01: Alt+G, EQ toggle
+            case "cast": // CN-05 (MW10 and Main menu › Cast to…): the device picker, after any open menu has closed
+                Dispatcher.UIThread.Post(() => ShowCastMenu(source));
+                break;
             case "crossfade": // XF (MW10)
                 _settings.Update(SettingsGroup.Crossfading, s => s.Crossfading.Enabled = !s.Crossfading.Enabled);
                 break;
@@ -357,7 +367,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     public void BeginResize(Control source, PointerPressedEventArgs e) => _snap.BeginResize(source, e);
 
-    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam" or "crossfade";
+    public bool IsAvailable(string bind) => bind is "shuffle" or "repeat" or "mute" or "playlist" or "equalizer" or "eqOn" or "eqAuto" or "eqParam" or "crossfade" or "cast";
 
     private void ShowDialog(Window dialog)
     {
@@ -401,8 +411,83 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         "eqAuto" => _eq.IsAuto,
         "eqParam" => _eq.IsParametric,
         "crossfade" => _crossfadeOn,
+        "cast" => _cast.Current is not null,
         _ => false,
     };
+
+    /// <summary>
+    /// CN-05: the device picker under the CAST button: "This computer" and the cast devices found on the network. It
+    /// shows the devices of the last scan at once and scans again while it is open (about 3 s).
+    /// </summary>
+    private void ShowCastMenu(Control source)
+    {
+        var menu = new ContextMenu();
+        var searching = true;
+        void Fill()
+        {
+            var items = new List<Control> { CastItem("This computer", null) };
+            items.AddRange(_cast.Devices.Select(d => CastItem(d.HasScreen == true ? $"{d.Name}  ▭" : d.Name, d)));
+            if (searching)
+            {
+                items.Add(new MenuItem { Header = "Searching for devices…", IsEnabled = false });
+            }
+            else if (_cast.Devices.Count == 0)
+            {
+                items.Add(new MenuItem { Header = "No cast devices found", IsEnabled = false });
+            }
+            menu.ItemsSource = items;
+        }
+        MenuItem CastItem(string label, AudioTastic.Casting.Discovery.CastDevice? device)
+        {
+            var supported = device is null || Integration.CastService.CanCastTo(device);
+            var item = new MenuItem
+            {
+                Header = supported ? label : $"{label}  (DLNA: coming next)",
+                ToggleType = MenuItemToggleType.Radio,
+                IsChecked = device is null ? _cast.Current is null : _cast.Current?.Id == device.Id,
+                IsEnabled = supported,
+            };
+            Avalonia.Automation.AutomationProperties.SetName(item, device is null ? "Play on this computer" : $"Cast to {device.Name}");
+            item.Click += (_, _) => Run(async () =>
+            {
+                try
+                {
+                    if (device is null)
+                    {
+                        if (_cast.Current is not null)
+                        {
+                            await _cast.StopCastingAsync();
+                            Player.ShowNotice("Playing on this computer");
+                        }
+                    }
+                    else if (_cast.Current?.Id != device.Id)
+                    {
+                        Player.ShowNotice($"Connecting to {device.Name}…");
+                        await _cast.CastToAsync(device);
+                        Player.ShowNotice($"Casting to {device.Name}");
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or OperationCanceledException or NotSupportedException
+                                               or System.Security.Authentication.AuthenticationException)
+                {
+                    _logger.LogWarning(ex, "Could not cast to {Device}", device?.Name);
+                    Player.ShowMessage($"Could not cast to {device?.Name}: {ex.Message}");
+                }
+            });
+            return item;
+        }
+        Fill();
+        menu.Open(source);
+        Run(async () =>
+        {
+            await _cast.ScanAsync();
+            searching = false;
+            if (menu.IsOpen)
+            {
+                Fill();
+            }
+        });
+    }
 
     public void ShowDeviceMenu(Control source)
     {
@@ -1357,7 +1442,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                     },
                 },
                 Item(_sleep.Mode is null ? "Sleep timer…" : $"Sleep timer… ({SleepTimerWindow.Describe(_sleep)})", "sleepTimer", check: _sleep.Mode is not null ? true : null),
-                Item("Cast to…", enabled: false),
+                Item(_cast.Current is { } casting ? $"Cast to… (now: {casting.Name})" : "Cast to…", "cast", check: _cast.Current is not null ? true : null),
                 new MenuItem { Header = "Visualisation", ItemsSource = VisualisationItems() },
                 new MenuItem
                 {

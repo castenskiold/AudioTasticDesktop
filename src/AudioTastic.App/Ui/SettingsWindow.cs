@@ -93,7 +93,7 @@ public sealed class SettingsWindow : Window
                 MetadataPage(panel);
                 break;
             case SettingsGroup.CastingNetwork:
-                Note(panel, "Casting, the streaming server and remote control arrive in phase P11.");
+                CastingPage(panel);
                 break;
             case SettingsGroup.Interface:
                 InterfacePage(panel);
@@ -124,6 +124,25 @@ public sealed class SettingsWindow : Window
         };
         panel.Children.Add(reset);
         _page.Content = panel;
+    }
+
+    /// <summary>CN-01 / CN-04 / CN-05: casting (more options arrive with the other device families in P11).</summary>
+    private void CastingPage(StackPanel panel)
+    {
+        var cast = _settings.Current.CastingNetwork;
+        var port = new NumericUpDown { Minimum = 0, Maximum = 65535, Increment = 1, Value = cast.ServerPort, FormatString = "0", Width = 160 };
+        port.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v)
+            {
+                _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.ServerPort = (int)v);
+            }
+        };
+        Row(panel, "Streaming server port", port,
+            "0 = a free port chosen when casting starts. Set a fixed port if your firewall needs a rule for it. Takes effect the next time casting starts.");
+        Note(panel, "Cast with the CAST button in the main window: it lists this computer and the Chromecasts on your network. " +
+            "The device plays the file itself when it can (MP3, AAC, FLAC, Opus, Vorbis, WAV); other formats are converted to FLAC while they are sent. " +
+            "DLNA/UPnP renderers, AirPlay, the video modes and remote control follow later in phase P11.");
     }
 
     /// <summary>SI-05 / SI-06: the file manager's context menu and what opened files do.</summary>

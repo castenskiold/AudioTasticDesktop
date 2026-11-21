@@ -165,7 +165,90 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public TimeSpan Position => _state == PlaybackState.Stopped || _track is null
         ? TimeSpan.Zero
-        : _sourceFormat.FramesToTime(_deck.PositionFrames);
+        : _remote is { } remote ? remote.Position : _sourceFormat.FramesToTime(_deck.PositionFrames);
+
+    private IRemotePlayer? _remote;
+
+    /// <summary>CN-01 / CN-02: the cast device playing instead of the local output, or null.</summary>
+    public IRemotePlayer? Remote => _remote;
+
+    /// <summary>Raised (on a worker thread) when playback moves to or from a cast device.</summary>
+    public event EventHandler<EventArgs>? RemoteChanged;
+
+    /// <summary>
+    /// CN-01 / CN-02: moves playback to <paramref name="remote"/> (null = back to this computer) at the current track
+    /// and position, keeping playing or paused as it was. A stopped player just remembers the target.
+    /// </summary>
+    public Task SetRemoteAsync(IRemotePlayer? remote) => RunAsync(async () =>
+    {
+        if (ReferenceEquals(remote, _remote))
+        {
+            return;
+        }
+        var state = _state;
+        var position = Position;
+        var previous = _remote;
+        if (previous is not null)
+        {
+            previous.Lost -= OnRemoteLost;
+            try
+            {
+                await previous.StopAsync().ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // A device that is already gone cannot be stopped: keep switching.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Could not stop playback on {Device}", previous.Name);
+            }
+        }
+        else if (state is PlaybackState.Playing or PlaybackState.Paused)
+        {
+            await CancelPreloadAsync().ConfigureAwait(false);
+            await StopOutputAsync().ConfigureAwait(false);
+            _graph.Paused = false;
+        }
+        _remote = remote;
+        if (remote is not null)
+        {
+            remote.Lost += OnRemoteLost;
+        }
+        _logger.LogInformation("Playback now on {Device}", remote?.Name ?? "this computer");
+        Raise(RemoteChanged, EventArgs.Empty);
+        if (state is PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Buffering && _index >= 0 && _index < _playlist.Count)
+        {
+            _startAt = position;
+            _startPaused = state == PlaybackState.Paused;
+            await PlayIndexCoreAsync(_index).ConfigureAwait(false);
+        }
+    });
+
+    /// <summary>The cast device went away: continue on this computer, paused, where it was.</summary>
+    private void OnRemoteLost(object? sender, EventArgs e) => _ = Task.Run(async () =>
+    {
+        if (!ReferenceEquals(sender, _remote))
+        {
+            return;
+        }
+        _logger.LogWarning("Lost the cast device {Device}; playback returns to this computer, paused", _remote?.Name);
+        var position = Position;
+        await RunAsync(async () =>
+        {
+            if (!ReferenceEquals(sender, _remote))
+            {
+                return;
+            }
+            _remote!.Lost -= OnRemoteLost;
+            _remote = null;
+            Raise(RemoteChanged, EventArgs.Empty);
+            if (_state is PlaybackState.Playing or PlaybackState.Paused && _index >= 0 && _index < _playlist.Count)
+            {
+                _startAt = position;
+                _startPaused = true;
+                await PlayIndexCoreAsync(_index).ConfigureAwait(false);
+            }
+        }).ConfigureAwait(false);
+    });
 
     public TimeSpan? Duration => _track?.Duration;
 
@@ -185,6 +268,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _volume = v;
             ApplyGain();
             ScheduleSave();
+            ForwardVolume();
         }
     }
 
@@ -200,6 +284,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             _muted = value;
             ApplyGain();
             ScheduleSave();
+            ForwardVolume();
         }
     }
 
@@ -473,10 +558,36 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         });
     }
 
+    /// <summary>CN-01: the player's volume controls the cast device's own volume.</summary>
+    private void ForwardVolume()
+    {
+        if (_remote is { } remote)
+        {
+            var (volume, muted) = (_volume, _muted);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await remote.SetVolumeAsync(volume, muted).ConfigureAwait(false);
+                }
+#pragma warning disable CA1031 // Volume is best effort.
+                catch (Exception ex)
+#pragma warning restore CA1031
+                {
+                    _logger.LogDebug(ex, "Could not set the volume on {Device}", remote.Name);
+                }
+            });
+        }
+    }
+
     public Task PlayAsync() => RunAsync(async () =>
     {
         switch (_state)
         {
+            case PlaybackState.Paused when _remote is { } remote:
+                await remote.ResumeAsync().ConfigureAwait(false);
+                SetState(PlaybackState.Playing);
+                break;
             case PlaybackState.Paused:
                 ResumeCore();
                 break;
@@ -512,6 +623,20 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public Task PauseAsync() => RunAsync(async () =>
     {
+        if (_remote is { } remote && _state is PlaybackState.Playing or PlaybackState.Paused)
+        {
+            if (_state == PlaybackState.Playing)
+            {
+                await remote.PauseAsync().ConfigureAwait(false);
+                SetState(PlaybackState.Paused);
+            }
+            else
+            {
+                await remote.ResumeAsync().ConfigureAwait(false);
+                SetState(PlaybackState.Playing);
+            }
+            return;
+        }
         if (_state == PlaybackState.Playing)
         {
             var fades = _settings.Current.Playback.Fades;
@@ -660,6 +785,33 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             DetachStreamMetadata();
             ApplyReplayGain(entry); // before the deck starts, so the track begins at its own level
             ApplyFileSpeed(entry);
+            if (_remote is { } remote)
+            {
+                // CN-01: the device plays the file itself; the decoder was only opened for the track's details.
+                var remoteStart = StartPosition(entry, track, startAt) ?? TimeSpan.Zero;
+                _canSeek = source.CanSeek;
+                _sourceFormat = source.Format;
+                source.Dispose();
+                try
+                {
+                    await remote.LoadAsync(entry, track, remoteStart, startPaused).ConfigureAwait(false);
+                }
+#pragma warning disable CA1031 // Any device failure is reported like an unplayable file.
+                catch (Exception ex)
+#pragma warning restore CA1031
+                {
+                    ReportError(path, ex is IOException or InvalidOperationException ? ex : new IOException(ex.Message, ex));
+                    continue;
+                }
+                _index = i;
+                _entry = entry;
+                _track = track;
+                _logger.LogInformation("Playing {Path} on {Device}", path, remote.Name);
+                Raise(TrackChanged, new TrackChangedEventArgs(track, i, entry));
+                SetState(startPaused ? PlaybackState.Paused : PlaybackState.Playing);
+                SaveSession();
+                return;
+            }
             if (StartPosition(entry, track, startAt) is { } start && source.CanSeek)
             {
                 source.Seek(source.Format.TimeToFrames(start)); // PB-07: before the deck starts, so nothing plays from 0
@@ -852,6 +1004,22 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         SaveResumePosition(finished: _endedNaturally);
         _endedNaturally = false;
         SaveSession();
+        if (_remote is { } remote)
+        {
+            try
+            {
+                await remote.StopAsync().ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // Stopping a device that went away must still stop the player.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogDebug(ex, "Could not stop {Device}", remote.Name);
+            }
+            SetState(PlaybackState.Stopped);
+            Raise(PositionChanged, new PlaybackPositionEventArgs(TimeSpan.Zero, Duration));
+            return;
+        }
         var fades = _settings.Current.Playback.Fades;
         await FadeOutAsync(fades.OnStop ? fades.StopMilliseconds : 0).ConfigureAwait(false);
         await CancelPreloadAsync().ConfigureAwait(false);
@@ -865,6 +1033,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     {
         if (_track is null || !_canSeek || _state is PlaybackState.Stopped)
         {
+            return;
+        }
+        if (_remote is { } remote)
+        {
+            var target = position < TimeSpan.Zero ? TimeSpan.Zero : _track.Duration is { } length && position > length ? length : position;
+            await remote.SeekAsync(target).ConfigureAwait(false);
+            Raise(PositionChanged, new PlaybackPositionEventArgs(target, Duration));
             return;
         }
         var frame = _sourceFormat.TimeToFrames(position < TimeSpan.Zero ? TimeSpan.Zero : position);
@@ -1120,7 +1295,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             }
             _lastUnderruns = underruns;
 
-            if (_graph.Handovers != _handoversSeen || (deck.HasEnded && state == PlaybackState.Playing && _graph.Next is null))
+            var ended = _remote is { } remotePlayer ? remotePlayer.HasEnded : deck.HasEnded;
+            if (_graph.Handovers != _handoversSeen || (ended && state == PlaybackState.Playing && _graph.Next is null))
             {
                 if (Interlocked.CompareExchange(ref _advancing, 1, 0) == 0)
                 {
@@ -1155,7 +1331,8 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                     return;
                 }
                 var deck = _deck;
-                if (!deck.HasEnded || _state != PlaybackState.Playing || _graph.Next is not null)
+                var ended = _remote is { } remote ? remote.HasEnded : deck.HasEnded;
+                if (!ended || _state != PlaybackState.Playing || _graph.Next is not null)
                 {
                     return;
                 }
@@ -1295,7 +1472,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     }
 
     private bool ShouldPreload() =>
-        _preload is null && _graph.Next is null && _fading is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
+        _remote is null && _preload is null && _graph.Next is null && _fading is null && !_stopAfterCurrent && _abLoop?.B is null && !_bitPerfect &&
         _track?.Duration is { } duration && (_settings.Current.Playback.Gapless || _settings.Current.Crossfading.Enabled) &&
         Position >= PreloadAt(duration) && _entry is { IsUrl: false } && Environment.TickCount64 >= _preloadRetryAt;
 

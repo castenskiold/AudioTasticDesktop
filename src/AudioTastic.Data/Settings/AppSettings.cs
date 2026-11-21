@@ -209,6 +209,8 @@ public sealed class MetadataSettings
 
 public sealed class CastingNetworkSettings
 {
+    /// <summary>CN-04: the streaming server's port; 0 = a free port chosen at start (allow it in a firewall if you fix one).</summary>
+    public int ServerPort { get; set; }
 }
 
 public sealed class InterfaceSettings
