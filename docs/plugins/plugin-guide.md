@@ -52,7 +52,7 @@ An installed plugin with the same id replaces a built-in one.
   "description": "What it does, in one or two sentences.",
   "website": "https://example.com",
   "license": "MIT",
-  "sdkVersion": "0.4.1",
+  "sdkVersion": "0.4.2",
   "entryAssembly": "MyPlugin.dll",
   "types": ["general"],
   "priority": 0
@@ -140,6 +140,15 @@ An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` 
 - The player calls `Create()` and then `CreateView()` on the UI thread; the view must be an Avalonia `Control` and is shown in its own window.
 - `OnAudio(samples, format)` is called about 60 times a second on the UI thread with the newest 2,048 stereo frames after the DSP chain (silence while paused). Copy what you need; the span is reused. Exceptions count as faults and close the window.
 
+### Casting a visualisation to a TV (SDK 0.4.2)
+
+The player can send a visualisation to a TV (cast modes *audio and video* and *video only*, CN-09). To take part:
+
+- Return `true` from `IVisualisationPlugin.CanRenderOffscreen`, and implement `IOffscreenVisualisation` on the object `Create()` returns.
+- The player creates a **separate instance** for casting (on the UI thread) and never calls `CreateView()` on it, so create your Avalonia control lazily in `CreateView()`.
+- On one background thread it then calls `OnAudio(samples, format)` with the audio for the next frame, followed by `RenderFrame(pixels, width, height, time)`, never both at once. Draw the whole frame into `pixels`: premultiplied 32-bit **BGRA**, 4 bytes per pixel, rows top to bottom with no padding (typically 1920 × 1080 at 30 frames a second, so keep a frame well under 30 ms). `time` counts from the start of casting, for animation.
+- `samples/PeakMeter` shows both ways: an Avalonia control on screen, plain pixel writes off-screen.
+
 ### UI: settings pages, panels, visualisations
 
 - Methods that return UI (`IPluginSettingsPage.CreateSettingsPage`, `IUiPanelPlugin.CreatePanel`, `IVisualisation.CreateView`) return an **Avalonia `Control`**, typed as `object` so the SDK has no Avalonia dependency.
@@ -209,5 +218,6 @@ Each plugin gets its own view of the API:
 - The SDK follows semantic versioning, but stays **0.x (pre-release)** until phase P8: DSP, visualisation and crossfading work may still change the contracts.
 - **While 0.x:** a plugin must be built for the same minor version (`0.4.x` runs on a 0.4 player).
 - **0.4.1** added encoders (`IAudioEncoderFactory`, `IAudioEncoder`, `IInputPlugin.EncoderFactories`). It is additive: plugins built for 0.4.0 keep working unchanged.
+- **0.4.2** added off-screen rendering for visualisations (`IOffscreenVisualisation`, `IVisualisationPlugin.CanRenderOffscreen`), so they can be cast to a TV (CN-09). Also additive.
 - **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y.
 - Incompatible plugins are listed as *Incompatible* and are not loaded.

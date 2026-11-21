@@ -131,6 +131,30 @@ public interface IVisualisationPlugin : IPlugin
     string Name { get; }
 
     IVisualisation Create();
+
+    /// <summary>
+    /// SDK 0.4.2 (CN-09): true when the visualisations from <see cref="Create"/> also implement
+    /// <see cref="IOffscreenVisualisation"/>, so the player can cast them to a screen. Default: false.
+    /// </summary>
+    bool CanRenderOffscreen => false;
+}
+
+/// <summary>
+/// SDK 0.4.2 (CN-09): a visualisation that draws frames without a window, so it can be cast to a TV. The player
+/// creates a separate instance for casting (with <see cref="IVisualisationPlugin.Create"/>, on the UI thread) and then
+/// calls <see cref="IVisualisation.OnAudio"/> and <see cref="RenderFrame"/> alternately on one background thread, never
+/// at the same time; <see cref="IVisualisation.CreateView"/> is not called for that instance, so create your
+/// Avalonia control lazily there.
+/// </summary>
+public interface IOffscreenVisualisation
+{
+    /// <summary>
+    /// Draws one frame. <paramref name="pixels"/> is <paramref name="width"/> × <paramref name="height"/> pixels of
+    /// 32-bit premultiplied BGRA (4 bytes per pixel, rows top to bottom, no padding) holding the previous frame;
+    /// <paramref name="time"/> is the frame's time since casting started (for animation). Typical sizes: 1920 × 1080
+    /// at 30 frames a second; keep a frame well under 30 ms.
+    /// </summary>
+    void RenderFrame(Span<byte> pixels, int width, int height, TimeSpan time);
 }
 
 public interface IVisualisation : IDisposable

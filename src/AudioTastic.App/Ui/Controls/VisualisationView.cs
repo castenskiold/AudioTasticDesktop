@@ -26,9 +26,8 @@ internal sealed class VisualisationView : Control, IDisposable
     private readonly DispatcherTimer _timer = new();
     private readonly SpectrumAnalyzer _analyzer = new();
     private readonly float[] _samples = new float[SpectrumAnalyzer.Size * 2];
+    private readonly SpectrumMotion _motion = new();
     private float[] _bars = [];
-    private float[] _peaks = [];
-    private float[] _shown = [];
     private VisualisationType _type;
     private int _barCount;
     private double _peakFall;
@@ -98,8 +97,7 @@ internal sealed class VisualisationView : Control, IDisposable
         if (_bars.Length != _barCount)
         {
             _bars = new float[_barCount];
-            _peaks = new float[_barCount];
-            _shown = new float[_barCount];
+            _motion.Resize(_barCount);
         }
         InvalidateVisual();
     }
@@ -130,14 +128,7 @@ internal sealed class VisualisationView : Control, IDisposable
         }
         if (_type == VisualisationType.Spectrum)
         {
-            // Bars rise at once and fall smoothly; peak caps hold and fall at the set speed.
-            var fall = (float)(dt * 3);
-            var capFall = (float)(dt * _peakFall);
-            for (var i = 0; i < _bars.Length; i++)
-            {
-                _shown[i] = Math.Max(_bars[i], _shown[i] - fall);
-                _peaks[i] = Math.Max(_shown[i], _peaks[i] - capFall);
-            }
+            _motion.Update(_bars, dt, _peakFall); // rise at once, fall smoothly; caps fall at the set speed
         }
         InvalidateVisual();
     }
@@ -151,19 +142,21 @@ internal sealed class VisualisationView : Control, IDisposable
         {
             case VisualisationType.Spectrum:
             {
-                var slot = w / _shown.Length;
+                var shown = _motion.Shown;
+                var peaks = _motion.Peaks;
+                var slot = w / shown.Length;
                 var barWidth = Math.Max(0.5, slot - Math.Max(0.5, slot * 0.25));
-                for (var i = 0; i < _shown.Length; i++)
+                for (var i = 0; i < shown.Length; i++)
                 {
                     var x = i * slot;
-                    var bh = _shown[i] * (h - 1.5);
+                    var bh = shown[i] * (h - 1.5);
                     if (bh > 0.2)
                     {
                         context.FillRectangle(_bar, new Rect(x, h - bh, barWidth, bh));
                     }
-                    if (_peaks[i] > 0.01)
+                    if (peaks[i] > 0.01)
                     {
-                        var py = h - (_peaks[i] * (h - 1.5)) - 1;
+                        var py = h - (peaks[i] * (h - 1.5)) - 1;
                         context.FillRectangle(_peak, new Rect(x, Math.Max(0, py), barWidth, 0.6));
                     }
                     else

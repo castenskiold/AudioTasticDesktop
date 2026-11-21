@@ -2,7 +2,7 @@
   <!-- PG-02: public plugin contracts, published as the AudioTastic.Sdk NuGet package. Must not reference any other
        AudioTastic project. Pre-release (0.x) until P8: contracts may still change. -->
   <PropertyGroup>
-    <Version>0.4.1-preview</Version>
+    <Version>0.4.2-preview</Version>
     <PackageId>AudioTastic.Sdk</PackageId>
     <Title>AudioTastic plugin SDK</Title>
     <Description>Contracts for AudioTastic Desktop plugins: input (decoders), output, DSP, visualisation, general, UI panel and cast target plugins.</Description>

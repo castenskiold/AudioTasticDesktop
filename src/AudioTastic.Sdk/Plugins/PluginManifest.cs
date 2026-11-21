@@ -11,7 +11,7 @@ public static class SdkInfo
     /// Version of these contracts. While the SDK is 0.x (until P8) a plugin needs the same 0.minor; from 1.0 the same
     /// major and a minor not newer than the player's.
     /// </summary>
-    public const string Version = "0.4.1";
+    public const string Version = "0.4.2";
 
     public static bool IsCompatible(string pluginSdkVersion)
     {

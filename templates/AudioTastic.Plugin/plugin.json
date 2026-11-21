@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "author": "Your name",
   "description": "Counts the tracks played and writes them to the AudioTastic log.",
-  "sdkVersion": "0.4.1",
+  "sdkVersion": "0.4.2",
   "entryAssembly": "AudioTasticPlugin1.dll",
   "types": ["general"]
 }
