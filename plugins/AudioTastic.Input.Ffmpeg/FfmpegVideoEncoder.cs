@@ -220,9 +220,14 @@ public sealed unsafe class FfmpegVideoEncoder : IVideoEncoder
         _pending = new float[_audioFrameSize * audio.Channels];
     }
 
-    public void WriteFrame(ReadOnlySpan<byte> bgra)
+    public void WriteFrame(ReadOnlySpan<byte> bgra, TimeSpan time)
     {
         ObjectDisposedException.ThrowIf(_video == null, this);
+        var pts = (long)Math.Round(time.TotalSeconds * _settings.FramesPerSecond);
+        if (pts < _videoPts)
+        {
+            return; // not after the previous frame
+        }
         if (bgra.Length < _settings.Width * _settings.Height * 4)
         {
             throw new ArgumentException("The frame is smaller than the video size.", nameof(bgra));
@@ -240,7 +245,8 @@ public sealed unsafe class FfmpegVideoEncoder : IVideoEncoder
                     _picture->data[1], _picture->linesize[1], _picture->data[2], _picture->linesize[2]);
             }
         }
-        _picture->pts = _videoPts++;
+        _picture->pts = pts;
+        _videoPts = pts + 1;
         Check(ffmpeg.avcodec_send_frame(_video, _picture), "encode video");
         Drain(_video, _videoStream);
     }

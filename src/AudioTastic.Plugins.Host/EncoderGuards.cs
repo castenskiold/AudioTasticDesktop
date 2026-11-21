@@ -105,11 +105,11 @@ internal sealed class GuardedVideoEncoder(AudioTastic.Sdk.Video.IVideoEncoder in
 {
     public string EncoderName => inner.EncoderName;
 
-    public void WriteFrame(ReadOnlySpan<byte> bgra)
+    public void WriteFrame(ReadOnlySpan<byte> bgra, TimeSpan time)
     {
         try
         {
-            inner.WriteFrame(bgra);
+            inner.WriteFrame(bgra, time);
         }
         catch (Exception ex) when (ex is not AudioSourceException and not IOException)
         {

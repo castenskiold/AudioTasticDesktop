@@ -22,16 +22,21 @@ public sealed record VideoEncodeSettings(
 
 /// <summary>
 /// PG-02 (SDK 0.4.2): writes a live H.264 video stream (with AAC audio when asked) to a stream that may not be
-/// seekable. Frames are spaced 1 / frames per second apart in the order written; audio is timed by its sample count.
-/// The caller paces both in real time. All calls come from one thread.
+/// seekable. Each frame carries its time from the start of the stream (frames may be skipped when the computer
+/// falls behind; times must increase); audio is timed by its sample count. The caller paces both in real time.
+/// All calls come from one thread.
 /// </summary>
 public interface IVideoEncoder : IDisposable
 {
     /// <summary>The H.264 encoder in use (e.g. "h264_mf"), for logs.</summary>
     string EncoderName { get; }
 
-    /// <summary>The next frame: Width × Height × 4 bytes of premultiplied BGRA, rows top to bottom.</summary>
-    void WriteFrame(ReadOnlySpan<byte> bgra);
+    /// <summary>
+    /// The frame for <paramref name="time"/> (from the start of the stream, rounded to the frame rate):
+    /// Width × Height × 4 bytes of premultiplied BGRA, rows top to bottom. A frame at or before the previous one's
+    /// time is dropped.
+    /// </summary>
+    void WriteFrame(ReadOnlySpan<byte> bgra, TimeSpan time);
 
     /// <summary>Interleaved float audio in <see cref="VideoEncodeSettings.Audio"/>, in any amount.</summary>
     void WriteAudio(ReadOnlySpan<float> samples);

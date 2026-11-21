@@ -70,6 +70,18 @@ public sealed class PlayerShell : ISkinHost, IDisposable
 
     /// <summary>SI-01: the global hotkeys (the settings page shows which could not be registered).</summary>
     public Integration.HotkeyManager Hotkeys { get; }
+
+    /// <summary>CN-01..CN-09: casting (for the settings page).</summary>
+    public Integration.CastService Cast => _cast;
+
+    /// <summary>CN-09: opens Picture delay… for the TV showing the visuals.</summary>
+    public void ShowPictureDelay()
+    {
+        if (_cast.VideoDevice is { } device && _main is not null)
+        {
+            new PictureDelayWindow(_cast, device).Show(_main);
+        }
+    }
     private bool _inTray;
     private bool _mainBeforeTray;
     private bool _playlistBeforeTray;
@@ -498,7 +510,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 {
                     Player.ShowNotice($"Connecting to {device.Name}…");
                     await _cast.CastVisualsAsync(device);
-                    Player.ShowNotice($"Visuals on {device.Name}");
+                    Player.ShowNotice($"Visuals on {device.Name}. Match them to the music: CAST › {device.Name} › Picture delay…");
                 }
                 catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or OperationCanceledException or NotSupportedException
                                                or System.Security.Authentication.AuthenticationException)
@@ -508,8 +520,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 }
             });
             var both = new MenuItem { Header = "Audio and video (coming next)", IsEnabled = false };
+            var delay = new MenuItem { Header = "Picture delay…", IsEnabled = _cast.VideoDevice?.Id == device.Id };
+            delay.Click += (_, _) => new PictureDelayWindow(_cast, device).Show(_main!);
             var active = _cast.Current?.Id == device.Id || _cast.VideoDevice?.Id == device.Id;
-            return new MenuItem { Header = $"{(active ? "● " : "")}{device.Name}  ▭", ItemsSource = new[] { audio, both, visuals } };
+            return new MenuItem
+            {
+                Header = $"{(active ? "● " : "")}{device.Name}  ▭",
+                ItemsSource = new Control[] { audio, both, visuals, new Separator(), delay },
+            };
         }
         Fill();
         menu.Open(source);

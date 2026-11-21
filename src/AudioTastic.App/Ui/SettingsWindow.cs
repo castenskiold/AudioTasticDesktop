@@ -183,6 +183,11 @@ public sealed class SettingsWindow : Window
         var fps = new ComboBox { ItemsSource = rates.Select(r => $"{r} frames a second").ToList(), Width = 200, SelectedIndex = Math.Max(0, Array.IndexOf(rates, cast.VideoFps)) };
         fps.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.VideoFps = rates[Math.Max(0, fps.SelectedIndex)]);
         Row(panel, "Frame rate", fps, "Takes effect the next time video casting starts. 60 needs a fast computer.");
+        var delay = new Button { Content = _shell.Cast.VideoDevice is { } tv ? $"Picture delay for {tv.Name}…" : "Picture delay…", IsEnabled = _shell.Cast.VideoDevice is not null };
+        delay.Click += (_, _) => _shell.ShowPictureDelay();
+        Row(panel, "Match the picture to the music", delay,
+            "A TV shows the picture a few seconds late; AudioTastic draws it that far ahead. Set the delay for each TV while it shows the visuals " +
+            "(also in the CAST menu under the TV).");
     }
 
     /// <summary>SI-05 / SI-06: the file manager's context menu and what opened files do.</summary>

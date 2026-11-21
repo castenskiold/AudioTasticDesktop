@@ -220,6 +220,15 @@ public sealed class CastingNetworkSettings
 
     /// <summary>CN-09: frames per second of the cast video.</summary>
     public int VideoFps { get; set; } = 30;
+
+    /// <summary>
+    /// CN-09 visuals only: how late each TV shows the picture (ms, by device id). The visuals are drawn from audio
+    /// this far ahead of the speakers so they match. Missing = <see cref="DefaultVisualDelayMs"/>.
+    /// </summary>
+    public Dictionary<string, int> VisualDelays { get; set; } = [];
+
+    /// <summary>2 s: what both of Anders's TVs needed (Chromecast Ultra, Samsung UE55AU7175 over DLNA; 21 Nov 2026).</summary>
+    public const int DefaultVisualDelayMs = 2000;
 }
 
 public sealed class InterfaceSettings

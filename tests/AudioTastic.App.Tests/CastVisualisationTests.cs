@@ -123,6 +123,87 @@ public sealed class CastVisualisationTests
         Assert.Throws<ArgumentException>(() => new VisualFrameRenderer(new NotOffscreen(), 640, 360));
     }
 
+    /// <summary>A 55 Hz kick (fast attack, 150 ms decay) every <paramref name="period"/> seconds over quiet hi-hat noise.</summary>
+    private static float[] Kicks(double seconds, double period)
+    {
+        var random = new Random(1);
+        var samples = new float[(int)(seconds * 44_100) * 2];
+        for (var i = 0; i < samples.Length / 2; i++)
+        {
+            var t = i / 44_100.0;
+            var since = t % period;
+            var kick = 0.8 * Math.Sin(2 * Math.PI * 55 * since) * Math.Exp(-since / 0.15) * Math.Min(1, since / 0.002);
+            var v = (float)(kick + (0.05 * (random.NextDouble() - 0.5)));
+            samples[i * 2] = v;
+            samples[(i * 2) + 1] = v;
+        }
+        return samples;
+    }
+
+    [Fact]
+    public void Kick_flash_flashes_once_per_kick_and_fades_to_black()
+    {
+        var audio = Kicks(4, 60.0 / 150); // 150 BPM: 10 kicks in 4 s
+        using var r = new VisualFrameRenderer(new KickFlashVisualisation(), 64, 36);
+        var flashes = 0;
+        var wasBright = false;
+        var sawBlack = false;
+        for (var n = 0; n < 4 * 30; n++)
+        {
+            var end = (int)Math.Round((n + 1) / 30.0 * 44_100);
+            var start = Math.Max(0, end - 2048);
+            r.Render(audio.AsSpan(start * 2, (end - start) * 2), Stereo, TimeSpan.FromSeconds(n / 30.0));
+            var bright = r.Pixels[0] > 200;
+            if (bright && !wasBright)
+            {
+                flashes++;
+            }
+            sawBlack |= r.Pixels[0] == 0;
+            wasBright = bright;
+            Assert.Equal(255, r.Pixels[3]); // opaque
+        }
+        Assert.InRange(flashes, 9, 11);
+        Assert.True(sawBlack, "black between the kicks");
+    }
+
+    [Fact]
+    public void Steady_bass_and_silence_are_not_kicks()
+    {
+        var steady = new float[2048];
+        for (var i = 0; i < steady.Length; i++)
+        {
+            steady[i] = (float)(0.8 * Math.Sin(2 * Math.PI * 55 * i / 44_100));
+        }
+        Assert.False(KickFlashVisualisation.IsKick(steady, 44_100));
+        Assert.False(KickFlashVisualisation.IsKick(new float[2048], 44_100));
+    }
+
+    /// <summary>Counts flashes on a real track when AUDIOTASTIC_KICK_TRACK names a 16-bit WAV (local check only).</summary>
+    [Fact]
+    public void Kick_flash_on_a_real_track_reports_its_rate()
+    {
+        if (Environment.GetEnvironmentVariable("AUDIOTASTIC_KICK_TRACK") is not { Length: > 0 } path)
+        {
+            return;
+        }
+        var (rate, channels, samples) = AudioTastic.TestSupport.ReferenceWav.Read(path);
+        using var r = new VisualFrameRenderer(new KickFlashVisualisation(), 64, 36);
+        var flashes = 0;
+        var wasBright = false;
+        var from = 120 * rate; // two minutes in: the groove is running
+        var frames = 60 * 30;
+        for (var n = 0; n < frames; n++)
+        {
+            var end = from + (int)Math.Round((n + 1) / 30.0 * rate);
+            r.Render(samples.AsSpan((end - 2048) * channels, 2048 * channels), new AudioFormat(rate, channels), TimeSpan.FromSeconds(n / 30.0));
+            var bright = r.Pixels[0] > 200;
+            flashes += bright && !wasBright ? 1 : 0;
+            wasBright = bright;
+        }
+        TestContext.Current.SendDiagnosticMessage($"{Path.GetFileName(path)}: {flashes} flashes in 60 s = {flashes} per minute");
+        File.AppendAllText(Path.Combine(Path.GetTempPath(), "audiotastic-kicks.txt"), $"{Path.GetFileName(path)}: {flashes} flashes in 60 s{Environment.NewLine}");
+    }
+
     private sealed class NotOffscreen : AudioTastic.Sdk.Plugins.IVisualisation
     {
         public void OnAudio(ReadOnlySpan<float> samples, AudioFormat format)

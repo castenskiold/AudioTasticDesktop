@@ -45,7 +45,7 @@ public sealed class VideoEncoderTests(ITestOutputHelper output)
             var samplesPerFrame = audio is { } a ? a.SampleRate / 30 : 0;
             for (var n = 0; n < seconds * 30; n++)
             {
-                encoder.WriteFrame(Frame(width, height, n));
+                encoder.WriteFrame(Frame(width, height, n), TimeSpan.FromSeconds(n / 30.0));
                 if (audio is { } format)
                 {
                     var samples = new float[samplesPerFrame * format.Channels];
@@ -120,13 +120,29 @@ public sealed class VideoEncoderTests(ITestOutputHelper output)
         {
             for (var n = 0; n < 60; n++)
             {
-                encoder.WriteFrame(frame);
+                encoder.WriteFrame(frame, TimeSpan.FromSeconds(n / 30.0));
             }
             encoder.Finish();
         }
         watch.Stop();
         output.WriteLine($"{FfmpegVideoEncoderFactory.H264Encoder()}: 60 frames of 1920x1080 in {watch.ElapsedMilliseconds} ms ({stream.Length / 1024} KiB)");
         Assert.True(stream.Length > 10_000);
+    }
+
+    [Fact]
+    public void Skipped_frames_leave_gaps_and_repeated_times_are_dropped()
+    {
+        RequireEncoder();
+        using var stream = new NonSeekableStream();
+        using (var encoder = Factory.Create(new VideoEncodeSettings(VideoContainer.MpegTs, 320, 180, 30, 1_000_000), stream))
+        {
+            foreach (var n in new[] { 0, 0, 1, 2, 9, 10, 4, 30 }) // a repeat, a gap of 6 frames, one out of order
+            {
+                encoder.WriteFrame(Frame(320, 180, n), TimeSpan.FromSeconds(n / 30.0));
+            }
+            encoder.Finish();
+        }
+        Assert.True(stream.Length > 1000);
     }
 
     [Fact]

@@ -121,7 +121,7 @@ An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` 
 
 - `IVideoEncoderFactory.Containers` lists what this machine can write: `VideoContainer.FragmentedMp4` (Chromecast) and `VideoContainer.MpegTs` (DLNA TVs). Empty when there is no H.264 encoder.
 - `Create(settings, output)`: `VideoEncodeSettings` gives the container, size (even numbers), frame rate, video bitrate and, for audio and video, the audio format. `output` is a live network response: never seek it.
-- `WriteFrame(bgra)` takes premultiplied BGRA frames, spaced 1 / frame rate apart; `WriteAudio(samples)` interleaved float. The player paces both in real time. `Finish()` ends the stream.
+- `WriteFrame(bgra, time)` takes a premultiplied BGRA frame and its time from the start of the stream (rounded to the frame rate). Times must increase; when the computer falls behind, the player skips frames, so expect gaps. `WriteAudio(samples)` takes interleaved float. The player paces both in real time. `Finish()` ends the stream.
 - Errors as for audio encoders: `AudioSourceException` = cannot encode here, `IOException` = the TV stopped reading.
 
 ### Writing an output (output plugin)

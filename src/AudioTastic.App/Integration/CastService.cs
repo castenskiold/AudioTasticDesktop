@@ -95,7 +95,9 @@ public sealed class CastService : IDisposable
             var settings = _settings.Current.CastingNetwork;
             var height = settings.VideoHeight >= 1080 ? 1080 : 720;
             var format = new VideoCastFormat(height * 16 / 9, height, Math.Clamp(settings.VideoFps, 15, 60));
-            var video = await VideoCast.StartAsync(device, server, encoder, _engine.Graph.Visualisation, CreateVisual, _plugins, format,
+            var audio = new VisualAudio(_engine.Graph.Visualisation, () => Core.Audio.PlayingPoint.Of(_engine), () => VisualDelay(device), _plugins.LiveSourceFactories,
+                () => Volatile.Read(ref _calibrating), () => _engine.BeatProvider);
+            var video = await VideoCast.StartAsync(device, server, encoder, audio, CreateVisual, _plugins, format,
                 _loggers.CreateLogger<VideoCast>(), cancellationToken).ConfigureAwait(false);
             video.Lost += OnVideoLost;
             _video = video;
@@ -105,6 +107,36 @@ public sealed class CastService : IDisposable
             _switching.Release();
         }
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool _calibrating;
+
+    /// <summary>CN-09: while true (Picture delay… is open) the TV shows the kick flash, which makes the delay easy to judge.</summary>
+    public bool Calibrating
+    {
+        get => Volatile.Read(ref _calibrating);
+        set => Volatile.Write(ref _calibrating, value);
+    }
+
+    // Read every frame, so kept here: SettingsStore.Current copies all settings through JSON on every call.
+    private System.Collections.Concurrent.ConcurrentDictionary<string, int>? _delays;
+
+    /// <summary>CN-09: how late <paramref name="device"/> shows the picture (Picture delay…, by device id).</summary>
+    public TimeSpan VisualDelay(CastDevice device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        _delays ??= new(_settings.Current.CastingNetwork.VisualDelays);
+        return TimeSpan.FromMilliseconds(_delays.TryGetValue(device.Id, out var ms) ? ms : CastingNetworkSettings.DefaultVisualDelayMs);
+    }
+
+    /// <summary>Stores the picture delay for <paramref name="device"/>; the running stream uses it from the next frame.</summary>
+    public void SetVisualDelay(CastDevice device, int milliseconds)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        var value = Math.Clamp(milliseconds, 0, 15_000);
+        _delays ??= new(_settings.Current.CastingNetwork.VisualDelays);
+        _delays[device.Id] = value;
+        _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.VisualDelays[device.Id] = value);
     }
 
     /// <summary>The visualisation chosen in Settings › Casting &amp; network: built-in, or a plugin that draws off-screen.</summary>
