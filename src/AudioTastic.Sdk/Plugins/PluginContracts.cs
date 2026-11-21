@@ -84,6 +84,9 @@ public interface IInputPlugin : IPlugin
 
     /// <summary>SDK 0.4.1: encoders this plugin offers (cast transcoding, CN-04; conversion, TL-01). Default: none.</summary>
     IReadOnlyList<IAudioEncoderFactory> EncoderFactories => [];
+
+    /// <summary>SDK 0.4.2: live video encoders this plugin offers (casting visualisations, CN-09). Default: none.</summary>
+    IReadOnlyList<Video.IVideoEncoderFactory> VideoEncoderFactories => [];
 }
 
 /// <summary>

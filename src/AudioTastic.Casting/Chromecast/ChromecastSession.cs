@@ -81,12 +81,13 @@ public sealed class ChromecastSession : IAsyncDisposable
     }
 
     /// <summary>The LOAD request for a track (public for tests): Default Media Receiver, music metadata, autoplay.</summary>
-    public static JsonObject LoadRequest(CastTrack track, TimeSpan start, bool autoplay = true, bool live = false)
+    public static JsonObject LoadRequest(CastTrack track, TimeSpan start, bool autoplay = true, bool live = false, bool video = false)
     {
-        var metadata = new JsonObject { ["metadataType"] = 3, ["title"] = track.Title }; // 3 = MusicTrackMediaMetadata
+        // 3 = MusicTrackMediaMetadata; 0 = GenericMediaMetadata (CN-09 video: the receiver shows the picture, not a cover page).
+        var metadata = new JsonObject { ["metadataType"] = video ? 0 : 3, ["title"] = track.Title };
         if (track.Artist is not null)
         {
-            metadata["artist"] = track.Artist;
+            metadata[video ? "subtitle" : "artist"] = track.Artist;
         }
         if (track.Album is not null)
         {
@@ -117,9 +118,9 @@ public sealed class ChromecastSession : IAsyncDisposable
     }
 
     /// <summary>Loads and starts <paramref name="track"/> at <paramref name="start"/>; throws when the device refuses it.</summary>
-    public async Task LoadAsync(CastTrack track, TimeSpan start, CancellationToken cancellationToken, bool autoplay = true, bool live = false)
+    public async Task LoadAsync(CastTrack track, TimeSpan start, CancellationToken cancellationToken, bool autoplay = true, bool live = false, bool video = false)
     {
-        var answer = await RequestAsync(MediaNamespace, Transport, LoadRequest(track, start, autoplay, live), cancellationToken).ConfigureAwait(false);
+        var answer = await RequestAsync(MediaNamespace, Transport, LoadRequest(track, start, autoplay, live, video), cancellationToken).ConfigureAwait(false);
         var type = answer["type"]?.GetValue<string>();
         if (type is "LOAD_FAILED" or "LOAD_CANCELLED" or "INVALID_REQUEST")
         {

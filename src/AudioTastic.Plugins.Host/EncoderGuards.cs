@@ -75,3 +75,67 @@ internal sealed class GuardedEncoder(IAudioEncoder inner, PluginRecord plugin, P
 
     public void Dispose() => host.Guard(plugin, inner.Dispose);
 }
+
+
+/// <summary>PG-03 for video encoders (SDK 0.4.2): guarded like audio encoders.</summary>
+internal sealed class GuardedVideoEncoderFactory(AudioTastic.Sdk.Video.IVideoEncoderFactory inner, PluginRecord plugin, PluginHost host)
+    : AudioTastic.Sdk.Video.IVideoEncoderFactory
+{
+    public string Name => inner.Name;
+
+    public IReadOnlyCollection<AudioTastic.Sdk.Video.VideoContainer> Containers
+    {
+        get
+        {
+            if (plugin.Status != PluginStatus.Enabled)
+            {
+                return [];
+            }
+            IReadOnlyCollection<AudioTastic.Sdk.Video.VideoContainer> containers = [];
+            host.Guard(plugin, () => containers = inner.Containers);
+            return containers;
+        }
+    }
+
+    public AudioTastic.Sdk.Video.IVideoEncoder Create(AudioTastic.Sdk.Video.VideoEncodeSettings settings, Stream output) =>
+        GuardedEncoderFactory.Run(() => new GuardedVideoEncoder(inner.Create(settings, output), plugin, host), plugin, host);
+}
+
+internal sealed class GuardedVideoEncoder(AudioTastic.Sdk.Video.IVideoEncoder inner, PluginRecord plugin, PluginHost host) : AudioTastic.Sdk.Video.IVideoEncoder
+{
+    public string EncoderName => inner.EncoderName;
+
+    public void WriteFrame(ReadOnlySpan<byte> bgra)
+    {
+        try
+        {
+            inner.WriteFrame(bgra);
+        }
+        catch (Exception ex) when (ex is not AudioSourceException and not IOException)
+        {
+            host.ReportFault(plugin, ex);
+            throw new AudioSourceException($"The {plugin.Manifest.Name} plugin failed: {ex.Message}", ex);
+        }
+    }
+
+    public void WriteAudio(ReadOnlySpan<float> samples)
+    {
+        try
+        {
+            inner.WriteAudio(samples);
+        }
+        catch (Exception ex) when (ex is not AudioSourceException and not IOException)
+        {
+            host.ReportFault(plugin, ex);
+            throw new AudioSourceException($"The {plugin.Manifest.Name} plugin failed: {ex.Message}", ex);
+        }
+    }
+
+    public void Finish() => GuardedEncoderFactory.Run(() =>
+    {
+        inner.Finish();
+        return 0;
+    }, plugin, host);
+
+    public void Dispose() => host.Guard(plugin, inner.Dispose);
+}

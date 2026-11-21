@@ -28,12 +28,18 @@ public enum StreamFormat
 
     /// <summary>Transcoded to MP3 (320 kbps) on the fly, for devices that play nothing better.</summary>
     Mp3,
+
+    /// <summary>CN-09: made while it is sent by a producer (live video); every request gets its own stream.</summary>
+    Live,
 }
 
 /// <summary>A published file (or, with <see cref="Data"/>, an in-memory image such as a cover): what the device gets at its URL.</summary>
 public sealed record StreamItem(string Path, StreamFormat Format, string ContentType)
 {
     public byte[]? Data { get; init; }
+
+    /// <summary>CN-09: writes a live stream to the response until the device stops reading (cancelled) or it ends.</summary>
+    public Func<Stream, CancellationToken, Task>? Live { get; init; }
 }
 
 /// <summary>
@@ -150,6 +156,21 @@ public sealed class StreamServer : IAsyncDisposable
         return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
     }
 
+    /// <summary>
+    /// CN-09: publishes a live stream: each request runs <paramref name="produce"/>, which writes to the response
+    /// (synchronous writes are allowed) until the device disconnects (its token is cancelled) or it returns.
+    /// </summary>
+    public Uri PublishLive(string name, string contentType, Func<Stream, CancellationToken, Task> produce)
+    {
+        if (BaseAddress is null)
+        {
+            throw new InvalidOperationException("The streaming server is not running.");
+        }
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        _items[token] = new StreamItem(name, StreamFormat.Live, contentType) { Live = produce };
+        return new Uri(BaseAddress, $"media/{token}/{Uri.EscapeDataString(name)}");
+    }
+
     /// <summary>Stops answering <paramref name="url"/> (the token in it).</summary>
     public void Revoke(Uri url)
     {
@@ -177,6 +198,26 @@ public sealed class StreamServer : IAsyncDisposable
         if (item.Data is { } data)
         {
             return Results.Bytes(data, item.ContentType);
+        }
+        if (item.Live is { } live)
+        {
+            if (HttpMethods.IsHead(context.Request.Method))
+            {
+                context.Response.ContentType = item.ContentType;
+                return Results.Empty;
+            }
+            var aborted = context.RequestAborted;
+            return Results.Stream(async output =>
+            {
+                try
+                {
+                    await live(output, aborted).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+                {
+                    _logger.LogDebug("The device stopped reading the live stream {Name}: {Message}", item.Path, ex.Message);
+                }
+            }, item.ContentType);
         }
         if (item.Format == StreamFormat.Original)
         {
@@ -216,7 +257,7 @@ public sealed class StreamServer : IAsyncDisposable
     /// <summary>The DLNA fourth field of a protocolInfo: operations (byte ranges or none), conversion flag, flags.</summary>
     public static string ContentFeatures(StreamFormat format, bool image = false) =>
         image ? "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=00D00000000000000000000000000000"
-        : format is StreamFormat.Flac or StreamFormat.Mp3 ? "DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000"
+        : format is StreamFormat.Flac or StreamFormat.Mp3 or StreamFormat.Live ? "DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000"
         : $"DLNA.ORG_OP=01;DLNA.ORG_CI={(format == StreamFormat.Original ? 0 : 1)};DLNA.ORG_FLAGS=01700000000000000000000000000000";
 
     /// <summary>FLAC/MP3: decodes and encodes while sending, from <c>?t=</c> seconds; HEAD only answers the headers.</summary>

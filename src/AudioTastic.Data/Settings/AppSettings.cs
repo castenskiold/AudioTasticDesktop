@@ -211,6 +211,15 @@ public sealed class CastingNetworkSettings
 {
     /// <summary>CN-04: the streaming server's port; 0 = a free port chosen at start (allow it in a firewall if you fix one).</summary>
     public int ServerPort { get; set; }
+
+    /// <summary>CN-09: what a TV shows when casting video: "spectrum", "oscilloscope" or a visualisation plugin's id.</summary>
+    public string VideoVisualisation { get; set; } = "spectrum";
+
+    /// <summary>CN-09: video height (16:9): 720 or 1080.</summary>
+    public int VideoHeight { get; set; } = 1080;
+
+    /// <summary>CN-09: frames per second of the cast video.</summary>
+    public int VideoFps { get; set; } = 30;
 }
 
 public sealed class InterfaceSettings

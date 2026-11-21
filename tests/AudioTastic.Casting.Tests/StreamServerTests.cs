@@ -60,6 +60,34 @@ public sealed class StreamServerTests
     }
 
     [Fact]
+    public async Task Live_items_run_their_producer_per_request_and_answer_head_with_dlna_headers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = new StreamServer([], [], NullLogger<StreamServer>.Instance);
+        await server.StartAsync(0, IPAddress.Loopback, ct);
+        var runs = 0;
+        var url = server.PublishLive("visuals.ts", "video/mpeg", async (output, aborted) =>
+        {
+            Interlocked.Increment(ref runs);
+            await output.WriteAsync("live!"u8.ToArray(), aborted);
+        });
+        Assert.EndsWith("/visuals.ts", url.AbsolutePath, StringComparison.Ordinal);
+        using var http = new HttpClient();
+        using (var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), ct))
+        {
+            Assert.Equal("video/mpeg", head.Content.Headers.ContentType?.MediaType);
+            Assert.StartsWith("DLNA.ORG_OP=00;DLNA.ORG_CI=1", head.Headers.GetValues("contentFeatures.dlna.org").Single(), StringComparison.Ordinal);
+        }
+        Assert.Equal(0, runs); // HEAD does not start a stream
+        Assert.Equal("live!", await http.GetStringAsync(url, ct));
+        Assert.Equal("live!", await http.GetStringAsync(url, ct));
+        Assert.Equal(2, runs);
+        server.Revoke(url);
+        using var gone = await http.GetAsync(url, ct);
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+    }
+
+    [Fact]
     public async Task Server_serves_originals_and_wav_with_ranges_and_forgets_revoked_urls()
     {
         var ct = TestContext.Current.CancellationToken;

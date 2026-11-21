@@ -145,7 +145,8 @@ public sealed class SsdpBrowser(HttpClient http, ILogger logger)
                 timeout.CancelAfter(TimeSpan.FromSeconds(4));
                 using var response = await http.SendAsync(request, timeout.Token).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                return ParseDescription(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false), uri);
+                var device = ParseDescription(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false), uri);
+                return device is null ? null : await WithSinkAsync(device, timeout.Token).ConfigureAwait(false);
             }
 #pragma warning disable CA1031 // One device's broken description must not stop the others.
             catch (Exception ex)
@@ -156,5 +157,29 @@ public sealed class SsdpBrowser(HttpClient http, ILogger logger)
             }
         })).ConfigureAwait(false);
         return [.. devices.OfType<CastDevice>().GroupBy(d => d.Id).Select(g => g.First())];
+    }
+
+    /// <summary>
+    /// CN-09: asks the renderer what it plays (GetProtocolInfo): one that lists video has a screen. The list is kept
+    /// in Details["sink"] (space-separated MIME types) so casting needs no second request.
+    /// </summary>
+    private async Task<CastDevice> WithSinkAsync(CastDevice device, CancellationToken cancellationToken)
+    {
+        if (!device.Details.ContainsKey("connectionManager"))
+        {
+            return device;
+        }
+        try
+        {
+            using var renderer = new Dlna.UpnpRenderer(device, http);
+            var sink = await renderer.GetSinkTypesAsync(cancellationToken).ConfigureAwait(false);
+            var details = new Dictionary<string, string>(device.Details, StringComparer.Ordinal) { ["sink"] = string.Join(' ', sink.Order(StringComparer.Ordinal)) };
+            return device with { HasScreen = sink.Any(t => t.StartsWith("video/", StringComparison.Ordinal)), Details = details };
+        }
+        catch (Dlna.UpnpException ex)
+        {
+            logger.LogDebug("{Device} did not list its formats: {Message}", device.Name, ex.Message);
+            return device;
+        }
     }
 }

@@ -15,6 +15,11 @@ public sealed class FfmpegInputPlugin : IInputPlugin
     /// <summary>SDK 0.4.1: FLAC and MP3 encoders (cast transcoding, CN-04).</summary>
     public IReadOnlyList<IAudioEncoderFactory> EncoderFactories => [_encoders];
 
+    private readonly FfmpegVideoEncoderFactory _videoEncoders = new();
+
+    /// <summary>SDK 0.4.2: live H.264 video (fragmented MP4 or MPEG-TS) for casting visualisations (CN-09).</summary>
+    public IReadOnlyList<AudioTastic.Sdk.Video.IVideoEncoderFactory> VideoEncoderFactories => [_videoEncoders];
+
     public void Initialize(IPluginContext context)
     {
         ArgumentNullException.ThrowIfNull(context);

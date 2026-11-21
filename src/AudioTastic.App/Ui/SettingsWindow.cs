@@ -7,6 +7,7 @@ using AudioTastic.Data;
 using AudioTastic.Data.Settings;
 using AudioTastic.Platform;
 using AudioTastic.Plugins.Host;
+using AudioTastic.Sdk.Plugins;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.App.Ui;
@@ -142,7 +143,46 @@ public sealed class SettingsWindow : Window
             "0 = a free port chosen when casting starts. Set a fixed port if your firewall needs a rule for it. Takes effect the next time casting starts.");
         Note(panel, "Cast with the CAST button in the main window: it lists this computer, Chromecasts and DLNA devices (smart TVs, network receivers) on your network. " +
             "The device plays the file itself when it can; other formats are converted while they are sent (FLAC for Chromecast, WAV for DLNA). " +
-            "AirPlay and the video modes follow later in phase P11.");
+            "AirPlay follows later in phase P11.");
+
+        // CN-09: the video sent to a TV (visuals only, and later audio and video).
+        Heading(panel, "Video on a TV");
+        var choices = new List<(string Id, string Name)> { ("spectrum", "Spectrum analyser"), ("oscilloscope", "Oscilloscope") };
+        foreach (var record in _plugins.Plugins.Where(r => r.Status == PluginStatus.Enabled))
+        {
+            foreach (var plugin in record.Instances.OfType<IVisualisationPlugin>())
+            {
+                var offscreen = false;
+                var name = record.Manifest.Name;
+                _plugins.Guard(record, () =>
+                {
+                    offscreen = plugin.CanRenderOffscreen;
+                    name = plugin.Name;
+                });
+                if (offscreen)
+                {
+                    choices.Add((record.Id, $"{name} (plugin)"));
+                }
+            }
+        }
+        var visual = new ComboBox { ItemsSource = choices.Select(c => c.Name).ToList(), Width = 320,
+            SelectedIndex = Math.Max(0, choices.FindIndex(c => string.Equals(c.Id, cast.VideoVisualisation, StringComparison.OrdinalIgnoreCase))) };
+        visual.SelectionChanged += (_, _) =>
+        {
+            if (visual.SelectedIndex >= 0)
+            {
+                _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.VideoVisualisation = choices[visual.SelectedIndex].Id);
+            }
+        };
+        Row(panel, "Visualisation", visual, "What the TV shows. Visualisation plugins appear here when they can draw for a TV (SDK 0.4.2).");
+        var heights = new[] { 720, 1080 };
+        var size = new ComboBox { ItemsSource = new[] { "1280 × 720", "1920 × 1080" }, Width = 160, SelectedIndex = cast.VideoHeight >= 1080 ? 1 : 0 };
+        size.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.VideoHeight = heights[Math.Max(0, size.SelectedIndex)]);
+        Row(panel, "Resolution", size);
+        var rates = new[] { 25, 30, 60 };
+        var fps = new ComboBox { ItemsSource = rates.Select(r => $"{r} frames a second").ToList(), Width = 200, SelectedIndex = Math.Max(0, Array.IndexOf(rates, cast.VideoFps)) };
+        fps.SelectionChanged += (_, _) => _settings.Update(SettingsGroup.CastingNetwork, s => s.CastingNetwork.VideoFps = rates[Math.Max(0, fps.SelectedIndex)]);
+        Row(panel, "Frame rate", fps, "Takes effect the next time video casting starts. 60 needs a fast computer.");
     }
 
     /// <summary>SI-05 / SI-06: the file manager's context menu and what opened files do.</summary>

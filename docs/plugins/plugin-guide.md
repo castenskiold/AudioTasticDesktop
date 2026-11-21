@@ -115,6 +115,15 @@ An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` 
 - `Write(samples)` takes interleaved float in the format given at creation, in any amount; `Finish()` writes the rest and the end of the stream.
 - "Cannot write this format here" is an `AudioSourceException`; an `IOException` from the output means the reader went away (not a fault). Other exceptions are plugin faults.
 
+### Offering a video encoder (input plugin, SDK 0.4.2)
+
+`IInputPlugin.VideoEncoderFactories` (default: none) offers live H.264 video for casting visualisations to a TV (CN-09). The built-in FFmpeg plugin offers it with the operating system's H.264 encoder where FFmpeg has one, else OpenH264.
+
+- `IVideoEncoderFactory.Containers` lists what this machine can write: `VideoContainer.FragmentedMp4` (Chromecast) and `VideoContainer.MpegTs` (DLNA TVs). Empty when there is no H.264 encoder.
+- `Create(settings, output)`: `VideoEncodeSettings` gives the container, size (even numbers), frame rate, video bitrate and, for audio and video, the audio format. `output` is a live network response: never seek it.
+- `WriteFrame(bgra)` takes premultiplied BGRA frames, spaced 1 / frame rate apart; `WriteAudio(samples)` interleaved float. The player paces both in real time. `Finish()` ends the stream.
+- Errors as for audio encoders: `AudioSourceException` = cannot encode here, `IOException` = the TV stopped reading.
+
 ### Writing an output (output plugin)
 
 - `IOutputPlugin.Name` is shown in Settings › Output. Each device from your `IAudioOutput.GetDevices()` appears as **"Name: device"**; if you return no devices, a single entry **"Name"** opens your output with `device = null`.
@@ -218,6 +227,6 @@ Each plugin gets its own view of the API:
 - The SDK follows semantic versioning, but stays **0.x (pre-release)** until phase P8: DSP, visualisation and crossfading work may still change the contracts.
 - **While 0.x:** a plugin must be built for the same minor version (`0.4.x` runs on a 0.4 player).
 - **0.4.1** added encoders (`IAudioEncoderFactory`, `IAudioEncoder`, `IInputPlugin.EncoderFactories`). It is additive: plugins built for 0.4.0 keep working unchanged.
-- **0.4.2** added off-screen rendering for visualisations (`IOffscreenVisualisation`, `IVisualisationPlugin.CanRenderOffscreen`), so they can be cast to a TV (CN-09). Also additive.
+- **0.4.2** added off-screen rendering for visualisations (`IOffscreenVisualisation`, `IVisualisationPlugin.CanRenderOffscreen`) and live video encoders (`IVideoEncoderFactory`, `IVideoEncoder`, `IInputPlugin.VideoEncoderFactories`), so visualisations can be cast to a TV (CN-09). Also additive.
 - **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y.
 - Incompatible plugins are listed as *Incompatible* and are not loaded.

@@ -169,7 +169,8 @@ public sealed class DlnaRemote : IRemotePlayer, IAsyncDisposable
     }
 
     /// <summary>The DIDL-Lite description of a track for SetAVTransportURI (public for tests).</summary>
-    public static string Didl(Uri url, string protocolInfo, string title, string? artist, string? album, Uri? cover, TimeSpan? duration)
+    public static string Didl(Uri url, string protocolInfo, string title, string? artist, string? album, Uri? cover, TimeSpan? duration,
+        string itemClass = "object.item.audioItem.musicTrack")
     {
         ArgumentNullException.ThrowIfNull(url);
         XNamespace didl = "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/";
@@ -187,7 +188,7 @@ public sealed class DlnaRemote : IRemotePlayer, IAsyncDisposable
             artist is null ? null : new XElement(upnp + "artist", artist),
             album is null ? null : new XElement(upnp + "album", album),
             cover is null ? null : new XElement(upnp + "albumArtURI", new XAttribute(dlna + "profileID", "JPEG_TN"), cover.AbsoluteUri),
-            new XElement(upnp + "class", "object.item.audioItem.musicTrack"),
+            new XElement(upnp + "class", itemClass),
             res);
         var root = new XElement(didl + "DIDL-Lite",
             new XAttribute("xmlns", didl.NamespaceName),

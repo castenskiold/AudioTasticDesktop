@@ -6,6 +6,8 @@ using AudioTastic.Core.Playback;
 using AudioTastic.Data.Settings;
 using AudioTastic.Metadata;
 using AudioTastic.Plugins.Host;
+using AudioTastic.Sdk.Plugins;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.App.Integration;
@@ -28,6 +30,7 @@ public sealed class CastService : IDisposable
     private readonly SemaphoreSlim _switching = new(1, 1);
     private StreamServer? _server;
     private IAsyncDisposable? _remote;
+    private VideoCast? _video;
 
     public CastService(PlaybackEngine engine, PluginHost plugins, TagService tags, ArtService art, SettingsStore settings, ILoggerFactory loggers)
     {
@@ -44,6 +47,9 @@ public sealed class CastService : IDisposable
 
     /// <summary>The device playing now, or null (this computer).</summary>
     public CastDevice? Current { get; private set; }
+
+    /// <summary>CN-09: the TV showing the visuals while the music plays here ("visuals only"), or null.</summary>
+    public CastDevice? VideoDevice => _video?.Device;
 
     /// <summary>The devices found by the latest scan.</summary>
     public IReadOnlyList<CastDevice> Devices => _discovery.Devices;
@@ -62,6 +68,112 @@ public sealed class CastService : IDisposable
     /// <summary>True for the device kinds this version can cast to (Chromecast and DLNA; AirPlay follows).</summary>
     public static bool CanCastTo(CastDevice device) => device.Kind is CastDeviceKind.Chromecast or CastDeviceKind.Dlna;
 
+    /// <summary>CN-09: true when <paramref name="device"/> has a screen and this machine can encode the video it plays.</summary>
+    public bool CanCastVisuals(CastDevice device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        return device.HasScreen == true && CanCastTo(device) && VideoEncoder(device) is not null;
+    }
+
+    private Sdk.Video.IVideoEncoderFactory? VideoEncoder(CastDevice device) =>
+        _plugins.VideoEncoderFactories.FirstOrDefault(e => e.Containers.Contains(VideoCast.ContainerFor(device)));
+
+    /// <summary>
+    /// CN-09 "visuals only": the visualisation goes to <paramref name="device"/> while the music keeps playing on this
+    /// computer (audio casting stops first: the visuals follow what plays here).
+    /// </summary>
+    public async Task CastVisualsAsync(CastDevice device, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        var encoder = VideoEncoder(device) ?? throw new NotSupportedException("This computer cannot encode video for that device.");
+        await _switching.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await StopAudioCoreAsync().ConfigureAwait(false);
+            await StopVideoCoreAsync().ConfigureAwait(false);
+            var server = await EnsureServerAsync(cancellationToken).ConfigureAwait(false);
+            var settings = _settings.Current.CastingNetwork;
+            var height = settings.VideoHeight >= 1080 ? 1080 : 720;
+            var format = new VideoCastFormat(height * 16 / 9, height, Math.Clamp(settings.VideoFps, 15, 60));
+            var video = await VideoCast.StartAsync(device, server, encoder, _engine.Graph.Visualisation, CreateVisual, _plugins, format,
+                _loggers.CreateLogger<VideoCast>(), cancellationToken).ConfigureAwait(false);
+            video.Lost += OnVideoLost;
+            _video = video;
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The visualisation chosen in Settings › Casting &amp; network: built-in, or a plugin that draws off-screen.</summary>
+    private CastVisual CreateVisual()
+    {
+        var choice = _settings.Current.CastingNetwork.VideoVisualisation;
+        if (choice is not "spectrum" and not "oscilloscope")
+        {
+            var record = _plugins.Plugins.FirstOrDefault(p => string.Equals(p.Id, choice, StringComparison.OrdinalIgnoreCase) && p.Status == PluginStatus.Enabled);
+            IVisualisation? visualisation = null;
+            if (record?.Instances.OfType<IVisualisationPlugin>().FirstOrDefault() is { } plugin)
+            {
+                // Plugin objects are created on the UI thread, like their windows.
+                Dispatcher.UIThread.Invoke(() => _plugins.Guard(record, () => visualisation = plugin.CanRenderOffscreen ? plugin.Create() : null));
+            }
+            if (visualisation is IOffscreenVisualisation)
+            {
+                return new CastVisual(visualisation, record);
+            }
+            visualisation?.Dispose();
+            _logger.LogWarning("The visualisation {Choice} cannot be cast; using the built-in spectrum", choice);
+        }
+        var type = choice == "oscilloscope" ? VisualisationType.Oscilloscope : VisualisationType.Spectrum;
+        return new CastVisual(new CastVisualisation(type, 48, _settings.Current.Interface.PeakFallSpeed), null);
+    }
+
+    private void OnVideoLost(object? sender, EventArgs e) => _ = Task.Run(async () =>
+    {
+        await _switching.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (ReferenceEquals(sender, _video))
+            {
+                _logger.LogInformation("The visuals' TV went away or was taken over");
+                await StopVideoCoreAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+    });
+
+    private async Task StopVideoCoreAsync()
+    {
+        if (_video is { } video)
+        {
+            _video = null;
+            video.Lost -= OnVideoLost;
+            await video.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task StopAudioCoreAsync()
+    {
+        var remote = _remote;
+        _remote = null;
+        Current = null;
+        if (_engine.Remote is not null)
+        {
+            await _engine.SetRemoteAsync(null).ConfigureAwait(false);
+        }
+        if (remote is not null)
+        {
+            await remote.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
     /// <summary>Moves playback to <paramref name="device"/> at the current track and position.</summary>
     public async Task CastToAsync(CastDevice device, CancellationToken cancellationToken = default)
     {
@@ -72,6 +184,7 @@ public sealed class CastService : IDisposable
         await _switching.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await StopVideoCoreAsync().ConfigureAwait(false); // the visuals follow local playback, which moves to the device
             var server = await EnsureServerAsync(cancellationToken).ConfigureAwait(false);
             IRemotePlayer remote = device.Kind == CastDeviceKind.Dlna
                 ? await DlnaRemote.ConnectAsync(device, server, Extras, _engine.Volume, _loggers.CreateLogger<DlnaRemote>(), cancellationToken)
@@ -94,20 +207,14 @@ public sealed class CastService : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Moves playback back to this computer at the device's position.</summary>
+    /// <summary>Moves playback back to this computer at the device's position, and stops casting visuals.</summary>
     public async Task StopCastingAsync()
     {
         await _switching.WaitAsync().ConfigureAwait(false);
         try
         {
-            var remote = _remote;
-            _remote = null;
-            Current = null;
-            await _engine.SetRemoteAsync(null).ConfigureAwait(false);
-            if (remote is not null)
-            {
-                await remote.DisposeAsync().ConfigureAwait(false);
-            }
+            await StopAudioCoreAsync().ConfigureAwait(false);
+            await StopVideoCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -165,6 +272,7 @@ public sealed class CastService : IDisposable
         try
         {
             _remote?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(4));
+            _video?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(4));
             _server?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         }
         catch (AggregateException ex)
