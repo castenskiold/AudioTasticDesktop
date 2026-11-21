@@ -342,7 +342,7 @@ story.append(T.table([
     ("AudioTastic.Plugins.Host", "Plugin discovery, manifest validation, one AssemblyLoadContext per plugin, fault handling."),
     ("AudioTastic.Analysis", "AnalysisService queue; waveform, loudness and BPM/beat/break analysers."),
     ("AudioTastic.Metadata", "TagService (TagLibSharp, FFmpeg fallback, cached), TagLoader (background tag reading), ArtService, LyricsService, OnlineLookupService."),
-    ("AudioTastic.Casting", "CastService, Chromecast/DLNA/AirPlay targets, discovery, StreamServer, Transcoder, remote control API."),
+    ("AudioTastic.Casting", "CastService, Chromecast/DLNA/AirPlay targets, discovery, StreamServer, Transcoder."),
     ("AudioTastic.Data", "SettingsStore (JSON), CacheStore (SQLite), AppPaths (normal / portable)."),
     ("AudioTastic.Platform (+ .Windows / .MacOS / .Linux)", "Interfaces and per-OS implementations: media controls, hotkeys, taskbar, shell integration, notifications, CD drive."),
     ("AudioTastic.NativeBridge", "32-bit helper process for native Winamp plugins (Windows only)."),
@@ -418,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.32  ·  21 November 2026", story, short_title="Feature Specification  ·  v1.32")
+        "Version 1.33  ·  21 November 2026", story, short_title="Feature Specification  ·  v1.33")
 print("built")

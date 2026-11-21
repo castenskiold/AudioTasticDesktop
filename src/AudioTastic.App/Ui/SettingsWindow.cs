@@ -140,9 +140,9 @@ public sealed class SettingsWindow : Window
         };
         Row(panel, "Streaming server port", port,
             "0 = a free port chosen when casting starts. Set a fixed port if your firewall needs a rule for it. Takes effect the next time casting starts.");
-        Note(panel, "Cast with the CAST button in the main window: it lists this computer and the Chromecasts on your network. " +
-            "The device plays the file itself when it can (MP3, AAC, FLAC, Opus, Vorbis, WAV); other formats are converted to FLAC while they are sent. " +
-            "DLNA/UPnP renderers, AirPlay, the video modes and remote control follow later in phase P11.");
+        Note(panel, "Cast with the CAST button in the main window: it lists this computer, Chromecasts and DLNA devices (smart TVs, network receivers) on your network. " +
+            "The device plays the file itself when it can; other formats are converted while they are sent (FLAC for Chromecast, WAV for DLNA). " +
+            "AirPlay and the video modes follow later in phase P11.");
     }
 
     /// <summary>SI-05 / SI-06: the file manager's context menu and what opened files do.</summary>

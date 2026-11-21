@@ -66,8 +66,8 @@ public sealed class PlaybackErrorEventArgs(string path, string message) : EventA
 }
 
 /// <summary>
-/// CO-02: the single entry point for transport commands, used by the UI, plugins, IPC, OS media controls and the
-/// remote-control API. Commands are serialised; events are raised on background threads (UI code must marshal
+/// CO-02: the single entry point for transport commands, used by the UI, plugins, IPC (command line), OS media
+/// controls, hotkeys and cast devices. Commands are serialised; events are raised on background threads (UI code must marshal
 /// to its own thread).
 /// <para>Plays entries of a <see cref="Playlist"/> (PL-01): the playing playlist can differ from the tab shown (PL-02).</para>
 /// </summary>
