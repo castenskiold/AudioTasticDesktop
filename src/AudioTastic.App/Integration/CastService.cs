@@ -31,9 +31,12 @@ public sealed class CastService : IDisposable
     private StreamServer? _server;
     private IAsyncDisposable? _remote;
     private VideoCast? _video;
+    private readonly OutputRouter? _router;
 
-    public CastService(PlaybackEngine engine, PluginHost plugins, TagService tags, ArtService art, SettingsStore settings, ILoggerFactory loggers)
+    public CastService(PlaybackEngine engine, PluginHost plugins, TagService tags, ArtService art, SettingsStore settings, ILoggerFactory loggers,
+        Sdk.Audio.IAudioOutput output)
     {
+        _router = output as OutputRouter;
         _engine = engine;
         _plugins = plugins;
         _tags = tags;
@@ -49,7 +52,10 @@ public sealed class CastService : IDisposable
     public CastDevice? Current { get; private set; }
 
     /// <summary>CN-09: the TV showing the visuals while the music plays here ("visuals only"), or null.</summary>
-    public CastDevice? VideoDevice => _video?.Device;
+    public CastDevice? VideoDevice => _video is { WithAudio: false } video ? video.Device : null;
+
+    /// <summary>CN-09: the TV playing the player's mix with the visualisation ("audio and video"), or null.</summary>
+    public CastDevice? AudioVideoDevice => _video is { WithAudio: true } video ? video.Device : null;
 
     /// <summary>The devices found by the latest scan.</summary>
     public IReadOnlyList<CastDevice> Devices => _discovery.Devices;
@@ -82,10 +88,23 @@ public sealed class CastService : IDisposable
     /// CN-09 "visuals only": the visualisation goes to <paramref name="device"/> while the music keeps playing on this
     /// computer (audio casting stops first: the visuals follow what plays here).
     /// </summary>
-    public async Task CastVisualsAsync(CastDevice device, CancellationToken cancellationToken = default)
+    public Task CastVisualsAsync(CastDevice device, CancellationToken cancellationToken = default) => StartVideoAsync(device, withAudio: false, cancellationToken);
+
+    /// <summary>
+    /// CN-09 "audio and video": the player's own mix (gapless, crossfades, EQ and volume included) and the
+    /// visualisation drawn from it go to <paramref name="device"/> in one stream; the speakers here go quiet. The
+    /// player keeps the transport; the TV plays about two seconds behind it.
+    /// </summary>
+    public Task CastAudioVideoAsync(CastDevice device, CancellationToken cancellationToken = default) => StartVideoAsync(device, withAudio: true, cancellationToken);
+
+    private async Task StartVideoAsync(CastDevice device, bool withAudio, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(device);
         var encoder = VideoEncoder(device) ?? throw new NotSupportedException("This computer cannot encode video for that device.");
+        if (withAudio && _router is null)
+        {
+            throw new NotSupportedException("The output cannot be sent to a TV here.");
+        }
         await _switching.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -97,10 +116,34 @@ public sealed class CastService : IDisposable
             var format = new VideoCastFormat(height * 16 / 9, height, Math.Clamp(settings.VideoFps, 15, 60));
             var audio = new VisualAudio(_engine.Graph.Visualisation, () => Core.Audio.PlayingPoint.Of(_engine), () => VisualDelay(device), _plugins.LiveSourceFactories,
                 () => Volatile.Read(ref _calibrating), () => _engine.BeatProvider);
-            var video = await VideoCast.StartAsync(device, server, encoder, audio, CreateVisual, _plugins, format,
-                _loggers.CreateLogger<VideoCast>(), cancellationToken).ConfigureAwait(false);
-            video.Lost += OnVideoLost;
-            _video = video;
+            NetworkAudioOutput? mix = null;
+            if (withAudio)
+            {
+                mix = new NetworkAudioOutput(device.Name);
+                _router!.Divert(mix);
+                await _engine.ReopenOutputAsync().ConfigureAwait(false);
+            }
+            try
+            {
+                var video = await VideoCast.StartAsync(device, server, encoder, audio, CreateVisual, _plugins, format, mix, _engine.Volume,
+                    _loggers.CreateLogger<VideoCast>(), cancellationToken).ConfigureAwait(false);
+                video.Lost += OnVideoLost;
+                _video = video;
+                if (withAudio)
+                {
+                    // The mix goes at full level; the slider moves the TV's own volume.
+                    _engine.VolumeOnDevice = true;
+                    _engine.VolumeChanged += OnVolumeChanged;
+                }
+            }
+            catch
+            {
+                if (mix is not null)
+                {
+                    await UndivertAsync().ConfigureAwait(false);
+                }
+                throw;
+            }
         }
         finally
         {
@@ -187,8 +230,28 @@ public sealed class CastService : IDisposable
         {
             _video = null;
             video.Lost -= OnVideoLost;
+            if (video.WithAudio)
+            {
+                _engine.VolumeChanged -= OnVolumeChanged;
+                _engine.VolumeOnDevice = false;
+                await UndivertAsync().ConfigureAwait(false); // the speakers here take over again
+            }
             await video.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private void OnVolumeChanged(object? sender, EventArgs e)
+    {
+        if (_video is { WithAudio: true } video)
+        {
+            _ = video.SetVolumeAsync(_engine.Volume);
+        }
+    }
+
+    private async Task UndivertAsync()
+    {
+        _router?.Divert(null);
+        await _engine.ReopenOutputAsync().ConfigureAwait(false);
     }
 
     private async Task StopAudioCoreAsync()

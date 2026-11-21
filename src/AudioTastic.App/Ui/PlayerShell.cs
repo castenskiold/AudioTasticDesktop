@@ -423,7 +423,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         "eqAuto" => _eq.IsAuto,
         "eqParam" => _eq.IsParametric,
         "crossfade" => _crossfadeOn,
-        "cast" => _cast.Current is not null || _cast.VideoDevice is not null,
+        "cast" => _cast.Current is not null || _cast.VideoDevice is not null || _cast.AudioVideoDevice is not null,
         _ => false,
     };
 
@@ -456,7 +456,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             {
                 Header = supported ? label : $"{label}  (coming later)",
                 ToggleType = MenuItemToggleType.Radio,
-                IsChecked = device is null ? _cast.Current is null && _cast.VideoDevice is null : _cast.Current?.Id == device.Id,
+                IsChecked = device is null ? _cast.Current is null && _cast.VideoDevice is null && _cast.AudioVideoDevice is null : _cast.Current?.Id == device.Id,
                 IsEnabled = supported,
             };
             Avalonia.Automation.AutomationProperties.SetName(item, device is null ? "Play on this computer" : $"Cast to {device.Name}");
@@ -466,7 +466,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 {
                     if (device is null)
                     {
-                        if (_cast.Current is not null || _cast.VideoDevice is not null)
+                        if (_cast.Current is not null || _cast.VideoDevice is not null || _cast.AudioVideoDevice is not null)
                         {
                             await _cast.StopCastingAsync();
                             Player.ShowNotice("Playing on this computer");
@@ -519,10 +519,35 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                     Player.ShowMessage($"Could not show the visuals on {device.Name}: {ex.Message}");
                 }
             });
-            var both = new MenuItem { Header = "Audio and video (coming next)", IsEnabled = false };
+            var both = new MenuItem
+            {
+                Header = "Audio and video",
+                ToggleType = MenuItemToggleType.Radio,
+                IsChecked = _cast.AudioVideoDevice?.Id == device.Id,
+            };
+            Avalonia.Automation.AutomationProperties.SetName(both, $"Play the music with the visualisation on {device.Name}");
+            both.Click += (_, _) => Run(async () =>
+            {
+                if (_cast.AudioVideoDevice?.Id == device.Id)
+                {
+                    return;
+                }
+                try
+                {
+                    Player.ShowNotice($"Connecting to {device.Name}…");
+                    await _cast.CastAudioVideoAsync(device);
+                    Player.ShowNotice($"Music and visuals on {device.Name}");
+                }
+                catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or OperationCanceledException or NotSupportedException
+                                               or System.Security.Authentication.AuthenticationException)
+                {
+                    _logger.LogWarning(ex, "Could not cast audio and video to {Device}", device.Name);
+                    Player.ShowMessage($"Could not play on {device.Name}: {ex.Message}");
+                }
+            });
             var delay = new MenuItem { Header = "Picture delay…", IsEnabled = _cast.VideoDevice?.Id == device.Id };
             delay.Click += (_, _) => new PictureDelayWindow(_cast, device).Show(_main!);
-            var active = _cast.Current?.Id == device.Id || _cast.VideoDevice?.Id == device.Id;
+            var active = _cast.Current?.Id == device.Id || _cast.VideoDevice?.Id == device.Id || _cast.AudioVideoDevice?.Id == device.Id;
             return new MenuItem
             {
                 Header = $"{(active ? "● " : "")}{device.Name}  ▭",

@@ -57,15 +57,21 @@ public sealed class VideoCast : IAsyncDisposable
     private readonly VideoCastFormat _format;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _stopping = new();
+    private readonly NetworkAudioOutput? _mix;
+    private CancellationTokenSource? _request;
+    private int _requests;
     private ChromecastSession? _chromecast;
     private UpnpRenderer? _dlna;
+    private int? _dlnaStartVolume;
+    private int _startPlayerVolume;
     private Uri? _url;
     private bool _lost;
 
     private VideoCast(CastDevice device, StreamServer server, IVideoEncoderFactory encoders, VisualAudio audio, Func<CastVisual> createVisual,
-        PluginHost plugins, VideoCastFormat format, ILogger logger)
+        PluginHost plugins, VideoCastFormat format, NetworkAudioOutput? mix, ILogger logger)
     {
         Device = device;
+        _mix = mix;
         _server = server;
         _encoders = encoders;
         _feed = audio.Feed;
@@ -82,6 +88,9 @@ public sealed class VideoCast : IAsyncDisposable
 
     public CastDevice Device { get; }
 
+    /// <summary>True for audio and video (the player's mix is in the stream); false for visuals only.</summary>
+    public bool WithAudio => _mix is not null;
+
     /// <summary>The TV went away or someone else cast to it.</summary>
     public event EventHandler? Lost;
 
@@ -89,14 +98,18 @@ public sealed class VideoCast : IAsyncDisposable
     public static VideoContainer ContainerFor(CastDevice device) =>
         (device ?? throw new ArgumentNullException(nameof(device))).Kind == CastDeviceKind.Chromecast ? VideoContainer.FragmentedMp4 : VideoContainer.MpegTs;
 
-    /// <summary>Publishes the live stream and starts it on <paramref name="device"/>.</summary>
+    /// <summary>
+    /// Publishes the live stream and starts it on <paramref name="device"/>. With <paramref name="mix"/> the stream
+    /// carries the player's mix (audio and video), otherwise the visuals only.
+    /// </summary>
     public static async Task<VideoCast> StartAsync(CastDevice device, StreamServer server, IVideoEncoderFactory encoders, VisualAudio audio,
-        Func<CastVisual> createVisual, PluginHost plugins, VideoCastFormat format, ILogger logger, CancellationToken cancellationToken)
+        Func<CastVisual> createVisual, PluginHost plugins, VideoCastFormat format, NetworkAudioOutput? mix, int playerVolume, ILogger logger,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(audio);
-        var cast = new VideoCast(device, server, encoders, audio, createVisual, plugins, format, logger);
+        var cast = new VideoCast(device, server, encoders, audio, createVisual, plugins, format, mix, logger) { _startPlayerVolume = playerVolume };
         try
         {
             await cast.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -114,8 +127,8 @@ public sealed class VideoCast : IAsyncDisposable
         var container = ContainerFor(Device);
         var (name, type) = container == VideoContainer.FragmentedMp4 ? ("visuals.mp4", "video/mp4") : ("visuals.ts", "video/mpeg");
         _url = _server.PublishLive(name, type, ProduceAsync);
-        _logger.LogInformation("Casting visuals to {Device} as {Container} {Width}x{Height} at {Fps} fps", Device.Name, container, _format.Width, _format.Height,
-            _format.FramesPerSecond);
+        _logger.LogInformation("Casting {What} to {Device} as {Container} {Width}x{Height} at {Fps} fps", WithAudio ? "audio and video" : "visuals",
+            Device.Name, container, _format.Width, _format.Height, _format.FramesPerSecond);
         if (Device.Kind == CastDeviceKind.Chromecast)
         {
             _chromecast = await ChromecastSession.StartAsync(Device.Address, Device.Port, _logger, cancellationToken).ConfigureAwait(false);
@@ -134,6 +147,17 @@ public sealed class VideoCast : IAsyncDisposable
             {
                 // nothing was playing
             }
+            if (WithAudio)
+            {
+                try
+                {
+                    _dlnaStartVolume = await _dlna.GetVolumeAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (UpnpException ex)
+                {
+                    _logger.LogDebug("{Device} did not tell its volume: {Message}", Device.Name, ex.Message);
+                }
+            }
             var didl = DlnaRemote.Didl(_url, $"http-get:*:{type}:{StreamServer.ContentFeatures(StreamFormat.Live)}", "AudioTastic", "Visualisation", null, null,
                 null, "object.item.videoItem");
             await _dlna.SetUriAsync(_url, didl, cancellationToken).ConfigureAwait(false);
@@ -141,13 +165,153 @@ public sealed class VideoCast : IAsyncDisposable
         }
     }
 
-    /// <summary>One request from the TV: a pipeline on its own thread until the TV disconnects or casting stops.</summary>
+    /// <summary>
+    /// Audio and video: the player's volume (0–100) moves the TV's own volume. Chromecast: as its volume; DLNA: in
+    /// proportion to the TV's volume when casting started (a TV at 11 is not jumped to 80).
+    /// </summary>
+    public async Task SetVolumeAsync(int volume)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        try
+        {
+            if (_chromecast is not null)
+            {
+                await _chromecast.SetVolumeAsync(volume / 100.0, false, timeout.Token).ConfigureAwait(false);
+            }
+            else if (_dlna is not null && DlnaRemote.DeviceVolume(_dlnaStartVolume, _startPlayerVolume, volume) is { } level)
+            {
+                await _dlna.SetVolumeAsync(level, timeout.Token).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException)
+        {
+            _logger.LogDebug("Could not set the volume on {Device}: {Message}", Device.Name, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// One request from the TV: a pipeline on its own thread until the TV disconnects or casting stops. A newer
+    /// request ends an older one (a TV may probe first; the mix can feed one stream only).
+    /// </summary>
     private Task ProduceAsync(Stream output, CancellationToken requestAborted) =>
         Task.Factory.StartNew(() =>
         {
             using var stop = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, _stopping.Token);
-            Produce(output, stop.Token);
+            var previous = Interlocked.Exchange(ref _request, stop);
+            try
+            {
+                previous?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // that request has ended already
+            }
+            var number = Interlocked.Increment(ref _requests);
+            var counted = new CountingStream(output);
+            _logger.LogInformation("{Device} opened stream request {Number}", Device.Name, number);
+            try
+            {
+                if (_mix is { } mix)
+                {
+                    ProduceWithAudio(mix, counted, stop.Token);
+                }
+                else
+                {
+                    Produce(counted, stop.Token);
+                }
+            }
+#pragma warning disable CA1031 // The server would swallow it silently: log it here.
+            catch (Exception ex) when (ex is not IOException and not OperationCanceledException and not ObjectDisposedException)
+#pragma warning restore CA1031
+            {
+                _logger.LogError(ex, "The stream to {Device} failed", Device.Name);
+            }
+            finally
+            {
+                Interlocked.CompareExchange(ref _request, null, stop);
+                _logger.LogInformation("Stream request {Number} to {Device} ended after {KiB} KiB ({Reason})", number, Device.Name, counted.Written / 1024,
+                    requestAborted.IsCancellationRequested ? "the device closed it" : stop.IsCancellationRequested ? "replaced or stopped" : "ended");
+            }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+    /// <summary>
+    /// Audio and video: every frame pulls exactly the mix due until the next frame from the engine (through
+    /// <paramref name="mix"/>, at real-time pace), encodes it as AAC, and lets the visualisation draw from that same
+    /// audio, so sound and picture leave in one stream and stay together on the TV.
+    /// </summary>
+    private void ProduceWithAudio(NetworkAudioOutput mix, Stream output, CancellationToken cancellationToken)
+    {
+        var visual = _createVisual();
+        var renderer = new VisualFrameRenderer(visual.Visualisation, _format.Width, _format.Height);
+        var rate = mix.LockStreamRate();
+        var format = new AudioFormat(rate, 2);
+        try
+        {
+            using var encoder = _encoders.Create(new VideoEncodeSettings(ContainerFor(Device), _format.Width, _format.Height, _format.FramesPerSecond,
+                _format.Bitrate, format, 192_000), output);
+            _logger.LogInformation("Audio and video stream to {Device} started ({Encoder})", Device.Name, encoder.EncoderName);
+            var clock = Stopwatch.StartNew();
+            var frameLength = TimeSpan.FromSeconds(1.0 / _format.FramesPerSecond);
+            var audio = new float[((rate / _format.FramesPerSecond) + 2) * 2];
+            long pulled = 0;
+            var late = 0;
+            for (long n = 0; !cancellationToken.IsCancellationRequested; n++)
+            {
+                var due = frameLength * n;
+                var wait = due - clock.Elapsed;
+                if (wait > TimeSpan.Zero)
+                {
+                    cancellationToken.WaitHandle.WaitOne(wait);
+                }
+                else if (wait < -frameLength)
+                {
+                    // Behind: skip pictures, never sound (the audio of the skipped frames is still pulled and sent).
+                    var skipped = (long)(-wait / frameLength);
+                    n += skipped;
+                    due = frameLength * n;
+                    if (skipped >= 3 && late++ % 100 == 0)
+                    {
+                        _logger.LogWarning("The stream to {Device} skipped {Frames} pictures to stay live", Device.Name, skipped);
+                    }
+                }
+                var until = (long)Math.Round((n + 1) * (double)rate / _format.FramesPerSecond);
+                var frames = (int)(until - pulled);
+                if (audio.Length < frames * 2)
+                {
+                    audio = new float[frames * 2];
+                }
+                var block = audio.AsSpan(0, frames * 2);
+                mix.Pull(block);
+                pulled = until;
+                encoder.WriteAudio(block);
+                var time = clock.Elapsed;
+                if (visual.Plugin is { } plugin)
+                {
+                    var count = frames;
+                    if (!_plugins.Guard(plugin, () => renderer.Render(audio.AsSpan(0, count * 2), format, time)))
+                    {
+                        _logger.LogWarning("The visualisation plugin {Plugin} failed while casting; using the built-in spectrum", plugin.Manifest.Name);
+                        renderer.Dispose();
+                        visual = new CastVisual(new CastVisualisation(Data.Settings.VisualisationType.Spectrum), null);
+                        renderer = new VisualFrameRenderer(visual.Visualisation, _format.Width, _format.Height);
+                    }
+                }
+                else
+                {
+                    renderer.Render(block, format, time);
+                }
+                encoder.WriteFrame(renderer.Pixels, due);
+            }
+        }
+        catch (AudioSourceException ex)
+        {
+            _logger.LogWarning(ex, "Could not encode the stream for {Device}", Device.Name);
+        }
+        finally
+        {
+            renderer.Dispose();
+        }
+    }
 
     private void Produce(Stream output, CancellationToken cancellationToken)
     {
@@ -321,5 +485,39 @@ public sealed class VideoCast : IAsyncDisposable
             _server.Revoke(_url);
         }
         _stopping.Dispose();
+    }
+}
+
+/// <summary>Passes writes through and counts the bytes (for the stream log).</summary>
+internal sealed class CountingStream(Stream inner) : Stream
+{
+    public long Written { get; private set; }
+
+    public override bool CanRead => false;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => true;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => Written;
+        set => throw new NotSupportedException();
+    }
+
+    public override void Flush() => inner.Flush();
+
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        inner.Write(buffer, offset, count);
+        Written += count;
     }
 }

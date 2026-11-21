@@ -271,6 +271,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             ApplyGain();
             ScheduleSave();
             ForwardVolume();
+            Raise(VolumeChanged, EventArgs.Empty);
         }
     }
 
@@ -287,6 +288,26 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
             ApplyGain();
             ScheduleSave();
             ForwardVolume();
+            Raise(VolumeChanged, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The volume or mute changed (any thread).</summary>
+    public event EventHandler<EventArgs>? VolumeChanged;
+
+    private volatile bool _volumeOnDevice;
+
+    /// <summary>
+    /// CN-09 audio and video: while a TV plays the mix, the mix goes at full level and the volume slider moves the
+    /// TV's own volume (through <see cref="VolumeChanged"/>); mute still silences the mix.
+    /// </summary>
+    public bool VolumeOnDevice
+    {
+        get => _volumeOnDevice;
+        set
+        {
+            _volumeOnDevice = value;
+            ApplyGain();
         }
     }
 
@@ -698,6 +719,22 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     public Task SetOutputDeviceAsync(string? deviceName) => RunAsync(() =>
     {
         _settings.Update(SettingsGroup.Output, s => s.Output.DeviceName = deviceName);
+        ReopenOutput();
+        return Task.CompletedTask;
+    });
+
+    /// <summary>
+    /// CN-09: reopens the open output where the output layer now routes it (e.g. diverted to a TV and back),
+    /// without changing Settings › Output. Playing stays playing.
+    /// </summary>
+    public Task ReopenOutputAsync() => RunAsync(() =>
+    {
+        ReopenOutput();
+        return Task.CompletedTask;
+    });
+
+    private void ReopenOutput()
+    {
         if (_output.IsOpen && _output.Format is { } format)
         {
             var wasRunning = _output.IsRunning;
@@ -709,8 +746,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 StartOutput();
             }
         }
-        return Task.CompletedTask;
-    });
+    }
 
     public void Dispose()
     {
@@ -2112,7 +2148,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         }
     }
 
-    private void ApplyGain() => _graph.Master.TargetGain = _muted ? 0f : _bitPerfect ? 1f : GainStage.VolumeToGain(_volume);
+    private void ApplyGain() => _graph.Master.TargetGain = _muted ? 0f : _bitPerfect || _volumeOnDevice ? 1f : GainStage.VolumeToGain(_volume);
 
     /// <summary>PB-03: asks the provider and sets deck A's gain (ramped, 10 ms).</summary>
     private void ApplyReplayGain(PlaylistEntry entry)

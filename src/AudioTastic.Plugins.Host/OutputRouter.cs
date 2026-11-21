@@ -29,6 +29,7 @@ public sealed class OutputRouter : IAudioOutput
     private Dictionary<string, Route> _routes = new(StringComparer.Ordinal);
     private IAudioOutput? _active;
     private PluginOutput? _activePlugin;
+    private IAudioOutput? _divert;
     private AudioFormat? _format;
     private bool _disposed;
 
@@ -128,10 +129,31 @@ public sealed class OutputRouter : IAudioOutput
         }
     }
 
+    /// <summary>
+    /// CN-09 audio and video: while <paramref name="output"/> is set, every Open goes to it whatever device is
+    /// asked for (the player's mix is sent to a TV); null returns to the devices. Nothing is closed here: the caller
+    /// reopens the engine's output afterwards (PlaybackEngine.ReopenOutputAsync), and that Open closes the old output
+    /// and opens the new one. (Closing here made the engine see no open output and skip the reopen.) The settings are
+    /// not changed.
+    /// </summary>
+    public void Divert(IAudioOutput? output)
+    {
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _divert = output;
+            _logger.LogInformation("Output diverted to {Output}", output?.BackendName ?? "the devices again");
+        }
+    }
+
     public IReadOnlyList<DeviceFormat> GetDeviceFormats(AudioDeviceInfo? device)
     {
         lock (_lock)
         {
+            if (_divert is not null)
+            {
+                return [];
+            }
             var route = Resolve(device);
             return route.Plugin is { } p ? Guard(p, () => p.Output.GetDeviceFormats(route.Device), []) : _builtIn.GetDeviceFormats(route.Device);
         }
@@ -144,6 +166,19 @@ public sealed class OutputRouter : IAudioOutput
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_divert is { } divert)
+            {
+                if (_active is not null && !ReferenceEquals(_active, divert))
+                {
+                    CloseActive();
+                }
+                _format = null;
+                divert.Open(null, format, options, renderer);
+                _active = divert;
+                _activePlugin = null;
+                _format = format;
+                return;
+            }
             var route = Resolve(device);
             var target = route.Plugin?.Output ?? _builtIn;
             if (_active is not null && !ReferenceEquals(_active, target))
