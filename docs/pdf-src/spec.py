@@ -302,7 +302,7 @@ story.append(T.table([
      "Play · Play next (queue) · Stop after this track · File info… · Edit tags… · Look up online… · Convert… · Rip… (CD tracks) · Reset resume position · Show in folder · Remove · Crop"),
     ("Tab context menu", "Right-click a tab in PW2", "Rename · Duplicate · Save as… · Move left · Move right · Close"),
     ("Tray menu", "Tray / menu bar icon", "Play/Pause · Stop · Previous · Next · Sleep timer… · Show/Hide AudioTastic · Exit"),
-    ("Device picker", "CAST button in MW10", "This computer · discovered Chromecast, DLNA and AirPlay devices · Refresh"),
+    ("Device picker", "CAST button in MW10", "This computer · discovered Chromecast and DLNA devices (with Audio / Audio and video / Visuals only for screens) · scans while open"),
 ], head=("Menu", "Opened from", "Items"), widths=(30, 40, 100), status_col=-1))
 
 story += T.h2("2.3 Dialogs and other windows")
@@ -342,7 +342,7 @@ story.append(T.table([
     ("AudioTastic.Plugins.Host", "Plugin discovery, manifest validation, one AssemblyLoadContext per plugin, fault handling."),
     ("AudioTastic.Analysis", "AnalysisService queue; waveform, loudness and BPM/beat/break analysers."),
     ("AudioTastic.Metadata", "TagService (TagLibSharp, FFmpeg fallback, cached), TagLoader (background tag reading), ArtService, LyricsService, OnlineLookupService."),
-    ("AudioTastic.Casting", "CastService, Chromecast/DLNA/AirPlay targets, discovery, StreamServer, Transcoder."),
+    ("AudioTastic.Casting", "Chromecast and DLNA remotes, discovery, StreamServer (originals, transcoding, live video); AirPlay deferred."),
     ("AudioTastic.Data", "SettingsStore (JSON), CacheStore (SQLite), AppPaths (normal / portable)."),
     ("AudioTastic.Platform (+ .Windows / .MacOS / .Linux)", "Interfaces and per-OS implementations: media controls, hotkeys, taskbar, shell integration, notifications, CD drive."),
     ("AudioTastic.NativeBridge", "32-bit helper process for native Winamp plugins (Windows only)."),
@@ -418,5 +418,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.37  ·  21 November 2026", story, short_title="Feature Specification  ·  v1.37")
+        "Version 1.38  ·  21 November 2026", story, short_title="Feature Specification  ·  v1.38")
 print("built")

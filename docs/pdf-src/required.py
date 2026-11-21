@@ -129,7 +129,7 @@ sections2=[
 ("Cast modes","Three ways to cast, chosen per device in the device picker (Anders, 19 November 2026): <b>audio only</b> (the music plays on the cast device); <b>audio and video</b> (the cast device plays the music and shows the visualisation on its screen); <b>video only</b> (only the visualisation goes to a screen, while the music keeps playing on the computer's own speakers, with the visuals kept in time with them). The video is the visualisation: the built-in spectrum/oscilloscope, or a visualisation plugin such as the MilkDrop-style plugin planned later. Video modes are offered only for devices with a screen (Chromecast on a TV, DLNA TVs); AirPlay (RAOP) is audio only."),
 ("Chromecast","Cast audio, audio and video, or video only to Chromecast devices."),
 ("DLNA / UPnP renderers","Cast to Sonos, smart TVs and network receivers; video modes to TVs that play video streams."),
-("AirPlay","Stream to AirPlay speakers and Apple TV using original AirPlay (AirPlay 1 / RAOP). AirPlay 2 is not in scope for now. No AirPlay test device is available, so this needs community or later testing."),
+("AirPlay","Stream to AirPlay speakers and Apple TV using original AirPlay (AirPlay 1 / RAOP). AirPlay 2 is not in scope for now. No AirPlay test device is available, so this needs community or later testing. <b>Deferred</b> (Anders, 21 November 2026; see Out of scope / deferred)."),
 ("Local HTTP streaming server","Serves the current track to cast targets that pull a URL. Transcodes formats the target cannot play on the fly (e.g. APE to FLAC). For the video modes it serves the visualisation as a live video stream (with the audio in audio-and-video mode)."),
 ("Device discovery","mDNS and SSDP discovery with a device picker in the UI."),
 ("Configuration",f"All casting and network features are configured in {GS}."),
@@ -238,6 +238,7 @@ later=[
 ("MilkDrop-style visualisation plugin","Planned later by Anders, as a visualisation plugin (for example on projectM, LGPL, dynamically linked, or own code). P11 prepares for it: visualisation plugins can render frames for casting, so its visuals can be cast to a screen."),
 ("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
 ("Remote control from a phone (web remote)","Removed (Anders, 21 November 2026: not needed). Feature ID CN-06 is retired: there is no REST/WebSocket remote API or web remote. The player is controlled from the computer, the OS media controls, hotkeys and the command line."),
+("AirPlay (CN-03)","Deferred (Anders, 21 November 2026); may be revisited later. Casting works with Chromecast and DLNA/UPnP devices. Building AirPlay needs a test receiver (shairport-sync on a Linux machine), as no AirPlay device is available."),
 ("Discogs cover fallback","Deferred (Anders, 19 November 2026); may be revisited later. Online lookup uses MusicBrainz and the Cover Art Archive, which need no account. Discogs would need each user's personal access token."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
 ]
@@ -246,4 +247,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.18  ·  21 November 2026", story, short_title="Required Features  ·  v1.18")
+ "Version 1.19  ·  21 November 2026", story, short_title="Required Features  ·  v1.19")

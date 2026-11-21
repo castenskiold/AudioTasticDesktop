@@ -143,7 +143,7 @@ public sealed class SettingsWindow : Window
             "0 = a free port chosen when casting starts. Set a fixed port if your firewall needs a rule for it. Takes effect the next time casting starts.");
         Note(panel, "Cast with the CAST button in the main window: it lists this computer, Chromecasts and DLNA devices (smart TVs, network receivers) on your network. " +
             "The device plays the file itself when it can; other formats are converted while they are sent (FLAC for Chromecast, WAV for DLNA). " +
-            "AirPlay follows later in phase P11.");
+            "AirPlay is not supported yet.");
 
         // CN-09: the video sent to a TV (visuals only, and later audio and video).
         Heading(panel, "Video on a TV");
