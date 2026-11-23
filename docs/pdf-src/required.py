@@ -123,7 +123,7 @@ sections2=[
 ("Parametric EQ","Advanced mode with adjustable frequency, gain and Q."),
 ("DSP chain","Ordered chain of effects (EQ, compressor, limiter, reverb, stereo widening), exposed to plugins."),
 ("VST plugin hosting","Load VST3 effects into the DSP chain on all platforms. VST3 only; no VST2 support."),
-("Room correction","Load convolution impulse responses (e.g. from REW)."),
+("Room correction","Load convolution impulse responses (e.g. from REW). <b>Deferred</b> (Anders, 23 November 2026; see Out of scope / deferred)."),
 ]),
 ("11. Casting and network",[
 ("Cast modes","Three ways to cast, chosen per device in the device picker (Anders, 19 November 2026): <b>audio only</b> (the music plays on the cast device); <b>audio and video</b> (the cast device plays the music and shows the visualisation on its screen); <b>video only</b> (only the visualisation goes to a screen, while the music keeps playing on the computer's own speakers, with the visuals kept in time with them). The video is the visualisation: the built-in spectrum/oscilloscope, or a visualisation plugin such as the MilkDrop-style plugin planned later. Video modes are offered only for devices with a screen (Chromecast on a TV, DLNA TVs); AirPlay (RAOP) is audio only."),
@@ -140,7 +140,7 @@ sections2=[
 ("Isolation","Plugins load in their own AssemblyLoadContext. Faults are caught so a broken plugin cannot crash the player."),
 ("Plugin manager","UI to enable, disable, configure and view plugin details."),
 ("Plugin settings","Each plugin has its own configuration store and optional settings page."),
-("Native plugin bridge",f"Load classic native Winamp plugins (32-bit) through a separate bridge process {WO}."),
+("Native plugin bridge",f"Load classic native Winamp plugins (32-bit) through a separate bridge process {WO}. <b>Deferred</b> (Anders, 23 November 2026; see Out of scope / deferred)."),
 ]),
 ("13. Tools and quality of life",[
 ("Format conversion","Convert/transcode files (e.g. FLAC to MP3 or Opus) and keep tags."),
@@ -172,7 +172,7 @@ gs=[
 ("Casting and network","Chromecast, DLNA/UPnP, AirPlay, cast modes (default per device; video resolution, frame rate, visualisation used, visual offset), streaming server (port, transcoding), discovery."),
 ("Interface","Skin/theme, player size (default 150 %), mini player, always on top, double size, scrolling title, visualisation, notifications, dark/light mode."),
 ("System integration","Global hotkeys, tray behaviour, file associations, context menu."),
-("Equalizer and DSP","EQ presets, auto EQ rules, DSP chain order, VST plugins, room correction."),
+("Equalizer and DSP","EQ presets, auto EQ rules, DSP chain order, VST3 plugins."),
 ("Plugins","Plugin manager (links to each plugin's own settings page)."),
 ("General","Portable mode, settings import/export, logging level."),
 ]
@@ -238,6 +238,8 @@ later=[
 ("MilkDrop-style visualisation plugin","Planned later by Anders, as a visualisation plugin (for example on projectM, LGPL, dynamically linked, or own code). P11 prepares for it: visualisation plugins can render frames for casting, so its visuals can be cast to a screen."),
 ("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
 ("Remote control from a phone (web remote)","Removed (Anders, 21 November 2026: not needed). Feature ID CN-06 is retired: there is no REST/WebSocket remote API or web remote. The player is controlled from the computer, the OS media controls, hotkeys and the command line."),
+("Room correction (EQ-07)","Deferred (Anders, 23 November 2026); may be revisited later. It is only useful with a measured impulse response of the room (e.g. made with REW and a measurement microphone)."),
+("Native Winamp plugin bridge (PG-06)","Deferred (Anders, 23 November 2026); may be revisited later. Classic 32-bit in_/dsp_/gen_/vis_ plugins are not loaded; AudioTastic plugins (SDK) and VST3 effects cover the same ground."),
 ("AirPlay (CN-03)","Deferred (Anders, 21 November 2026); may be revisited later. Casting works with Chromecast and DLNA/UPnP devices. Building AirPlay needs a test receiver (shairport-sync on a Linux machine), as no AirPlay device is available."),
 ("Discogs cover fallback","Deferred (Anders, 19 November 2026); may be revisited later. Online lookup uses MusicBrainz and the Cover Art Archive, which need no account. Discogs would need each user's personal access token."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
@@ -247,4 +249,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.19  ·  21 November 2026", story, short_title="Required Features  ·  v1.19")
+ "Version 1.20  ·  23 November 2026", story, short_title="Required Features  ·  v1.20")

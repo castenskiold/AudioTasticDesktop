@@ -379,7 +379,7 @@ S("Equalizer and DSP", "Sound-shaping features. The equalizer window (EQ) is one
  "<b>Components:</b> native C++ host shim (built per platform with CMake) exposing a C API (scan, load, process float buffers, get/set state, open editor into a native window handle); .NET wrapper Vst3Stage. Editor hosted in an Avalonia NativeControlHost. "
  "<b>Scan folders:</b> C:\\Program Files\\Common Files\\VST3; /Library/Audio/Plug-Ins/VST3 and ~/Library/Audio/Plug-Ins/VST3; ~/.vst3, /usr/lib/vst3, /usr/local/lib/vst3. A plugin that crashes during scan is blacklisted (scan runs in a separate process).", "Settings › Equalizer & DSP: VST3 folders."),
 ("EQ-07", "Room correction (convolution)",
- "Applies a room-correction impulse response (WAV file, e.g. exported from REW) to the audio. The IR is resampled to the output rate. Separate IRs per sample rate can be set. Latency is compensated in the time display.",
+ "<b>Deferred (Anders, 23 November 2026)</b>; the card describes how it would be built. Applies a room-correction impulse response (WAV file, e.g. exported from REW) to the audio. The IR is resampled to the output rate. Separate IRs per sample rate can be set. Latency is compensated in the time display.",
  "DSP chain window › Room correction › choose IR file, on/off, gain.",
  "<b>Components:</b> ConvolutionStage (uniformly partitioned overlap-save FFT convolution, own code with FftSharp or NWaves); IR loaded with FFmpeg.", None),
 ])
@@ -463,7 +463,7 @@ S("Plugin architecture", "How third parties (and AudioTastic itself) extend the 
  "Settings › Plugins › select plugin › Settings (or a page in the plugin's natural group, e.g. a DSP plugin under Equalizer & DSP).",
  "<b>Components:</b> IPluginSettings (typed JSON values per plugin, stored in settings.json under Plugins › Data[plugin id], removed on uninstall); IPluginSettingsPage.CreateSettingsPage() returning an Avalonia Control.", None),
 ("PG-06", "Native Winamp plugin bridge",
- "Runs classic native Winamp plugins: input plugins (in_*.dll) and DSP plugins (dsp_*.dll) first; general-purpose (gen_*) and visualisation (vis_*) plugins on a best-effort basis, since they rely on Winamp's main window messages.",
+ "<b>Deferred (Anders, 23 November 2026)</b>; the card describes how it would be built. Runs classic native Winamp plugins: input plugins (in_*.dll) and DSP plugins (dsp_*.dll) first; general-purpose (gen_*) and visualisation (vis_*) plugins on a best-effort basis, since they rely on Winamp's main window messages.",
  "Settings › Plugins › Winamp plugins: folder to load from, list of found plugins with on/off and Configure (opens the plugin's own dialog).",
  "<b>Windows only.</b> "
  "<b>Components:</b> AudioTastic.NativeBridge, a separate 32-bit (win-x86) helper process that loads the DLLs (winampGetInModule2, winampDSPGetHeader2, winampGetGeneralPurposePlugin, winampVisGetHeader), emulates the parts of Winamp's API they call, and exchanges audio with the player through shared memory and commands through a named pipe. A crashing plugin only takes down the helper process, which is restarted.", None),
