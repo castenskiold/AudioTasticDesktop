@@ -10,6 +10,11 @@
 cmake_minimum_required(VERSION 3.24)
 # VERSION is required: SoundTouch's CMakeLists reads CMAKE_PROJECT_VERSION (the top-level project's version).
 project(AudioTasticNative VERSION 0.1.0 LANGUAGES C CXX)
+if(APPLE)
+  # The VST3 SDK compiles Objective-C++ (.mm) on macOS: the language must be enabled here, at the top level, before
+  # any target uses it (enabling it later left CMAKE_OBJCXX_COMPILE_OBJECT unset in CI, 23 Nov 2026).
+  enable_language(OBJC OBJCXX)
+endif()
 
 set(AT_RID "" CACHE STRING "Runtime identifier, e.g. win-x64 (output goes to native/out/<rid>/native)")
 if(AT_RID STREQUAL "")
@@ -95,7 +100,6 @@ set(AT_VST3_SOURCES
   "${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp"
   "${vst3sdk_SOURCE_DIR}/public.sdk/source/common/memorystream.cpp")
 if(APPLE)
-  enable_language(OBJCXX)
   list(APPEND AT_VST3_SOURCES "${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/module_mac.mm")
   set_source_files_properties("${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/module_mac.mm" PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 elseif(WIN32)

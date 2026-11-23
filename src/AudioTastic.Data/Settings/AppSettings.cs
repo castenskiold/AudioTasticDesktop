@@ -389,6 +389,12 @@ public sealed class EqualizerDspSettings
     /// </summary>
     public List<DspChainEntry> Chain { get; set; } = DspChainEntry.Defaults();
 
+    /// <summary>EQ-06: the VST3 effects in the chain (the chain refers to them by <see cref="Vst3EffectSettings.Id"/>).</summary>
+    public List<Vst3EffectSettings> Vst3 { get; set; } = [];
+
+    /// <summary>EQ-06: extra folders searched for VST3 effects besides the standard ones.</summary>
+    public List<string> Vst3Folders { get; set; } = [];
+
     public CompressorSettings Compressor { get; set; } = new();
     public LimiterSettings Limiter { get; set; } = new();
     public ReverbSettings Reverb { get; set; } = new();
@@ -462,6 +468,24 @@ public sealed record ParametricBand(FilterType Type, double Frequency, double Ga
 }
 
 /// <summary>EQ-05: one effect in the chain.</summary>
+/// <summary>EQ-06: one VST3 effect in the DSP chain (the same plug-in may be in the chain more than once).</summary>
+public sealed class Vst3EffectSettings
+{
+    /// <summary>"vst3:" + a random id, unique per instance; the chain entry uses it.</summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>The .vst3 module (file or bundle folder).</summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>The effect class in the module (32 hex characters).</summary>
+    public string ClassId { get; set; } = "";
+
+    public string Name { get; set; } = "";
+
+    /// <summary>The plug-in's saved state (parameters, presets), base64; null for its defaults.</summary>
+    public string? State { get; set; }
+}
+
 public sealed record DspChainEntry(string Id, bool Enabled)
 {
     public const string Equalizer = "equalizer";

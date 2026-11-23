@@ -660,8 +660,10 @@ public sealed class SettingsWindow : Window
         var chain = new Button { Content = "DSP chain…" };
         chain.Click += (_, _) => _shell.Equalizer.OpenDspChain(this);
         panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { equalizer, chain } });
-        Note(panel, "The DSP chain runs the equalizer, compressor, stereo widening, reverb, limiter and plugin effects in the order you set, before the volume. " +
-                    "VST3 effects and room correction come in a later phase.");
+        Note(panel, "The DSP chain runs the equalizer, compressor, stereo widening, reverb, limiter, VST3 effects and plugin effects in the order you set, before the volume. " +
+                    "Add VST3 effects in the DSP chain window.");
+
+        Vst3Section(panel);
 
         Heading(panel, "Auto EQ");
         Check(panel, "Load a preset automatically when a track starts (AUTO in the equalizer)", dsp.AutoEq,
@@ -724,6 +726,66 @@ public sealed class SettingsWindow : Window
             ShowRules();
         };
         panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { genreBox, presetBox, add } });
+    }
+
+    /// <summary>EQ-06: where VST3 effects are found, a rescan, and the modules that are blacklisted.</summary>
+    private void Vst3Section(StackPanel panel)
+    {
+        Heading(panel, "VST3 effects");
+        var library = _shell.Equalizer.Vst3;
+        if (!library.IsAvailable)
+        {
+            Note(panel, "VST3 is not available: the VST3 host library is missing from this installation.");
+            return;
+        }
+        var section = new StackPanel { Spacing = 8 };
+        panel.Children.Add(section);
+        void Show()
+        {
+            section.Children.Clear();
+            Note(section, "Searched: " + string.Join("; ", AudioTastic.Core.Audio.Dsp.Vst3.Vst3Scanner.DefaultFolders()) + ", and the folders below.");
+            foreach (var folder in _settings.Current.EqualizerDsp.Vst3Folders)
+            {
+                var remove = new Button { Content = "Remove", Tag = folder };
+                remove.Click += (_, _) =>
+                {
+                    _settings.Update(SettingsGroup.EqualizerDsp, s => s.EqualizerDsp.Vst3Folders.Remove(folder));
+                    Show();
+                };
+                section.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = folder, VerticalAlignment = VerticalAlignment.Center }, remove } });
+            }
+            var add = new Button { Content = "Add folder…" };
+            add.Click += async (_, _) =>
+            {
+                var picked = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions { Title = "Folder with VST3 effects" });
+                if (picked.Count > 0 && Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(picked[0]) is { } path)
+                {
+                    _settings.Update(SettingsGroup.EqualizerDsp, s =>
+                    {
+                        if (!s.EqualizerDsp.Vst3Folders.Contains(path, StringComparer.OrdinalIgnoreCase))
+                        {
+                            s.EqualizerDsp.Vst3Folders.Add(path);
+                        }
+                    });
+                    Show();
+                }
+            };
+            var status = new TextBlock { Foreground = Brushes.Gray, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            var rescan = new Button { Content = "Rescan all" };
+            rescan.Click += async (_, _) =>
+            {
+                rescan.IsEnabled = false;
+                await library.RescanAsync(full: true, new Progress<string>(name => status.Text = $"Scanning {name}…"));
+                Show();
+            };
+            section.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { add, rescan, status } });
+            Note(section, $"{library.Effects.Count} effect(s) found." + (library.HasScanned ? string.Empty : " Not scanned yet: Rescan, or open DSP chain › Add VST3 effect…"));
+            foreach (var module in library.Blacklisted)
+            {
+                Note(section, $"Blacklisted: {module.Path} ({module.Problem}). Rescan all tries it again.");
+            }
+        }
+        Show();
     }
 
     private void GeneralPage(StackPanel panel)

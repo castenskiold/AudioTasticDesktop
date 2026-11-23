@@ -1,4 +1,9 @@
+using AudioTastic.Core.Audio;
+using AudioTastic.Core.Audio.Dsp;
 using AudioTastic.Core.Audio.Dsp.Vst3;
+using AudioTastic.Data;
+using AudioTastic.Data.Settings;
+using AudioTastic.Sdk.Audio;
 using AudioTastic.TestSupport;
 
 namespace AudioTastic.Core.Tests.Audio;
@@ -118,5 +123,131 @@ public sealed class Vst3Tests
         var path = Require("adelay.vst3");
         Assert.Throws<Vst3Exception>(() => Vst3Plugin.Open(path, new string('0', 32)));
         Assert.Throws<Vst3Exception>(() => Vst3Plugin.Open(Path.Combine(Fixtures, "missing.vst3"), new string('0', 32)));
+    }
+
+    private static SettingsStore Settings()
+    {
+        var dir = Directory.CreateTempSubdirectory("audiotastic-vst3-").FullName;
+        var settings = new SettingsStore(AppPaths.Resolve(new AppPathsContext(AppPathsContext.CurrentOs, dir, dir, null, null, [AppPaths.PortableSwitch])).EnsureCreated());
+        settings.Update(SettingsGroup.EqualizerDsp, s => s.EqualizerDsp.Chain = [.. DspChainEntry.Defaults().Select(e => e with { Enabled = false })]);
+        return settings;
+    }
+
+    [Fact]
+    public void A_vst3_effect_joins_the_chain_before_the_limiter_and_processes_without_allocating()
+    {
+        var effect = ADelayClass();
+        using var graph = new MixerGraph(new AudioFormat(44_100, 2));
+        var settings = Settings();
+        using var dsp = new DspService(graph, settings);
+
+        var id = dsp.AddVst3(Require("adelay.vst3"), effect.Id, effect.Name);
+        var items = dsp.Items;
+        var item = Assert.Single(items, i => i.Id == id);
+        Assert.True(item.IsVst3);
+        Assert.True(item.Enabled);
+        Assert.Null(item.Problem);
+        Assert.True(items.ToList().IndexOf(item) < items.ToList().FindIndex(i => i.Id == DspChainEntry.Limiter));
+        Assert.NotNull(dsp.FindVst3(id)?.Plugin);
+
+        var block = new float[1024 * 2];
+        block[0] = 1f;
+        graph.Dsp.Process(block, 2);
+        long allocated = 0;
+        var heard = -1;
+        for (var n = 1; n < 50 && heard < 0; n++)
+        {
+            Array.Clear(block);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            graph.Dsp.Process(block, 2);
+            allocated += n > 2 ? GC.GetAllocatedBytesForCurrentThread() - before : 0; // after the JIT has settled
+            for (var i = 0; i < block.Length; i += 2)
+            {
+                if (block[i] == 1f)
+                {
+                    heard = (n * 1024) + (i / 2);
+                }
+            }
+        }
+        Assert.Equal(0, allocated);
+        Assert.Equal(44_100, heard); // the impulse, one second later, through the chain
+    }
+
+    [Fact]
+    public void States_are_saved_and_restored_and_removed_effects_leave_the_chain()
+    {
+        var effect = ADelayClass();
+        var settings = Settings();
+        string id;
+        using (var graph = new MixerGraph(new AudioFormat(44_100, 2)))
+        using (var dsp = new DspService(graph, settings))
+        {
+            id = dsp.AddVst3(Require("adelay.vst3"), effect.Id, effect.Name);
+        } // Dispose saves the states
+        var saved = Assert.Single(settings.Current.EqualizerDsp.Vst3);
+        Assert.False(string.IsNullOrEmpty(saved.State));
+
+        using var again = new MixerGraph(new AudioFormat(48_000, 2));
+        using var dsp2 = new DspService(again, settings);
+        Assert.NotNull(dsp2.FindVst3(id)?.Plugin); // loaded again from the settings, state restored
+        dsp2.RemoveVst3(id);
+        Assert.DoesNotContain(dsp2.Items, i => i.Id == id);
+        Assert.Null(dsp2.FindVst3(id));
+        Assert.Empty(settings.Current.EqualizerDsp.Vst3);
+        Assert.DoesNotContain(settings.Current.EqualizerDsp.Chain, e => e.Id == id);
+    }
+
+    [Fact]
+    public void A_missing_module_is_bypassed_with_a_reason()
+    {
+        Require("adelay.vst3"); // host present
+        using var graph = new MixerGraph(new AudioFormat(44_100, 2));
+        using var dsp = new DspService(graph, Settings());
+        var id = dsp.AddVst3(Path.Combine(Fixtures, "gone.vst3"), new string('A', 32), "Gone");
+        var item = Assert.Single(dsp.Items, i => i.Id == id);
+        Assert.NotNull(item.Problem);
+        var block = new float[64 * 2];
+        block[0] = 0.5f;
+        graph.Dsp.Process(block, 2);
+        Assert.Equal(0.5f, block[0]); // passes through untouched
+    }
+
+    /// <summary>
+    /// Local check (EQ-06 exit criterion): every effect in the folder AUDIOTASTIC_VST3_DIR scans, loads, processes a
+    /// second of noise into finite audio and round-trips its state. Does nothing when the variable is not set.
+    /// </summary>
+    [Fact]
+    public async Task Real_plugins_in_a_folder_load_process_and_keep_their_state()
+    {
+        var folder = Environment.GetEnvironmentVariable("AUDIOTASTIC_VST3_DIR");
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder) || !Vst3Plugin.IsAvailable)
+        {
+            return; // a local check (like the kick count on real tracks): the suite stays at 0 skipped
+        }
+        var scanner = new Vst3Scanner();
+        var report = new List<string>();
+        var random = new Random(1);
+        foreach (var path in Vst3Scanner.FindModules([folder!]))
+        {
+            var module = await scanner.ScanAsync(path, cancellationToken: TestContext.Current.CancellationToken);
+            Assert.False(module.IsBlacklisted, $"{path}: {module.Problem}");
+            foreach (var effect in module.Classes)
+            {
+                using var plugin = Vst3Plugin.Open(path, effect.Id);
+                plugin.Setup(48_000);
+                var audio = new float[48_000 * 2];
+                for (var i = 0; i < audio.Length; i++)
+                {
+                    audio[i] = (float)((random.NextDouble() * 2) - 1) * 0.25f;
+                }
+                Assert.True(plugin.Process(audio), effect.Name);
+                Assert.All(audio, v => Assert.True(float.IsFinite(v), effect.Name));
+                var state = plugin.GetState();
+                plugin.SetState(state);
+                report.Add($"{effect.Name} ({effect.Vendor}): latency {plugin.Latency}, editor {plugin.HasEditor}, state {state.Length} bytes");
+            }
+        }
+        Assert.NotEmpty(report);
+        File.WriteAllLines(Path.Combine(Path.GetTempPath(), "audiotastic-vst3-report.txt"), report);
     }
 }

@@ -36,6 +36,9 @@ public sealed class AppPaths
     public string LogsFolder => Path.Combine(Root, "logs");
     public string CrashFolder => Path.Combine(Root, "crash");
 
+    /// <summary>EQ-06: the VST3 scan results (modules, their effects, the blacklist).</summary>
+    public string Vst3CacheFile => Path.Combine(Root, "vst3-plugins.json");
+
     /// <summary>All sub-folders, created by <see cref="EnsureCreated"/>.</summary>
     public IReadOnlyList<string> Folders =>
         [PlaylistsFolder, PresetsFolder, SkinsFolder, PluginsFolder, LogsFolder, CrashFolder];

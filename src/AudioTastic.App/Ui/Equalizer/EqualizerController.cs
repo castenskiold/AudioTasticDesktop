@@ -27,8 +27,9 @@ public sealed class EqualizerController : IDisposable
     private bool _autoOn;
 
     public EqualizerController(DspService dsp, SettingsStore settings, EqPresetStore presets, AutoEqService auto, PlaybackEngine engine,
-        ILogger<EqualizerController> logger)
+        AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library vst3, ILogger<EqualizerController> logger)
     {
+        Vst3 = vst3;
         _dsp = dsp;
         _settings = settings;
         _presets = presets;
@@ -175,7 +176,10 @@ public sealed class EqualizerController : IDisposable
     }
 
     /// <summary>EQ-05: the DSP chain window.</summary>
-    public void OpenDspChain(Window owner) => DspChainWindow.ShowFor(owner, _dsp, _settings);
+    public void OpenDspChain(Window owner) => DspChainWindow.ShowFor(owner, _dsp, _settings, Vst3);
+
+    /// <summary>EQ-06: the VST3 effects found on this computer.</summary>
+    public AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library Vst3 { get; }
 
     public void Dispose()
     {

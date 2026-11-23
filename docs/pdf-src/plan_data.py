@@ -389,10 +389,13 @@ PROGRESS = {
                      "macOS/Linux: casting not tried by hand.",
                      "MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere.",
                      "Video casting on macOS needs h264_videotoolbox in the macOS FFmpeg build (not checked yet); Linux uses libopenh264 from the FFmpeg build."]),
-    "P12": dict(status="In progress", date="", outcome=[
+    "P12": dict(status="Done on Windows", date="23 Nov 2026", outcome=[
                         "Scope (Anders, 23 Nov 2026): VST3 effects only; room correction (EQ-07) and the Winamp plugin bridge (PG-06) are deferred.",
-                        "Step 1 (23 Nov 2026): the VST3 host: a native library over the Steinberg VST3 SDK 3.8.1 (MIT) and a scanner that runs each plug-in module in its own process, so one that crashes or hangs is blacklisted; tested with the SDK's ADelay example and a deliberately crashing module, built in CI for all six platforms. Next: VST3 effects in the DSP chain."],
-               open=[]),
+                        "Step 1 (23 Nov 2026): the VST3 host: a native library over the Steinberg VST3 SDK 3.8.1 (MIT) and a scanner that runs each plug-in module in its own process, so one that crashes or hangs is blacklisted; tested with the SDK's ADelay example and a deliberately crashing module, built in CI for all six platforms. ",
+                        "Steps 2–4 (23 Nov 2026): VST3 effects in the DSP chain with their settings saved, DSP chain › Add VST3 effect…, the plug-ins' own editors, Settings › Equalizer & DSP › VST3 folders, Rescan and the blacklist; checked by Anders (found, heard, editor, kept after a restart, removed).",
+                        "Exit criteria on Windows: six free open-source effects (Airwindows Consolidated, four Dragonfly reverbs, Surge XT Effects) load, process and show their editors (passed); a module that crashes while scanned is blacklisted and the player carries on (passed, automated)."],
+               open=["macOS and Linux: the host builds in CI; editors not tried by hand (Linux editors need the host's run loop).",
+                     "Latency compensation in the time display; plug-ins' output parameters (meters) are not passed back to their editors."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).

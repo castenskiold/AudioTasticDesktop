@@ -142,6 +142,11 @@ internal static class Program
                 .AddSingleton(sp => new AudioTastic.Core.Playback.AutoEqService(sp.GetRequiredService<PlaybackEngine>(), sp.GetRequiredService<SettingsStore>(),
                     sp.GetRequiredService<AudioTastic.Core.Audio.Dsp.EqPresetStore>(), sp.GetRequiredService<AudioTastic.Data.Cache.CacheStore>(),
                     sp.GetRequiredService<ILogger<AudioTastic.Core.Playback.AutoEqService>>()))
+                // EQ-06: VST3 effects found on this computer (the standard folders plus the user's).
+                .AddSingleton(sp => new AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library(new AudioTastic.Core.Audio.Dsp.Vst3.Vst3Scanner(),
+                    sp.GetRequiredService<AppPaths>().Vst3CacheFile,
+                    () => AudioTastic.Core.Audio.Dsp.Vst3.Vst3Scanner.DefaultFolders().Concat(sp.GetRequiredService<SettingsStore>().Current.EqualizerDsp.Vst3Folders),
+                    sp.GetRequiredService<ILogger<AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library>>()))
                 .AddSingleton<AudioTastic.App.Ui.Equalizer.EqualizerController>()
                 .AddSingleton<AudioTastic.App.Ui.PlayerShell>()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

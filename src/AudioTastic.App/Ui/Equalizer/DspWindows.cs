@@ -122,16 +122,18 @@ public sealed class DspChainWindow : Window
     private static DspChainWindow? _open;
     private readonly DspService _dsp;
     private readonly SettingsStore _settings;
+    private readonly AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library _vst3;
     private readonly ListBox _list = new() { MinHeight = 200, Width = 220 };
     private readonly StackPanel _detail = new() { Spacing = 8, Width = 320 };
     private readonly DispatcherTimer _save = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private EqualizerDspSettings _working;
     private bool _rebuilding;
 
-    private DspChainWindow(DspService dsp, SettingsStore settings)
+    private DspChainWindow(DspService dsp, SettingsStore settings, AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library vst3)
     {
         _dsp = dsp;
         _settings = settings;
+        _vst3 = vst3;
         _working = settings.Current.EqualizerDsp;
         Title = "DSP chain";
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -147,6 +149,8 @@ public sealed class DspChainWindow : Window
         var down = new Button { Content = "Move down" };
         up.Click += (_, _) => Move(-1);
         down.Click += (_, _) => Move(1);
+        var addVst3 = new Button { Content = "Add VST3 effect…" };
+        addVst3.Click += (_, _) => new Vst3PickerWindow(_vst3, _dsp).ShowDialog(this);
         _list.SelectionChanged += (_, _) => ShowDetail();
         _list.KeyDown += (_, e) =>
         {
@@ -171,7 +175,7 @@ public sealed class DspChainWindow : Window
                     Spacing = 16,
                     Children =
                     {
-                        new StackPanel { Spacing = 6, Children = { _list, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { up, down } } } },
+                        new StackPanel { Spacing = 6, Children = { _list, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { up, down } }, addVst3 } },
                         _detail,
                     },
                 },
@@ -193,14 +197,14 @@ public sealed class DspChainWindow : Window
     }
 
     /// <summary>Shows the window (one at a time).</summary>
-    public static void ShowFor(Window owner, DspService dsp, SettingsStore settings)
+    public static void ShowFor(Window owner, DspService dsp, SettingsStore settings, AudioTastic.Core.Audio.Dsp.Vst3.Vst3Library vst3)
     {
         if (_open is not null)
         {
             _open.Activate();
             return;
         }
-        _open = new DspChainWindow(dsp, settings);
+        _open = new DspChainWindow(dsp, settings, vst3);
         _open.Show(owner);
     }
 
@@ -219,7 +223,12 @@ public sealed class DspChainWindow : Window
         var selected = (_list.SelectedItem as Control)?.Tag as string;
         var rows = _dsp.Items.Select(item =>
         {
-            var box = new CheckBox { Content = item.Name + (item.IsPlugin ? "  (plugin)" : string.Empty), IsChecked = item.Enabled, Tag = item.Id };
+            var box = new CheckBox
+            {
+                Content = item.Name + (item.IsPlugin ? "  (plugin)" : item.IsVst3 ? (item.Problem is null ? "  (VST3)" : "  (VST3, bypassed)") : string.Empty),
+                IsChecked = item.Enabled,
+                Tag = item.Id,
+            };
             box.IsCheckedChanged += (_, _) => SetEnabled(item.Id, box.IsChecked == true);
             return box;
         }).ToList();
@@ -301,9 +310,42 @@ public sealed class DspChainWindow : Window
                 Note("0 % is mono, 100 % unchanged, 200 % twice as wide.");
                 break;
             default:
+                if (item.IsVst3)
+                {
+                    ShowVst3(item);
+                    break;
+                }
                 Note("An effect from a DSP plugin. Its options, if any, are on the plugin's settings page (Settings › Plugins).");
                 break;
         }
+    }
+
+    /// <summary>EQ-06: a VST3 effect's details: why it is bypassed, its editor, removing it.</summary>
+    private void ShowVst3(DspChainItem item)
+    {
+        var stage = _dsp.FindVst3(item.Id);
+        if (item.Problem is { } problem)
+        {
+            Note("Bypassed: " + problem);
+        }
+        if (stage is not null)
+        {
+            Note(stage.Settings.Path);
+        }
+        var editor = new Button { Content = "Open editor", IsEnabled = stage?.Plugin is { HasEditor: true } };
+        editor.Click += (_, _) => Vst3EditorWindow.ShowFor(this, _dsp, item.Id);
+        var remove = new Button { Content = "Remove from chain" };
+        remove.Click += (_, _) =>
+        {
+            Vst3EditorWindow.CloseFor(item.Id);
+            _dsp.RemoveVst3(item.Id);
+        };
+        _detail.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { editor, remove } });
+        if (stage?.Plugin is { HasEditor: false })
+        {
+            Note("This effect has no editor of its own on this platform.");
+        }
+        Note("Its settings are saved with the chain (when its editor closes and when AudioTastic exits).");
     }
 
     private void Slider(string label, double value, double min, double max, string format, Action<double> set, Action apply, bool percent = false)

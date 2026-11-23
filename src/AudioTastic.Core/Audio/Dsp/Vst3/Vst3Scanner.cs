@@ -163,7 +163,7 @@ public sealed class Vst3Scanner
         try
         {
             var classes = JsonSerializer.Deserialize<ScanOutput>(text, Json)?.Classes ?? [];
-            return new Vst3Module(path, modified, classes);
+            return new Vst3Module(path, modified, [.. classes.Where(IsEffect)]);
         }
         catch (JsonException ex)
         {
@@ -172,6 +172,17 @@ public sealed class Vst3Scanner
     }
 
     private sealed record ScanOutput(List<Vst3Class> Classes);
+
+    /// <summary>
+    /// Synths and effects share the VST3 audio module category; the sub-categories tell them apart. An instrument
+    /// that is not also marked as an effect ("Fx") has no place in the DSP chain.
+    /// </summary>
+    public static bool IsEffect(Vst3Class plugin)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        var categories = plugin.SubCategories.Split('|', StringSplitOptions.TrimEntries);
+        return categories.Contains("Fx", StringComparer.OrdinalIgnoreCase) || !categories.Contains("Instrument", StringComparer.OrdinalIgnoreCase);
+    }
 
     private static string? FindScanner()
     {
