@@ -14,7 +14,7 @@ AudioTastic uses a few native (C/C++) libraries and assets. They are **never com
 | libopenmpt 0.8.10 (+ mpg123 LGPL, ogg/vorbis BSD, zlib on Windows) | BSD-3-Clause | P4 (FM-07) | `fetch_libopenmpt.py` (Windows x64/arm64, official package, SHA-256 pinned) → `out/libopenmpt/`; `build_libopenmpt_unix.sh <rid>` (Linux/macOS from source, untested until CI) |
 | OptimFROG Libraries 5.100 | closed-source freeware (policy exception, bundled) | P4 (FM-06) | `fetch_optimfrog.py` (win-x64, linux-x64, osx-x64 only; HTTP + SHA-1 from the Internet Archive) → `out/optimfrog/` |
 | GeneralUser GS v2.0.3 SoundFont (asset, not code) | GeneralUser GS License v2.0 | P4 (FM-08) | `fetch_soundfont.py` (SHA-256 pinned) → `downloads/soundfont/` |
-| VST3 host shim | MIT (VST3 SDK) | P12 | Added in that phase |
+| VST3 host shim `at_vst3host` + scanner `at_vst3scan` (`vst3host/`), over the Steinberg VST3 SDK 3.8.1 | MIT (VST3 SDK) | P12 (EQ-06) | `CMakeLists.txt` (fetches the SDK at tag `v3.8.1_build_84`, submodules base, cmake, pluginterfaces, public.sdk only) |
 | ASIO shim | Steinberg ASIO licence (free, proprietary) | optional, deferred | Only if ASIO is revisited |
 
 Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64`.
@@ -34,6 +34,9 @@ cmake -S native -B native/build/win-x64 -DCMAKE_BUILD_TYPE=Release -DAT_RID=win-
 cmake --build native/build/win-x64 --config Release
 cmake --install native/build/win-x64 --config Release
 
+# VST3 test fixtures (EQ-06): add -DAT_VST3_TEST_PLUGINS=ON when configuring; installs the SDK's ADelay example and a
+# module that crashes when scanned to native/out/<rid>/vst3-test/ (used by the tests, never shipped)
+
 # Plugin libraries and assets (P4)
 python native/fetch_libopenmpt.py --rid win-x64 --rid win-arm64
 native/build_libopenmpt_unix.sh linux-x64            # on Linux/macOS
@@ -52,6 +55,12 @@ CI (`.github/workflows/ci.yml`) runs the same steps:
 `miniaudio/at_miniaudio.h` is a small, flat C API (opaque handles, fixed-layout structs) compiled into the `miniaudio` library. The .NET side (`AudioTastic.Core/Audio/Output/MiniaudioNative.cs`) P/Invokes only this API, never miniaudio's own structs, whose layout differs per platform. When the shim changes, bump `AT_MA_API_VERSION` and `MiniaudioNative.ApiVersionExpected` together.
 
 API version 2 (P6) added sample formats (`AT_MA_FORMAT_F32/S16/S24/S32`), exclusive mode, `at_ma_device_formats` (the device's native formats, used for exclusive-mode negotiation) and `at_ma_device_internal_format`. The data callback receives a raw `void*` buffer in the opened format; integer conversion and dither are done in C# (`SampleConverter`), and `noClip` is set so miniaudio never alters the samples.
+
+## VST3 host shim
+
+`vst3host/at_vst3host.h` is a flat C API (opaque handle, API version 1) over the SDK's hosting classes: scan a module, open a class, set up stereo processing, process interleaved float in place, latency, state (component + controller, length-prefixed), and the editor in a native window (HWND, NSView, X11). `at_vst3scan <module>` prints a module's effect classes as JSON; the player runs it as a separate process per module so a plug-in that crashes or hangs while loading is blacklisted instead of taking the player down. Bump `AT_VST3_API_VERSION` and `Vst3Native.ApiVersionExpected` together.
+
+The SDK's `HostProcessData` owns the bus buffers (it frees them): audio is copied into and out of them, never replaced by our own pointers (that corrupted the heap in the first version).
 
 ## Rules
 

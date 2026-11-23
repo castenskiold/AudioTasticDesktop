@@ -45,6 +45,7 @@ When you add a package or native library, add it here in the same pull request.
 | FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build; the Windows and Linux builds include LAME (libmp3lame, LGPL) | LGPL-2.1-or-later | Decoding (from P1); encoding FLAC and MP3 for casting (P11) and conversion (P13) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
 | SoundTouch, SoundTouchDLL | LGPL-2.1 | Time-stretch | P0 pipeline / P6 use |
+| Steinberg VST 3 SDK 3.8.1 (base, pluginterfaces, public.sdk; compiled into our `at_vst3host` library and `at_vst3scan` tool; no VSTGUI) | MIT (since SDK 3.8; LICENSE.txt checked 23 Nov 2026, shipped as `VST3SDK-LICENSE.txt`) | Hosting VST3 effects in the DSP chain (EQ-06) | P12 |
 | Freeverb design by Jezar at Dreampoint (algorithm only; our own code) | Public domain | Reverb in the DSP chain (EQ-05) | P7 |
 | libopenmpt 0.8.10 | BSD-3-Clause (parts BSL-1.0) | Tracker modules in the libopenmpt plugin (FM-07) | P4 |
 | openmpt-mpg123 (mpg123, shipped with libopenmpt on Windows) | LGPL-2.1 (separate, replaceable DLL) | MP3-compressed samples inside modules | P4 |

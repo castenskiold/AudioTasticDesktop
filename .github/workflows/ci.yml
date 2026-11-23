@@ -49,6 +49,10 @@ jobs:
           path: native
       - uses: actions/download-artifact@v4
         with:
+          name: vst3-test-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/vst3-test
+      - uses: actions/download-artifact@v4
+        with:
           name: test-media
           path: tests/media/generated
       - run: dotnet restore AudioTastic.slnx
@@ -166,12 +170,13 @@ jobs:
       - name: FFmpeg (built from source, LGPL)
         if: ${{ startsWith(matrix.rid, 'osx') }}
         run: bash native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
-      - name: miniaudio and SoundTouch
+      - name: miniaudio, SoundTouch and the VST3 host
         shell: bash
         run: |
-          # Configuring clones miniaudio (GitHub) and SoundTouch (codeberg.org), which sometimes fails: try three times.
+          # Configuring clones miniaudio and the VST3 SDK (GitHub) and SoundTouch (codeberg.org), which sometimes fails: try three times.
+          # AT_VST3_TEST_PLUGINS also builds the VST3 test fixtures (EQ-06): the SDK's ADelay and a module that crashes on scan.
           for attempt in 1 2 3; do
-            cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} ${{ matrix.cmake_arch }} && break
+            cmake -S native -B native/build/${{ matrix.rid }} -DCMAKE_BUILD_TYPE=Release -DAT_RID=${{ matrix.rid }} -DAT_VST3_TEST_PLUGINS=ON ${{ matrix.cmake_arch }} && break
             if [ "$attempt" = 3 ]; then exit 1; fi
             echo "CMake configure failed (attempt $attempt); retrying in 30 s"
             rm -rf native/build/${{ matrix.rid }}/_deps
@@ -193,6 +198,10 @@ jobs:
         with:
           name: libopenmpt-${{ matrix.rid }}
           path: native/out/libopenmpt/runtimes/${{ matrix.rid }}/native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vst3-test-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/vst3-test
 
   plugin-assets:
     name: Plugin assets (SoundFont, OptimFROG)

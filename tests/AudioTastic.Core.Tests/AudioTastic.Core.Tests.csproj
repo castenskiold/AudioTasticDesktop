@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AudioTastic.Core\AudioTastic.Core.csproj" />
+    <ProjectReference Include="../AudioTastic.TestSupport/AudioTastic.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
