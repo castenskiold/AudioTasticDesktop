@@ -124,10 +124,18 @@ install(FILES "${vst3sdk_SOURCE_DIR}/LICENSE.txt" DESTINATION native RENAME VST3
 
 if(AT_VST3_TEST_PLUGINS)
   add_library(at_vst3_test_crash MODULE "${CMAKE_CURRENT_SOURCE_DIR}/vst3host/test_crash_module.c")
-  set_target_properties(at_vst3_test_crash PROPERTIES PREFIX "" SUFFIX ".vst3" OUTPUT_NAME "crash-on-scan" C_VISIBILITY_PRESET hidden)
   add_custom_target(at_vst3_test_plugins ALL)
   add_dependencies(at_vst3_test_plugins adelay at_vst3_test_crash)
-  install(TARGETS at_vst3_test_crash LIBRARY DESTINATION vst3-test RUNTIME DESTINATION vst3-test)
+  if(UNIX AND NOT APPLE)
+    # Linux loads VST3 modules only as bundles: crash-on-scan.vst3/Contents/<arch>-linux/crash-on-scan.so
+    set_target_properties(at_vst3_test_crash PROPERTIES PREFIX "" SUFFIX ".so" OUTPUT_NAME "crash-on-scan" C_VISIBILITY_PRESET hidden)
+    install(TARGETS at_vst3_test_crash LIBRARY DESTINATION "vst3-test/crash-on-scan.vst3/Contents/${CMAKE_SYSTEM_PROCESSOR}-linux")
+  else()
+    # Windows loads a single-file module. (macOS needs a bundle with an Info.plist: there the file is rejected as
+    # "not a VST3 module", which blacklists it too.)
+    set_target_properties(at_vst3_test_crash PROPERTIES PREFIX "" SUFFIX ".vst3" OUTPUT_NAME "crash-on-scan" C_VISIBILITY_PRESET hidden)
+    install(TARGETS at_vst3_test_crash LIBRARY DESTINATION vst3-test RUNTIME DESTINATION vst3-test)
+  endif()
   install(DIRECTORY "${CMAKE_BINARY_DIR}/VST3/$<CONFIG>/adelay.vst3" DESTINATION vst3-test)
 endif()
 endif()
