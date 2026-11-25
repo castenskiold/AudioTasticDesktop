@@ -1,6 +1,6 @@
 # CI (from P0; test job wired to native libraries and media in P1; plugin natives in P4): build and test on Windows, macOS and
 # Linux, publish self-contained apps for all six runtime identifiers, build/fetch the native libraries (FFmpeg, miniaudio,
-# SoundTouch, libopenmpt), fetch the plugin assets (GeneralUser GS SoundFont, OptimFROG libraries) and generate the test media.
+# SoundTouch, libopenmpt; FFmpeg is our own audio-focused build since P14), fetch the plugin assets (GeneralUser GS SoundFont, OptimFROG libraries) and generate the test media.
 # Note: OptimFROG exists for x64 only, so its tests are skipped on the macOS arm64 runner by design.
 name: CI
 
@@ -136,8 +136,49 @@ jobs:
           name: package-${{ matrix.rid }}
           path: packages
 
+  ffmpeg:
+    name: FFmpeg (${{ matrix.rid }})
+    # P14: our own audio-focused LGPL FFmpeg, built from pinned sources by native/build_ffmpeg.sh. Windows is cross-built
+    # on Linux with llvm-mingw. The result is cached until the script changes (a build takes 5-15 minutes).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: win-x64 }
+          - { os: ubuntu-latest, rid: win-arm64 }
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-latest, rid: osx-x64 }
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: native/out/${{ matrix.rid }}/native
+          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('native/build_ffmpeg.sh') }}
+      - name: Build tools
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install nasm pkg-config
+          else
+            sudo apt-get update && sudo apt-get install -y nasm pkg-config libssl-dev autotools-dev
+          fi
+      - name: Build FFmpeg
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        run: bash native/build_ffmpeg.sh ${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/native
+          if-no-files-found: error
+
   native:
     name: Native libraries (${{ matrix.rid }})
+    needs: ffmpeg
     strategy:
       fail-fast: false
       matrix:
@@ -161,15 +202,10 @@ jobs:
           path: native/downloads
           key: downloads-${{ matrix.rid }}-${{ hashFiles('native/*.py', 'native/*.sh') }}
           restore-keys: downloads-${{ matrix.rid }}-
-      - name: FFmpeg (prebuilt LGPL)
-        if: ${{ !startsWith(matrix.rid, 'osx') }}
-        run: python native/fetch_ffmpeg.py --rid ${{ matrix.rid }}
-      - name: nasm (FFmpeg's x86 assembly, osx-x64 cross build)
-        if: ${{ matrix.rid == 'osx-x64' }}
-        run: brew install nasm
-      - name: FFmpeg (built from source, LGPL)
-        if: ${{ startsWith(matrix.rid, 'osx') }}
-        run: bash native/build_ffmpeg_macos.sh ${{ matrix.rid == 'osx-arm64' && 'arm64' || 'x86_64' }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          path: native/out/${{ matrix.rid }}/native
       - name: miniaudio, SoundTouch and the VST3 host
         shell: bash
         run: |
@@ -294,6 +330,11 @@ jobs:
             fi
           done
           files+=(AudioTastic.Input.OptimFrog.atplugin)
+          # P14, LGPL: the exact sources of the FFmpeg libraries we ship (FFmpeg, LAME, Opus, Ogg, Vorbis, OpenH264,
+          # zlib) and the script that builds them.
+          bash ../native/build_ffmpeg.sh sources
+          tar -cf "AudioTastic-${version}-ffmpeg-sources.tar" -C ../native downloads/ffmpeg-src build_ffmpeg.sh
+          files+=("AudioTastic-${version}-ffmpeg-sources.tar")
           # Installers and packages (P10): setup.exe per Windows RID, .dmg per macOS RID, AppImage per Linux RID.
           for package in packages/*; do
             files+=("$package")

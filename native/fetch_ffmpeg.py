@@ -1,107 +1,66 @@
 #!/usr/bin/env python3
-"""Download prebuilt LGPL FFmpeg shared libraries for AudioTastic (phase P0, native library pipeline).
+"""Download AudioTastic's own FFmpeg build (P14) from CI, for development on any OS.
 
-Source: BtbN/FFmpeg-Builds (GitHub). Only the "lgpl-shared" variants are used: they are configured
-without --enable-gpl / --enable-nonfree, so they meet the licence policy (LGPL, dynamically linked).
-macOS is not provided by BtbN; build it with build_ffmpeg_macos.sh instead.
+The FFmpeg libraries are built from source by native/build_ffmpeg.sh (audio-focused, LGPL-2.1-or-later); CI runs it for
+every runtime identifier and keeps the result as the artifact "ffmpeg-<rid>". This script fetches that artifact from the
+latest successful CI run on main with the GitHub CLI (gh, signed in), so a Windows developer needs no Linux toolchain.
+On Linux or macOS you can also build it yourself: native/build_ffmpeg.sh <rid>.
 
-Result: native/out/<rid>/native/<libraries> plus FFMPEG-BUILDINFO.txt and the FFmpeg licence file.
+Result: native/out/<rid>/native/<libraries> plus FFMPEG-BUILDINFO.txt and FFMPEG-LICENSES.txt.
 
-Usage: python native/fetch_ffmpeg.py [--rid win-x64 ...] [--version 8.1]
+Usage: python native/fetch_ffmpeg.py [--rid win-x64 ...] [--run <id>] [--repo owner/name]
 """
 import argparse
-import hashlib
-import re
+import json
 import shutil
+import subprocess
 import sys
-import tarfile
-import urllib.request
-import zipfile
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BASE_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest"
-
-# rid -> BtbN platform name, archive type, folder with the shared libraries inside the archive
-PLATFORMS = {
-    "win-x64": ("win64", "zip", "bin", (".dll",)),
-    "win-arm64": ("winarm64", "zip", "bin", (".dll",)),
-    "linux-x64": ("linux64", "tar.xz", "lib", (".so",)),
-    "linux-arm64": ("linuxarm64", "tar.xz", "lib", (".so",)),
-}
+RIDS = ["win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64", "osx-x64"]
+DEFAULT_REPO = "castenskiold/AudioTasticDesktop"
+# What a previous FFmpeg in the folder may have left (BtbN builds before P14 used FFMPEG-LICENSE.txt).
+OLD_FILES = ("avcodec", "avformat", "avutil", "swresample", "FFMPEG-")
 
 
-# Only the libraries AudioTastic uses (decoding, demuxing, resampling, encoding for casting/conversion).
-WANTED = ("avcodec", "avformat", "avutil", "swresample")
-# Windows: avcodec-62.dll; Linux: libavcodec.so.62 (the SONAME the loader looks for; other symlink copies are skipped)
-LIB_PATTERN = re.compile(r"^(?:lib)?(" + "|".join(WANTED) + r")(?:-\d+\.dll|\.so\.\d+)$")
+def gh(*args):
+    if shutil.which("gh") is None:
+        sys.exit("The GitHub CLI (gh) is needed: https://cli.github.com (or build with native/build_ffmpeg.sh)")
+    return subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
 
 
-def asset_name(platform, version, ext):
-    return f"ffmpeg-n{version}-latest-{platform}-lgpl-shared-{version}.{ext}"
-
-
-def download(url, target: Path):
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if not target.exists():
-        print(f"Downloading {url}")
-        with urllib.request.urlopen(url) as r, open(target, "wb") as f:  # noqa: S310 (fixed https URL)
-            shutil.copyfileobj(r, f)
-    return hashlib.sha256(target.read_bytes()).hexdigest()
-
-
-def extract_libs(archive: Path, kind, lib_folder, suffixes, dest: Path):
-    dest.mkdir(parents=True, exist_ok=True)
-    copied = []
-    if kind == "zip":
-        with zipfile.ZipFile(archive) as z:
-            for name in z.namelist():
-                parts = Path(name).parts
-                if len(parts) >= 2 and parts[-2] == lib_folder and LIB_PATTERN.match(parts[-1]):
-                    (dest / parts[-1]).write_bytes(z.read(name))
-                    copied.append(parts[-1])
-                elif parts[-1] in ("LICENSE.txt", "LICENSE"):
-                    (dest / "FFMPEG-LICENSE.txt").write_bytes(z.read(name))
-    else:
-        with tarfile.open(archive) as t:
-            for m in t.getmembers():
-                parts = Path(m.name).parts
-                is_lib = len(parts) >= 2 and parts[-2] == lib_folder and LIB_PATTERN.match(parts[-1]) is not None
-                if is_lib and (m.isfile() or m.issym()):
-                    if m.issym():
-                        # keep versioned symlinks as real copies so the folder works on every file system
-                        target = m
-                        while target.issym():
-                            target = t.getmember(str(Path(target.name).parent / target.linkname))
-                        data = t.extractfile(target).read()
-                    else:
-                        data = t.extractfile(m).read()
-                    (dest / parts[-1]).write_bytes(data)
-                    copied.append(parts[-1])
-                elif parts[-1] in ("LICENSE.txt", "LICENSE") and m.isfile():
-                    (dest / "FFMPEG-LICENSE.txt").write_bytes(t.extractfile(m).read())
-    return copied
+def latest_run(repo):
+    runs = json.loads(gh("run", "list", "-R", repo, "-w", "CI", "-b", "main", "-s", "success", "-L", "1",
+                         "--json", "databaseId"))
+    if not runs:
+        sys.exit(f"No successful CI run on main in {repo}")
+    return str(runs[0]["databaseId"])
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--rid", nargs="*", default=list(PLATFORMS), choices=list(PLATFORMS))
-    parser.add_argument("--version", default="8.1", help="FFmpeg release branch (BtbN builds n<version>-latest)")
+    parser.add_argument("--rid", nargs="*", default=["win-x64"], choices=RIDS)
+    parser.add_argument("--run", help="CI run id (default: the latest successful run on main)")
+    parser.add_argument("--repo", default=DEFAULT_REPO)
     args = parser.parse_args()
 
+    run = args.run or latest_run(args.repo)
     for rid in args.rid:
-        platform, kind, lib_folder, suffixes = PLATFORMS[rid]
-        name = asset_name(platform, args.version, kind)
-        archive = HERE / "downloads" / name
-        sha = download(f"{BASE_URL}/{name}", archive)
         dest = HERE / "out" / rid / "native"
-        libs = extract_libs(archive, kind, lib_folder, suffixes, dest)
-        if not libs:
-            print(f"No libraries found in {name}", file=sys.stderr)
-            return 1
-        (dest / "FFMPEG-BUILDINFO.txt").write_text(
-            f"source: {BASE_URL}/{name}\nsha256: {sha}\nvariant: lgpl-shared\nlibraries: {', '.join(sorted(libs))}\n")
-        print(f"{rid}: {len(libs)} libraries -> {dest}")
+        dest.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            gh("run", "download", run, "-R", args.repo, "-n", f"ffmpeg-{rid}", "-D", tmp)
+            files = [f for f in Path(tmp).iterdir() if f.is_file()]
+            if not any(f.name.startswith(("avcodec", "libavcodec")) for f in files):
+                sys.exit(f"The artifact ffmpeg-{rid} of run {run} has no avcodec")
+            for old in dest.iterdir():
+                if old.is_file() and (old.name.startswith(OLD_FILES) or old.name.startswith(tuple("lib" + o for o in OLD_FILES))):
+                    old.unlink()
+            for f in files:
+                shutil.copy2(f, dest / f.name)
+        print(f"{rid}: {len(files)} files from CI run {run} -> {dest}")
     return 0
 
 
