@@ -90,7 +90,7 @@ S("Audio formats and sources", "All decoding goes through one FFmpeg-based decod
  "<b>Libraries:</b> FFmpeg http protocol with icy=1 (reads icy_metadata_packet). "
  "<b>Components:</b> LiveStreamSource wrapper (in the FFmpeg plugin) adding buffering (2 s, again after stalls), reconnect logic (up to 5 tries, back-off 0.5–8 s) and metadata change events (IStreamMetadata in the SDK).", None),
 ("FM-11", "Audio CD playback and ripping",
- "Lists audio CD tracks, plays them, and rips them to files. Track names come from CD-Text or MusicBrainz disc ID lookup (MD-03). Ripping reads raw audio sectors, writes WAV, then converts with TL-01 to the chosen format and tags the result.",
+ "<b>Deferred (Anders, 25 November 2026: no CD drive to test with)</b>; the card describes how it would be built. Lists audio CD tracks, plays them, and rips them to files. Track names come from CD-Text or MusicBrainz disc ID lookup (MD-03). Ripping reads raw audio sectors, writes WAV, then converts with TL-01 to the chosen format and tags the result.",
  "Main menu › Play CD (lists drives). Rip: playlist context menu on CD tracks › Rip… opens the conversion dialog (TL-01) pre-filled.",
  "<b>Windows (first):</b> DeviceIoControl on \\\\.\\X: with IOCTL_CDROM_READ_TOC_EX and IOCTL_CDROM_RAW_READ (own P/Invoke code). "
  "<b>macOS:</b> audio CDs are mounted as .aiff files under /Volumes and play through FM-01. "

@@ -38,7 +38,7 @@ sections=[
 ("MIDI","Playback through a SoundFont-based synthesizer."),
 ("CUE sheets","Single-file album rips with a .cue file are shown and played as separate tracks."),
 ("Internet radio / streams","HTTP, Icecast and SHOUTcast streams with ICY metadata (now-playing title). M3U/PLS stream URLs."),
-("Audio CD","CD playback and ripping. Needs a separate implementation per platform (Windows first)."),
+("Audio CD","CD playback and ripping. Needs a separate implementation per platform (Windows first). <b>Deferred</b> (Anders, 25 November 2026; see Out of scope / deferred)."),
 ]),
 ("4. Playback engine",[
 ("Gapless playback",f"No silence between consecutive tracks. {GS}"),
@@ -238,6 +238,7 @@ later=[
 ("MilkDrop-style visualisation plugin","Planned later by Anders, as a visualisation plugin (for example on projectM, LGPL, dynamically linked, or own code). P11 prepares for it: visualisation plugins can render frames for casting, so its visuals can be cast to a screen."),
 ("Scrobbling (Last.fm, ListenBrainz) and Discord Rich Presence","Removed (Anders, 18 November 2026). Feature IDs CN-07 and CN-08 are retired, and no Last.fm, ListenBrainz or Discord accounts or keys are needed. A third-party general plugin (PG-01) could still add them."),
 ("Remote control from a phone (web remote)","Removed (Anders, 21 November 2026: not needed). Feature ID CN-06 is retired: there is no REST/WebSocket remote API or web remote. The player is controlled from the computer, the OS media controls, hotkeys and the command line."),
+("Audio CD (FM-11)","Deferred (Anders, 25 November 2026); may be revisited later. There is no CD drive to test with; playback and ripping would need one (a USB drive works) and some audio CDs. Ripping would go through format conversion (TL-01), which is built."),
 ("Room correction (EQ-07)","Deferred (Anders, 23 November 2026); may be revisited later. It is only useful with a measured impulse response of the room (e.g. made with REW and a measurement microphone)."),
 ("Native Winamp plugin bridge (PG-06)","Deferred (Anders, 23 November 2026); may be revisited later. Classic 32-bit in_/dsp_/gen_/vis_ plugins are not loaded; AudioTastic plugins (SDK) and VST3 effects cover the same ground."),
 ("AirPlay (CN-03)","Deferred (Anders, 21 November 2026); may be revisited later. Casting works with Chromecast and DLNA/UPnP devices. Building AirPlay needs a test receiver (shairport-sync on a Linux machine), as no AirPlay device is available."),
@@ -249,4 +250,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.20  ·  23 November 2026", story, short_title="Required Features  ·  v1.20")
+ "Version 1.21  ·  25 November 2026", story, short_title="Required Features  ·  v1.21")

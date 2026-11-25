@@ -251,16 +251,16 @@ dict(id="P12", name="Advanced DSP and native plugins", size="L",
  risks=["VST3 editor embedding differs per OS (HWND, NSView, X11 window): budget extra time for macOS and Linux."]),
 
 dict(id="P13", name="Tools, CD and accessibility", size="M",
- goal="Format conversion, CD playback and ripping, settings backup and accessibility.",
+ goal="Format conversion, settings backup and accessibility (audio CD is deferred, Anders, 25 Nov 2026: no CD drive to test with).",
  why="Conversion reuses the encoders already used for casting; CD ripping reuses conversion. Accessibility is completed once all UI exists.",
  features=[
   ("TL-01", "ConversionService and Convert dialog (formats, quality, destination, filename pattern, parallel jobs, tag and art copy)."),
-  ("FM-11", "CD playback and ripping: Windows IOCTL implementation first; macOS via mounted AIFF; Linux ioctl; MusicBrainz disc ID lookup; Rip uses TL-01."),
+  ("FM-11", "CD playback and ripping: Windows IOCTL implementation first; macOS via mounted AIFF; Linux ioctl; MusicBrainz disc ID lookup; Rip uses TL-01. Deferred (Anders, 25 Nov 2026)."),
   ("TL-02", ".atbackup export/import with selective restore and schema migration."),
   ("TL-04", "Accessibility pass: automation names on every control, focus order, visible focus in the skin, screen-reader testing (Narrator, VoiceOver, Orca)."),
  ],
  tasks=[], prereq_int=["P12"], prereq_ext=["A CD drive and some audio CDs for testing"],
- deliverables=["Conversion, CD support, backup/restore, accessibility"],
+ deliverables=["Conversion, backup/restore, accessibility"],
  exit=["Converted files keep tags and art and play correctly", "A ripped CD matches AccurateRip-style checksums of another ripper (spot check)", "All main functions usable with keyboard only and announced by screen readers on Windows and macOS"],
  risks=["CD drive behaviour varies (read offsets, C2 errors): keep ripping simple (secure ripping is out of scope unless Anders asks)."]),
 
@@ -412,4 +412,5 @@ PREREQ_STATUS = {
     "Chromecast with a screen (e.g. Chromecast with Google TV, or a TV with Cast built in) for audio and video testing": "Available: Anders has a Chromecast (19 Nov 2026).",
     "DLNA renderer for testing (a smart TV that plays video streams, Sonos, or software such as Kodi or gmrender-resurrect)": "Available: Anders has a Samsung smart TV (19 Nov 2026).",
     "shairport-sync on a Linux machine/VM as AirPlay receiver": "Deferred with AirPlay (CN-03), Anders, 21 Nov 2026.",
+    "A CD drive and some audio CDs for testing": "Not available: audio CD (FM-11) deferred, Anders, 25 Nov 2026.",
 }
