@@ -298,7 +298,8 @@ S("User interface and skins", "Window layout, skins and the visual elements of t
 ("UI-10", "General settings window",
  "One window holding every setting, grouped as: Playback, Output, Crossfading, Metadata, Casting & network, Interface, System integration, Equalizer & DSP, Plugins, General. Changes apply immediately; each group has 'Reset to defaults'. Settings are stored in one JSON file.",
  "Main menu › Settings… (Ctrl+P). Left: list of groups; right: the selected group's options.",
- "<b>Components:</b> SettingsWindow (Avalonia, FluentTheme); SettingsStore (System.Text.Json, strongly typed settings classes, change notifications, schema version for migrations). Plugins add their own pages (PG-05).", None),
+ "<b>Components:</b> SettingsWindow (Avalonia, FluentTheme); SettingsStore (System.Text.Json, strongly typed settings classes, change notifications, schema version for migrations). Plugins add their own pages (PG-05). "
+ "<b>Saving (25 Nov 2026):</b> written through a temporary file and moved into place; on Windows that move fails while another program holds the file open (antivirus, the search indexer), so it is retried for about half a second, and if the file stays busy the change is kept in memory, logged and written with the next save. Saving never throws (a reported crash: the error escaped a timer thread and ended the process).", None),
 ])
 
 S("System integration", "How the player works with the operating system. Platform-specific code lives in AudioTastic.Platform.Windows / .MacOS / .Linux behind shared interfaces.", [
