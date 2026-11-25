@@ -130,6 +130,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         _graph.Master.SnapToTarget();
 
         _output.OutputLost += OnOutputLost;
+        _output.DevicesChanged += OnDevicesChanged;
         _monitor = new Timer(_ => Monitor(), null, MonitorInterval, MonitorInterval);
         _saveTimer = new Timer(_ => SavePlaybackState(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _tempoTimer = new Timer(_ => TempoTick(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -770,6 +771,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         SaveResumePosition(finished: false);
         SaveSession();
         _output.OutputLost -= OnOutputLost;
+        _output.DevicesChanged -= OnDevicesChanged;
         _graph.OutputActive = false;
         _output.Close();
         _graph.Dispose();
@@ -799,6 +801,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>Plays the track at <paramref name="index"/>; unplayable files are reported and skipped.</summary>
     private async Task PlayIndexCoreAsync(int index)
     {
+        _waitingForDevice = false; // a new track opens the output itself
         SaveResumePosition(finished: _endedNaturally);
         _endedNaturally = false;
         var startAt = _startAt;
@@ -1061,6 +1064,7 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     private async Task StopCoreAsync()
     {
+        _waitingForDevice = false; // a stop ends any wait for a device
         SaveResumePosition(finished: _endedNaturally);
         _endedNaturally = false;
         SaveSession();
@@ -1123,8 +1127,72 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         Raise(PositionChanged, new PlaybackPositionEventArgs(Position, Duration));
     }
 
+    /// <summary>PB-04: set while paused because no audio device exists; cleared when one is opened again, or on stop.</summary>
+    private volatile bool _waitingForDevice;
+
+    /// <summary>
+    /// PB-04: a device appeared while playback waited for one (the output was lost with no device left): open it and
+    /// continue where playback stopped. The user did not pause, so it resumes by itself.
+    /// </summary>
+    private void OnDevicesChanged(object? sender, EventArgs e)
+    {
+        if (!_waitingForDevice)
+        {
+            return;
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunAsync(() =>
+                {
+                    if (_waitingForDevice && _state == PlaybackState.Paused && _output.GetDevices().Count > 0 && TryReopenOutput())
+                    {
+                        ResumeCore();
+                    }
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+#pragma warning disable CA1031 // Background continuation: log, never crash the process.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                _logger.LogError(ex, "Reopening the output failed");
+            }
+        });
+    }
+
+    /// <summary>After a device loss: opens the configured (or default) device again; false while none can be opened.</summary>
+    private bool TryReopenOutput()
+    {
+        if (!_waitingForDevice)
+        {
+            return true;
+        }
+        try
+        {
+            OpenOutput(_graph.Format, _outputOptions ?? new OutputOptions(_settings.Current.Output.BufferMilliseconds));
+            StartOutput();
+            _waitingForDevice = false;
+            _logger.LogInformation("Audio device available again: continuing on {Device}", _output.DeviceName);
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogDebug(ex, "Still no audio device");
+            return false;
+        }
+    }
+
     private void ResumeCore()
     {
+        if (!TryReopenOutput())
+        {
+            return; // still no device: stay paused (pressing play again tries again)
+        }
         var fades = _settings.Current.Playback.Fades;
         if (fades.OnPause && fades.PauseMilliseconds > 0 && !_bitPerfect)
         {
@@ -1462,8 +1530,13 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
                 }
                 catch (InvalidOperationException ex)
                 {
-                    ReportError(_track?.Path ?? string.Empty, ex);
-                    await StopCoreAsync().ConfigureAwait(false);
+                    // PB-04 (P14 soak): no audio device at all (a Remote Desktop session ended, the only DAC was
+                    // unplugged). Pause where we are and continue when a device appears again (OnDevicesChanged),
+                    // instead of stopping and losing the track and position.
+                    _logger.LogWarning(ex, "No audio device is available; paused until one appears");
+                    _graph.Paused = true;
+                    _waitingForDevice = true;
+                    SetState(PlaybackState.Paused);
                 }
             }).ConfigureAwait(false);
         }

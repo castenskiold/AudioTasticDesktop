@@ -346,6 +346,44 @@ public sealed class PlaybackEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task With_no_device_left_playback_pauses_and_continues_when_one_appears()
+    {
+        // P14 soak: a Remote Desktop disconnect removed the only device; playback stopped and lost its place.
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        await Wait.UntilAsync(() => _engine.Position > TimeSpan.FromMilliseconds(300));
+
+        _output.NoDevice = true;
+        _output.Lose();
+        await Wait.UntilAsync(() => _engine.State == PlaybackState.Paused);
+        var where = _engine.Position;
+        Assert.True(where > TimeSpan.Zero);
+        Assert.NotNull(_engine.CurrentTrack); // still loaded
+
+        await _engine.PlayAsync(); // still no device: stays paused
+        Assert.Equal(PlaybackState.Paused, _engine.State);
+
+        _output.NoDevice = false;
+        _output.RaiseDevicesChanged();
+        await Wait.UntilAsync(() => _engine.State == PlaybackState.Playing && _output.IsRunning);
+        Assert.True(_engine.Position >= where - TimeSpan.FromMilliseconds(50)); // from where it was, not the start
+    }
+
+    [Fact]
+    public async Task Stopping_while_waiting_for_a_device_ends_the_wait()
+    {
+        await _engine.OpenAsync([Track("long", seconds: 30)]);
+        _output.NoDevice = true;
+        _output.Lose();
+        await Wait.UntilAsync(() => _engine.State == PlaybackState.Paused);
+        await _engine.StopAsync();
+
+        _output.NoDevice = false;
+        _output.RaiseDevicesChanged();
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.Equal(PlaybackState.Stopped, _engine.State); // a stop is the user's choice: nothing resumes
+    }
+
+    [Fact]
     public async Task Missing_saved_device_falls_back_to_default()
     {
         _settings.Update(SettingsGroup.Output, s => s.Output.DeviceName = "Gone");

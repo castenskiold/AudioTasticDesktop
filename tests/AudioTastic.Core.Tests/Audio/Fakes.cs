@@ -125,7 +125,10 @@ internal sealed class FakeAudioOutput : IAudioOutput
     public event EventHandler? DevicesChanged;
     public event EventHandler<AudioOutputLostEventArgs>? OutputLost;
 
-    public IReadOnlyList<AudioDeviceInfo> GetDevices() => Devices;
+    public IReadOnlyList<AudioDeviceInfo> GetDevices() => NoDevice ? [] : Devices;
+
+    /// <summary>Simulates a computer with no audio device at all (opening fails, the list is empty).</summary>
+    public bool NoDevice { get; set; }
 
     public float[] Captured
     {
@@ -141,6 +144,10 @@ internal sealed class FakeAudioOutput : IAudioOutput
     public void Open(AudioDeviceInfo? device, AudioFormat format, OutputOptions options, IAudioRenderer renderer)
     {
         Close(); // like MiniaudioOutput: the old device is closed before the new one is opened
+        if (NoDevice)
+        {
+            throw new InvalidOperationException("Could not open 'default device' (test: no device).");
+        }
         if (options.Exclusive && RefuseExclusive)
         {
             throw new InvalidOperationException("Exclusive mode refused (test).");

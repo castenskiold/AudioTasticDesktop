@@ -189,5 +189,6 @@ Commands go to the running player (and start it when needed; `--stop`, `--pause`
 - **Logs:** `logs` in the data folder (kept for 7 days); *Settings › General › Log level* makes them more detailed.
 - **Crashes:** a crash report is written to `crash` in the data folder, and the next start offers to open it. Nothing is uploaded.
 - **A file will not play:** *File info* (Alt+3) shows what AudioTastic read from it; damaged files are skipped with a message.
+- **The device disappeared:** if no audio device is left (for example when a Remote Desktop session ends), AudioTastic pauses and continues by itself when a device is back.
 - **No sound:** check the device in *Settings › Output* (right-click the volume slider for a quick choice); with exclusive mode on, another program may hold the device.
 - **A cast device is missing:** the computer and the device must be on the same network, and the firewall must allow AudioTastic.

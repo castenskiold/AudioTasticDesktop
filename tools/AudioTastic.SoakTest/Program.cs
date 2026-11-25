@@ -84,6 +84,8 @@ int? baselineHandles = null;
 var failures = new List<string>();
 var lastChanges = 0;
 var quietMinutes = 0;
+var outageMinutes = 0;
+var pausedWithDevice = 0;
 // The first use of a code path (the first crossfade, the first track of a new format) is compiled by the runtime on
 // the audio thread and can make one callback late; long runs judge lateness after a 10-minute warm-up. Underruns
 // count from the start.
@@ -110,11 +112,24 @@ for (var minute = 1; minute <= minutes; minute++)
         $"callbacks {timed.Renders}, slowest {timed.MaxRender.TotalMilliseconds:0.000} ms, late {late}, " +
         $"heap {heap / 1048576.0:0.0} MB, ws {ws / 1048576.0:0.0} MB, handles {handles}, gen2 {GC.CollectionCount(2)}" +
         $"{(mix ? $", tracks {trackChanges}" : string.Empty)}"));
+    // P14: with no audio device at all (a Remote Desktop disconnect) the engine pauses and continues by itself when one
+    // appears: that is an outage to report, not a failure. Paused with a device for two minutes is.
+    if (engine.State == PlaybackState.Paused && device.GetDevices().Count == 0)
+    {
+        outageMinutes++;
+        Console.WriteLine($"[{minute,3} min] no audio device: waiting (outage minutes {outageMinutes})");
+        continue;
+    }
+    if (engine.State == PlaybackState.Paused && ++pausedWithDevice <= 2)
+    {
+        continue; // a device just came back: give the engine a moment
+    }
     if (engine.State != PlaybackState.Playing)
     {
         failures.Add($"playback stopped after {minute} min ({engine.State})");
         break;
     }
+    pausedWithDevice = 0;
     if (mix)
     {
         // Tracks are 3 minutes long: five minutes without a track change means the playlist got stuck.
@@ -137,6 +152,7 @@ if (GC.GetTotalMemory(true) - baselineHeap > 20 * 1048576) failures.Add("managed
 if (process.HandleCount - baselineHandles > 50) failures.Add("handle count grew by more than 50");
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
     $"Done. Position vs wall clock drift {drift:0.00} s; working set {baselineWorkingSet / 1048576.0:0.0} → {process.WorkingSet64 / 1048576.0:0.0} MB."));
+if (outageMinutes > 0) Console.WriteLine($"Audio device outages: {outageMinutes} min without any device (playback paused and continued by itself).");
 Console.WriteLine(failures.Count == 0 ? "SOAK PASSED" : "SOAK FAILED: " + string.Join("; ", failures));
 return failures.Count == 0 ? 0 : 1;
 
