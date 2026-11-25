@@ -144,6 +144,15 @@ public sealed class SettingsStore
         }
     }
 
+    /// <summary>Attempts at writing the file while another program briefly holds it.</summary>
+    internal const int SaveAttempts = 6;
+
+    /// <summary>
+    /// Writes the settings through a temporary file. On Windows the final move fails while another handle has the file
+    /// open (antivirus, the search indexer, a backup tool, another reader); that is retried for about half a second. If
+    /// the file stays busy the change is kept in memory and logged, and the next save writes it: a busy file must never
+    /// throw out of <see cref="Update"/> (from a timer callback that would end the process).
+    /// </summary>
     private void Save(AppSettings settings)
     {
         var dir = Path.GetDirectoryName(_path);
@@ -152,9 +161,26 @@ public sealed class SettingsStore
             Directory.CreateDirectory(dir);
         }
 
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
         var temp = _path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
-        File.Move(temp, _path, overwrite: true);
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.WriteAllText(temp, json);
+                File.Move(temp, _path, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= SaveAttempts)
+                {
+                    _logger.LogWarning(ex, "Settings could not be written to {Path} (the file is busy); they are kept and written with the next change", _path);
+                    return;
+                }
+                Thread.Sleep(25 * attempt);
+            }
+        }
     }
 
     private static AppSettings Clone(AppSettings s) =>
