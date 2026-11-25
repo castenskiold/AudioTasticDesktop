@@ -122,6 +122,10 @@ internal static class Program
                 // P9 tag editing (MD-01): writes wait while the player has the file open.
                 .AddSingleton<AudioTastic.Metadata.TagWriter>()
                 .AddSingleton<AudioTastic.Metadata.ArtService>() // MD-02
+                // TL-01: conversion with the enabled plugins' decoders and encoders.
+                .AddSingleton(sp => new AudioTastic.Metadata.Conversion.ConversionService(sp.GetRequiredService<IEnumerable<IAudioSourceFactory>>(),
+                    sp.GetRequiredService<PluginHost>().LiveEncoderFactories, sp.GetRequiredService<AudioTastic.Metadata.TagService>(),
+                    sp.GetRequiredService<AudioTastic.Metadata.ArtService>(), sp.GetRequiredService<ILogger<AudioTastic.Metadata.Conversion.ConversionService>>()))
                 .AddSingleton<AudioTastic.App.Ui.ArtCoordinator>()
                 .AddSingleton<AudioTastic.Metadata.LyricsService>() // MD-04
                 .AddSingleton<AudioTastic.Metadata.FileInfoReader>() // MD-05

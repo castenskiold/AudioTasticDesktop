@@ -31,6 +31,7 @@ public sealed class PlaylistController : IDisposable
     private readonly TagWriteService? _writes;
     private readonly FileInfoReader? _info;
     private readonly OnlineLookupService? _lookup;
+    private readonly Metadata.Conversion.ConversionService? _conversion;
     private readonly Data.Settings.SettingsStore? _settings;
 
     /// <summary>AN-01 (PW6): "Analysing 3/120" while the analysis queue works; null when idle.</summary>
@@ -43,8 +44,9 @@ public sealed class PlaylistController : IDisposable
     public PlaylistController(PlaylistService service, PlaybackEngine engine, TagLoader loader, TagService tags,
         IEnumerable<IAudioSourceFactory> factories, IPlatformServices platform, ILogger<PlaylistController> logger,
         Analysis.AnalysisService? analysis = null, Analysis.BeatInfoService? beats = null, TagWriter? writer = null, TagWriteService? writes = null, FileInfoReader? info = null,
-        OnlineLookupService? lookup = null, Data.Settings.SettingsStore? settings = null)
+        OnlineLookupService? lookup = null, Data.Settings.SettingsStore? settings = null, Metadata.Conversion.ConversionService? conversion = null)
     {
+        _conversion = conversion;
         _info = info;
         _lookup = lookup;
         _settings = settings;
@@ -361,7 +363,7 @@ public sealed class PlaylistController : IDisposable
             Item("File info…  Alt+3", () => ShowFileInfo(source, current: false), _info is not null && first is not null),
             Item("Edit tags…  Ctrl+E", () => EditTags(source), _writes is not null && selection.Any(e => !e.IsUrl)),
             Item("Look up online…", () => EditTags(source, lookUp: true), LookupEnabled && selection.Count(e => !e.IsUrl) == 1),
-            Item("Convert…", null),
+            Item("Convert…", () => Convert(source), _conversion is not null && _settings is not null && selection.Any(e => !e.IsUrl)),
             Item("Reset resume position", () =>
             {
                 foreach (var e in selection.Where(e => !e.IsUrl))
@@ -455,6 +457,21 @@ public sealed class PlaylistController : IDisposable
     /// MD-05: File info… (Alt+3) for the first selected entry, or (<paramref name="current"/>, the main window and the
     /// format badges) the playing track: file and audio details, loudness and tempo, and all tags.
     /// </summary>
+    /// <summary>
+    /// TL-01: Convert… for the selected files (CUE tracks as their own part of the file, named by their own tags).
+    /// </summary>
+    public void Convert(Control source)
+    {
+        if (_conversion is null || _settings is null || TopLevel.GetTopLevel(source) is not Window owner)
+        {
+            return;
+        }
+        var items = Selection.Where(e => !e.IsUrl)
+            .Select(e => new Metadata.Conversion.ConversionItem(e.Path, e.Start, e.End, e.IsVirtual ? e.Tags : null))
+            .ToList();
+        ConvertWindow.Show(owner, _conversion, _settings, items);
+    }
+
     public void ShowFileInfo(Control source, bool current)
     {
         var selected = Selection is { Count: > 0 } selection ? selection[0] : null;

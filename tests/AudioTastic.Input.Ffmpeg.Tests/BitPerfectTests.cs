@@ -15,6 +15,7 @@ namespace AudioTastic.Input.Ffmpeg.Tests;
 /// samples the device receives (the same conversion MiniaudioOutput does) must equal the file's samples exactly.
 /// The step from there to the hardware is miniaudio's pass-through (no conversion when the format matches).
 /// </summary>
+[Collection(nameof(RealTimeTests))] // plays in real time: not next to CPU-heavy tests (conversion)
 public sealed class BitPerfectTests
 {
     public BitPerfectTests()

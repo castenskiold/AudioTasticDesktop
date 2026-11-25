@@ -554,6 +554,56 @@ public sealed class GeneralSettings
 
     /// <summary>AN-01: background analysis worker threads (waveforms, loudness; BPM from P8). 1–8.</summary>
     public int AnalysisThreads { get; set; } = 2;
+
+    /// <summary>TL-01: the Convert dialog's last choices.</summary>
+    public ConversionSettings Conversion { get; set; } = new();
+}
+
+/// <summary>TL-01: what the Convert dialog (and CD ripping, FM-11) writes. Kept between uses.</summary>
+public sealed class ConversionSettings
+{
+    /// <summary>Flac, Mp3, Opus, Aac, Alac, Vorbis or Wav (the SDK's EncodeFormat names).</summary>
+    public string Format { get; set; } = "Flac";
+
+    /// <summary>Lossless formats: 16 or 24; 0 = like the source (24 when it has more than 16 bits).</summary>
+    public int BitsPerSample { get; set; }
+
+    public int Mp3BitrateKbps { get; set; } = 320;
+    public bool Mp3Vbr { get; set; }
+
+    /// <summary>LAME -V level 0 (best) to 9.</summary>
+    public int Mp3VbrQuality { get; set; } = 2;
+
+    public int AacBitrateKbps { get; set; } = 256;
+    public int OpusBitrateKbps { get; set; } = 160;
+    public int VorbisBitrateKbps { get; set; } = 192;
+
+    /// <summary>The output folder; null = the user's Music folder. Ignored when <see cref="SameFolder"/> is on.</summary>
+    public string? Destination { get; set; }
+
+    /// <summary>Write each file next to its original.</summary>
+    public bool SameFolder { get; set; }
+
+    /// <summary>File name pattern, with / for subfolders (see ConversionNaming for the fields).</summary>
+    public string Pattern { get; set; } = "%albumartist%/%album%/%track% - %title%";
+
+    public ExistingFileAction IfExists { get; set; } = ExistingFileAction.Skip;
+
+    /// <summary>Files converted at once; 0 = automatic (half the processor cores, 1–4).</summary>
+    public int ParallelJobs { get; set; }
+
+    /// <summary>Embed the cover (the file's own, or the folder picture the player shows).</summary>
+    public bool CopyArt { get; set; } = true;
+}
+
+/// <summary>TL-01: what to do when the output file already exists.</summary>
+public enum ExistingFileAction
+{
+    Skip,
+    Overwrite,
+
+    /// <summary>Write "name (2)", "name (3)"…</summary>
+    Number,
 }
 
 /// <summary>CO-04: repeat modes, cycled by the REP button (Off → Playlist → Track).</summary>

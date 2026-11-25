@@ -52,7 +52,7 @@ An installed plugin with the same id replaces a built-in one.
   "description": "What it does, in one or two sentences.",
   "website": "https://example.com",
   "license": "MIT",
-  "sdkVersion": "0.4.2",
+  "sdkVersion": "0.4.3",
   "entryAssembly": "MyPlugin.dll",
   "types": ["general"],
   "priority": 0
@@ -106,12 +106,14 @@ Plugins of types not hosted yet already load, initialise and show in the plugin 
 - "Cannot play this file" is an `AudioSourceException`: the player shows it and skips to the next track. Any **other** exception counts as a plugin fault (see *Faults*).
 - All calls on a source come from one decoder thread, never the audio thread. They may block briefly (file I/O). For network input, see `IStreamMetadata` (now-playing titles).
 
-### Offering an encoder (input plugin, SDK 0.4.1)
+### Offering an encoder (input plugin, SDK 0.4.1, more formats in 0.4.3)
 
-An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` (default: none). The player uses them to transcode for cast devices (CN-04) and, later, for format conversion (TL-01). The built-in FFmpeg plugin offers FLAC and, when its FFmpeg build has libmp3lame, MP3.
+An input plugin can also offer encoders through `IInputPlugin.EncoderFactories` (default: none). The player uses them to transcode for cast devices (CN-04) and for format conversion and CD ripping (TL-01, FM-11). The built-in FFmpeg plugin offers each format its FFmpeg build can write: FLAC, ALAC, WAV, MP3 (libmp3lame), AAC, Opus (libopus) and Vorbis (libvorbis).
 
-- `IAudioEncoderFactory.Formats` lists what this machine can write (`EncodeFormat.Flac`, `EncodeFormat.Mp3`).
-- `Create(settings, format, output)` returns an `IAudioEncoder` writing to `output`, which may be **non-seekable** (a network response): never seek or read it.
+- `IAudioEncoderFactory.Formats` lists what this machine can write (`EncodeFormat.Flac`, `Mp3`, and since 0.4.3 `Opus`, `Aac`, `Alac`, `Vorbis`, `Wav`).
+- `EncodeSettings` gives the format, the bit depth for lossless formats and the bit rate for lossy ones; since 0.4.3 also `Vbr` and `VbrQuality` (LAME's -V 0–9) for MP3.
+- `InputFormatFor(settings, input)` (0.4.3, optional) returns the sample rate and channel count your encoder accepts closest to the input (Opus needs 48 kHz; MP3 at most 48 kHz and two channels). The player resamples or downmixes to it before `Create`. The default returns the input unchanged.
+- `Create(settings, format, output)` returns an `IAudioEncoder` writing to `output`, which may be **non-seekable** (a network response). Only seek when `output.CanSeek` (conversion writes to a file, so MP4 and WAV headers can be finished at the end); never read it.
 - `Write(samples)` takes interleaved float in the format given at creation, in any amount; `Finish()` writes the rest and the end of the stream.
 - "Cannot write this format here" is an `AudioSourceException`; an `IOException` from the output means the reader went away (not a fault). Other exceptions are plugin faults.
 
@@ -228,5 +230,6 @@ Each plugin gets its own view of the API:
 - **While 0.x:** a plugin must be built for the same minor version (`0.4.x` runs on a 0.4 player).
 - **0.4.1** added encoders (`IAudioEncoderFactory`, `IAudioEncoder`, `IInputPlugin.EncoderFactories`). It is additive: plugins built for 0.4.0 keep working unchanged.
 - **0.4.2** added off-screen rendering for visualisations (`IOffscreenVisualisation`, `IVisualisationPlugin.CanRenderOffscreen`) and live video encoders (`IVideoEncoderFactory`, `IVideoEncoder`, `IInputPlugin.VideoEncoderFactories`), so visualisations can be cast to a TV (CN-09). Also additive.
+- **0.4.3** added the encode formats Opus, AAC, ALAC, Vorbis and WAV, MP3 VBR (`EncodeSettings.Vbr`, `VbrQuality`) and `IAudioEncoderFactory.InputFormatFor` (a default method), for format conversion (TL-01). Also additive.
 - **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y.
 - Incompatible plugins are listed as *Incompatible* and are not loaded.

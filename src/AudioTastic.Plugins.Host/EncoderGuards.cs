@@ -27,6 +27,8 @@ internal sealed class GuardedEncoderFactory(IAudioEncoderFactory inner, PluginRe
     public IAudioEncoder Create(EncodeSettings settings, AudioFormat format, Stream output) =>
         Run(() => new GuardedEncoder(inner.Create(settings, format, output), plugin, host), plugin, host);
 
+    public AudioFormat InputFormatFor(EncodeSettings settings, AudioFormat input) => Run(() => inner.InputFormatFor(settings, input), plugin, host);
+
     internal static T Run<T>(Func<T> call, PluginRecord plugin, PluginHost host)
     {
         try
