@@ -37,8 +37,7 @@ public sealed class ArtService(ILogger<ArtService> logger)
             using var file = TagLib.File.Create(path);
             return TagWriter.Cover(file.Tag.Pictures) is { } picture ? new AlbumArt(picture, null) : null;
         }
-        catch (Exception ex) when (ex is TagLib.UnsupportedFormatException or TagLib.CorruptFileException or IOException or UnauthorizedAccessException
-            or NotImplementedException or NotSupportedException or ArgumentException or IndexOutOfRangeException or OverflowException)
+        catch (Exception ex) when (TagLibErrors.IsFileProblem(ex))
         {
             logger.LogDebug(ex, "No embedded art read from {Path}", path);
             return null;

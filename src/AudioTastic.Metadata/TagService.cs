@@ -197,7 +197,5 @@ public sealed class TagService
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static bool IsTagLibFailure(Exception ex) =>
-        ex is TagLib.UnsupportedFormatException or TagLib.CorruptFileException or IOException or UnauthorizedAccessException
-            or NotImplementedException or ArgumentException or IndexOutOfRangeException or OverflowException;
+    private static bool IsTagLibFailure(Exception ex) => TagLibErrors.IsFileProblem(ex);
 }

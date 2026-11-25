@@ -58,8 +58,36 @@ public static class PlaylistText
         return legacy.GetString(legacy.GetBytes(text)) == text ? legacy : new UTF8Encoding(false);
     }
 
+    /// <summary>Longest length a playlist may state (ten years); anything beyond is treated as unknown.</summary>
+    private const double MaxSeconds = 10 * 365.25 * 24 * 3600;
+
+    /// <summary>
+    /// A length read from a playlist, or null when it is missing, negative, not a number or absurdly large (P14: a
+    /// damaged PLS with an enormous Length overflowed TimeSpan and failed the import).
+    /// </summary>
+    public static TimeSpan? Duration(double seconds) =>
+        double.IsFinite(seconds) && seconds is >= 0 and <= MaxSeconds ? TimeSpan.FromSeconds(seconds) : null;
+
+    /// <summary>A position in ticks from our own #AT-RANGE lines, or null when it is negative or beyond <see cref="MaxSeconds"/>.</summary>
+    public static TimeSpan? Ticks(long ticks) =>
+        ticks >= 0 && ticks <= MaxSeconds * TimeSpan.TicksPerSecond ? TimeSpan.FromTicks(ticks) : null;
+
     /// <summary>Resolves a playlist path (absolute, relative, file:// URI, URL) against <paramref name="baseFolder"/>.</summary>
     public static string Resolve(string path, string baseFolder)
+    {
+        try
+        {
+            return ResolveCore(path.Replace("\0", string.Empty, StringComparison.Ordinal), baseFolder);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or UriFormatException)
+        {
+            // P14 (found by fuzzing): a damaged playlist line must not fail the whole import; it stays as written and
+            // shows as a missing entry.
+            return path.Trim();
+        }
+    }
+
+    private static string ResolveCore(string path, string baseFolder)
     {
         path = path.Trim();
         if (path.StartsWith("file:", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(path, UriKind.Absolute, out var fileUri))

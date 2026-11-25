@@ -204,7 +204,5 @@ public sealed class TagWriter(TagService tags, CacheStore? cache, ILogger<TagWri
         return [.. kept];
     }
 
-    private static bool IsTagLibFailure(Exception ex) =>
-        ex is TagLib.UnsupportedFormatException or TagLib.CorruptFileException or IOException or UnauthorizedAccessException
-            or NotImplementedException or NotSupportedException or ArgumentException or IndexOutOfRangeException or OverflowException;
+    private static bool IsTagLibFailure(Exception ex) => TagLibErrors.IsFileProblem(ex);
 }

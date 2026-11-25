@@ -88,6 +88,5 @@ internal static class TagCopier
         }
     }
 
-    private static bool IsTagLibFailure(Exception ex) =>
-        ex is TagLib.CorruptFileException or TagLib.UnsupportedFormatException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException;
+    private static bool IsTagLibFailure(Exception ex) => TagLibErrors.IsFileProblem(ex);
 }

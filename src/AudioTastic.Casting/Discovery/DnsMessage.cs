@@ -102,12 +102,10 @@ public static class DnsMessage
                 }
             }
         }
-        catch (ArgumentOutOfRangeException)
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IndexOutOfRangeException or InvalidDataException)
         {
-            // a truncated or malformed packet: keep what was read
-        }
-        catch (InvalidDataException)
-        {
+            // A truncated or malformed packet (any device on the network can send one; P14 fuzzing found names that run
+            // past the end): keep what was read.
         }
         return records;
     }

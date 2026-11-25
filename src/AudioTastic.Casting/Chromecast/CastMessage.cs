@@ -48,11 +48,12 @@ public sealed record CastMessage(string SourceId, string DestinationId, string N
                     ReadVarint(data, ref i);
                     break;
                 case 2:
-                    var length = (int)ReadVarint(data, ref i);
-                    if (length < 0 || i + length > data.Length)
+                    var declared = ReadVarint(data, ref i);
+                    if (declared > (ulong)(data.Length - i))
                     {
                         throw new InvalidDataException("Cast message field runs past the end.");
                     }
+                    var length = (int)declared;
                     var text = Encoding.UTF8.GetString(data.Slice(i, length));
                     i += length;
                     switch (field)
@@ -105,6 +106,10 @@ public sealed record CastMessage(string SourceId, string DestinationId, string N
         ulong value = 0;
         for (var shift = 0; shift < 64; shift += 7)
         {
+            if (i >= data.Length)
+            {
+                throw new InvalidDataException("Cast message ends inside a number."); // P14 fuzzing: was IndexOutOfRange
+            }
             var b = data[i++];
             value |= (ulong)(b & 0x7F) << shift;
             if ((b & 0x80) == 0)

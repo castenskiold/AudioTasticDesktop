@@ -192,16 +192,25 @@ public sealed class ChromecastSession : IAsyncDisposable
 
     private void OnMessage(object? sender, CastMessage message)
     {
-        JsonObject? payload;
         try
         {
-            payload = JsonNode.Parse(message.Payload) as JsonObject;
+            Handle(message);
         }
-        catch (System.Text.Json.JsonException)
+        catch (Exception ex) when (IsMalformed(ex))
         {
-            return;
+            // P14: a device that sends malformed JSON (wrong value types, duplicate keys) must not end the connection's
+            // read loop: the message is ignored.
+            _logger.LogDebug("Ignored a malformed Cast message on {Namespace}: {Message}", message.Namespace, ex.Message);
         }
-        if (payload is null)
+    }
+
+    /// <summary>What reading untrusted JSON throws: not JSON, a value of another type, duplicate keys.</summary>
+    private static bool IsMalformed(Exception ex) =>
+        ex is System.Text.Json.JsonException or InvalidOperationException or ArgumentException or FormatException or OverflowException;
+
+    private void Handle(CastMessage message)
+    {
+        if (JsonNode.Parse(message.Payload) is not JsonObject payload)
         {
             return;
         }
@@ -233,6 +242,18 @@ public sealed class ChromecastSession : IAsyncDisposable
     /// <summary>The first media status in a MEDIA_STATUS message (public for tests); null when it lists none.</summary>
     public static CastMediaStatus? ParseMediaStatus(JsonObject payload)
     {
+        try
+        {
+            return ReadMediaStatus(payload);
+        }
+        catch (Exception ex) when (IsMalformed(ex))
+        {
+            return null; // a malformed status is ignored (P14 fuzzing)
+        }
+    }
+
+    private static CastMediaStatus? ReadMediaStatus(JsonObject payload)
+    {
         if (payload["status"] is not JsonArray { Count: > 0 } list || list[0] is not JsonObject status)
         {
             return null;
@@ -243,8 +264,8 @@ public sealed class ChromecastSession : IAsyncDisposable
         return new CastMediaStatus(
             status["playerState"]?.GetValue<string>() ?? "IDLE",
             status["idleReason"]?.GetValue<string>(),
-            TimeSpan.FromSeconds(time),
-            duration is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
+            double.IsFinite(time) && time is >= 0 and < 1e9 ? TimeSpan.FromSeconds(time) : TimeSpan.Zero,
+            duration is { } seconds && double.IsFinite(seconds) && seconds is >= 0 and < 1e9 ? TimeSpan.FromSeconds(seconds) : null,
             volume?["level"]?.GetValue<double>(),
             volume?["muted"]?.GetValue<bool>());
     }

@@ -111,7 +111,7 @@ public sealed class DiscoveryTests
     }
 
     /// <summary>Builds a DNS answer with compressed names, like real mDNS responders send.</summary>
-    private sealed class DnsPacket
+    internal sealed class DnsPacket
     {
         private readonly List<byte> _bytes = [0, 0, 0x84, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         private int _count;

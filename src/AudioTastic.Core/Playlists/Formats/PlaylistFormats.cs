@@ -38,16 +38,15 @@ public sealed class M3uFormat : IPlaylistFormat
             {
                 var comma = line.IndexOf(',', StringComparison.Ordinal);
                 var seconds = comma > 8 ? line[8..comma] : line[8..];
-                duration = double.TryParse(seconds, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s >= 0
-                    ? TimeSpan.FromSeconds(s) : null;
+                duration = double.TryParse(seconds, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? PlaylistText.Duration(s) : null;
                 title = comma >= 0 && comma + 1 < line.Length ? line[(comma + 1)..].Trim() : null;
                 continue;
             }
             if (line.StartsWith(RangeTag, StringComparison.OrdinalIgnoreCase))
             {
                 var parts = line[RangeTag.Length..].Split(',');
-                start = parts.Length > 0 && long.TryParse(parts[0], CultureInfo.InvariantCulture, out var a) ? TimeSpan.FromTicks(a) : null;
-                end = parts.Length > 1 && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var b) ? TimeSpan.FromTicks(b) : null;
+                start = parts.Length > 0 && long.TryParse(parts[0], CultureInfo.InvariantCulture, out var a) ? PlaylistText.Ticks(a) : null;
+                end = parts.Length > 1 && long.TryParse(parts[1], CultureInfo.InvariantCulture, out var b) ? PlaylistText.Ticks(b) : null;
                 continue;
             }
             if (line.StartsWith('#'))
@@ -111,19 +110,20 @@ public sealed class PlsFormat : IPlaylistFormat
                 values[line[..eq].Trim()] = line[(eq + 1)..].Trim();
             }
         }
-        var numbers = values.Keys
-            .Where(k => k.StartsWith("File", StringComparison.OrdinalIgnoreCase))
-            .Select(k => int.TryParse(k.AsSpan(4), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : -1)
-            .Where(n => n > 0)
-            .Order();
+        // Each FileN key with its number, as written ("File01" and "File1" are both entry 1; P14 fuzzing found that
+        // looking the key up again by number failed for such spellings).
+        var files = values
+            .Where(kv => kv.Key.StartsWith("File", StringComparison.OrdinalIgnoreCase))
+            .Select(kv => (Number: int.TryParse(kv.Key.AsSpan(4), NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : -1, Path: kv.Value))
+            .Where(f => f.Number > 0)
+            .OrderBy(f => f.Number);
         var items = new List<PlaylistItem>();
-        foreach (var n in numbers)
+        foreach (var (n, path) in files)
         {
-            var path = values[$"File{n}"];
             values.TryGetValue($"Title{n}", out var title);
             TimeSpan? duration = values.TryGetValue($"Length{n}", out var length)
-                && long.TryParse(length, NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) && s >= 0
-                ? TimeSpan.FromSeconds(s) : null;
+                && long.TryParse(length, NumberStyles.Integer, CultureInfo.InvariantCulture, out var s)
+                ? PlaylistText.Duration(s) : null;
             var (artist, name) = PlaylistText.SplitArtistTitle(title);
             items.Add(new PlaylistItem(PlaylistText.Resolve(path, folder), name, artist, duration));
         }
@@ -181,13 +181,13 @@ public sealed class XspfFormat : IPlaylistFormat
                 ? PlaylistText.Resolve(location, folder)
                 : PlaylistText.Resolve(Uri.UnescapeDataString(location), folder);
             TimeSpan? duration = long.TryParse(track.Element(ns + "duration")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms)
-                ? TimeSpan.FromMilliseconds(ms) : null;
+                ? PlaylistText.Duration(ms / 1000.0) : null;
             int? number = int.TryParse(track.Element(ns + "trackNum")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : null;
             TimeSpan? start = null, end = null;
             if (track.Elements(ns + "meta").FirstOrDefault(m => (string?)m.Attribute("rel") == RangeRel)?.Value.Split(',') is { } range)
             {
-                start = range.Length > 0 && long.TryParse(range[0], CultureInfo.InvariantCulture, out var a) ? TimeSpan.FromTicks(a) : null;
-                end = range.Length > 1 && long.TryParse(range[1], CultureInfo.InvariantCulture, out var b) ? TimeSpan.FromTicks(b) : null;
+                start = range.Length > 0 && long.TryParse(range[0], CultureInfo.InvariantCulture, out var a) ? PlaylistText.Ticks(a) : null;
+                end = range.Length > 1 && long.TryParse(range[1], CultureInfo.InvariantCulture, out var b) ? PlaylistText.Ticks(b) : null;
             }
             items.Add(new PlaylistItem(path, NullIfEmpty(track.Element(ns + "title")?.Value), NullIfEmpty(track.Element(ns + "creator")?.Value),
                 duration, start, end, number, NullIfEmpty(track.Element(ns + "album")?.Value)));

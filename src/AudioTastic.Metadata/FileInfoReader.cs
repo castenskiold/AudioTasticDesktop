@@ -130,8 +130,7 @@ public sealed class FileInfoReader(IEnumerable<IAudioSourceFactory> factories, I
             using var file = TagLib.File.Create(path);
             return file.Properties?.Codecs.OfType<TagLib.ICodec>().Select(c => c.Description).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d))?.Trim();
         }
-        catch (Exception ex) when (ex is TagLib.UnsupportedFormatException or TagLib.CorruptFileException or IOException or UnauthorizedAccessException
-            or NotImplementedException or NotSupportedException or ArgumentException or IndexOutOfRangeException or OverflowException)
+        catch (Exception ex) when (TagLibErrors.IsFileProblem(ex))
         {
             return null;
         }

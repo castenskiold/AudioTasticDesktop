@@ -249,7 +249,9 @@ public sealed class UpnpRenderer : IDisposable
         {
             return null;
         }
-        return TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(value);
+        // A device can report anything; values a track cannot have are treated as unknown (P14 fuzzing: overflow).
+        var total = (hours * 3600.0) + (minutes * 60.0) + value;
+        return double.IsFinite(total) && total is >= 0 and < 1e9 ? TimeSpan.FromSeconds(total) : null;
     }
 
     public void Dispose()

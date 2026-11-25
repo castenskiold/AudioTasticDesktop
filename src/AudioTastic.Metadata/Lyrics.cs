@@ -188,8 +188,7 @@ public sealed class LyricsService(ILogger<LyricsService> logger)
             }
             return FromText(file.Tag.Lyrics, "Embedded");
         }
-        catch (Exception ex) when (ex is TagLib.UnsupportedFormatException or TagLib.CorruptFileException or IOException or UnauthorizedAccessException
-            or NotImplementedException or NotSupportedException or ArgumentException or IndexOutOfRangeException or OverflowException)
+        catch (Exception ex) when (TagLibErrors.IsFileProblem(ex))
         {
             logger.LogDebug(ex, "No embedded lyrics read from {Path}", path);
             return null;
