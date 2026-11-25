@@ -363,6 +363,17 @@ public sealed class SettingsWindow : Window
         var services = new StackPanel { Spacing = 6, Margin = new Thickness(24, 0, 0, 0) };
         Check(services, "Tags from MusicBrainz", m.LookupTags, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupTags = v));
         Check(services, "Covers from the Cover Art Archive", m.LookupCovers, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupCovers = v));
+        // MD-03: optional Discogs fallback for covers, with the user's own token.
+        Check(services, "When the Cover Art Archive has no cover, ask Discogs", m.LookupDiscogs,
+            v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupDiscogs = v));
+        var discogsToken = new TextBox { Text = m.DiscogsToken ?? string.Empty, PasswordChar = '•', Width = 320, PlaceholderText = "Personal access token" };
+        discogsToken.LostFocus += (_, _) =>
+        {
+            var value = string.IsNullOrWhiteSpace(discogsToken.Text) ? null : discogsToken.Text.Trim();
+            _settings.Update(SettingsGroup.Metadata, s => s.Metadata.DiscogsToken = value);
+        };
+        Row(services, "Discogs token", discogsToken,
+            "Discogs needs your own token: discogs.com › Settings › Developers › Generate new token. It stays in this computer's settings file; settings exports leave it out.");
         panel.Children.Add(services);
         Note(panel, "Lookups happen only when you ask for them; they send the track's title, artist and length to MusicBrainz. Results are shown for you to accept before anything is saved.");
         Note(panel, "Album art shows in the main window and in the Art & Lyrics window (Alt+L), lyrics below the art; click a line of synced lyrics to jump there. Tags, covers and lyrics are edited with Edit tags… (Ctrl+E) in the playlist.");

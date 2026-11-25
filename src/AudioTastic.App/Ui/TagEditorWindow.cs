@@ -183,7 +183,7 @@ public sealed class TagEditorWindow : Window
         }
         var current = _boxes.Where(b => !string.IsNullOrEmpty(b.Value.Box.Text)).ToDictionary(b => b.Key, b => b.Value.Box.Text!);
         var choice = await LookupWindow.ShowAsync(this, new LookupRequest(_lookup.Service, title, string.IsNullOrEmpty(artist) ? null : artist, _lookup.Length,
-            current, _lookup.Tags, _lookup.Covers));
+            current, _lookup.Tags, _lookup.Covers, _lookup.Covers ? _lookup.DiscogsToken : null));
         if (choice is null)
         {
             return;
@@ -262,4 +262,5 @@ public sealed class TagEditorWindow : Window
 
 /// <summary>MD-03: online lookup for the tag editor (single file): the service, the track's length and file name, the
 /// services switched on, and whether to start searching when the editor opens (playlist menu › Look up online…).</summary>
-public sealed record TagLookup(OnlineLookupService Service, TimeSpan? Length, string FileName, bool Tags, bool Covers, bool StartAtOnce);
+public sealed record TagLookup(OnlineLookupService Service, TimeSpan? Length, string FileName, bool Tags, bool Covers, bool StartAtOnce,
+    string? DiscogsToken = null);

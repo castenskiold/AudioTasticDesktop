@@ -91,7 +91,7 @@ sections2=[
 ("7. Metadata",[
 ("Tag reading and editing","ID3v1/v2, Vorbis comments, APEv2 and MP4 atoms."),
 ("Album art",f"Embedded and folder cover art in the main window. Can be switched on/off in {GS}."),
-("Online lookup",f"Fetch tags and cover art from MusicBrainz and the Cover Art Archive. Can be switched on/off in {GS}. (A Discogs fallback for covers is deferred, section 17.)"),
+("Online lookup",f"Fetch tags and cover art from MusicBrainz and the Cover Art Archive. Can be switched on/off in {GS}. Optional Discogs fallback for covers, with the user's own Discogs token (off by default)."),
 ("Lyrics",f"Show embedded or synced (LRC) lyrics. Can be switched on/off in {GS}."),
 ("File info dialog","Format, bitrate, sample rate, bit depth, channels, codec and file size."),
 ]),
@@ -242,7 +242,6 @@ later=[
 ("Room correction (EQ-07)","Deferred (Anders, 23 November 2026); may be revisited later. It is only useful with a measured impulse response of the room (e.g. made with REW and a measurement microphone)."),
 ("Native Winamp plugin bridge (PG-06)","Deferred (Anders, 23 November 2026); may be revisited later. Classic 32-bit in_/dsp_/gen_/vis_ plugins are not loaded; AudioTastic plugins (SDK) and VST3 effects cover the same ground."),
 ("AirPlay (CN-03)","Deferred (Anders, 21 November 2026); may be revisited later. Casting works with Chromecast and DLNA/UPnP devices. Building AirPlay needs a test receiver (shairport-sync on a Linux machine), as no AirPlay device is available."),
-("Discogs cover fallback","Deferred (Anders, 19 November 2026); may be revisited later. Online lookup uses MusicBrainz and the Cover Art Archive, which need no account. Discogs would need each user's personal access token."),
 ("ASIO output (Windows)","Optional, deferred (decided 18 November 2026); may be revisited later. Bit-perfect output on Windows uses WASAPI exclusive mode. Would need the Steinberg ASIO SDK under its free proprietary licence (signed by the developer) and an ASIO device or ASIO4ALL for testing."),
 ]
 story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome")),Spacer(1,6),
@@ -250,4 +249,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.21  ·  25 November 2026", story, short_title="Required Features  ·  v1.21")
+ "Version 1.22  ·  25 November 2026", story, short_title="Required Features  ·  v1.22")

@@ -436,7 +436,8 @@ public sealed class PlaylistController : IDisposable
             {
                 var m = _settings!.Current.Metadata;
                 var entry = entries.First(e => string.Equals(e.Path, writable[0].Path, StringComparison.OrdinalIgnoreCase));
-                lookup = new TagLookup(_lookup!, entry.Duration, entry.Path, m.LookupTags, m.LookupCovers, StartAtOnce: lookUp);
+                lookup = new TagLookup(_lookup!, entry.Duration, entry.Path, m.LookupTags, m.LookupCovers, StartAtOnce: lookUp,
+                    DiscogsToken: m.LookupDiscogs && !string.IsNullOrWhiteSpace(m.DiscogsToken) ? m.DiscogsToken.Trim() : null);
             }
             if (await TagEditorWindow.ShowAsync(owner, [.. writable.Select(r => r.Tags!)], heading, note, lookup) is not { } edit)
             {

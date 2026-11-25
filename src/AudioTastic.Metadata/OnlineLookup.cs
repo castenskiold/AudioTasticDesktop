@@ -94,6 +94,7 @@ public sealed class OnlineLookupService : IDisposable
 {
     public const string MusicBrainzSearch = "https://musicbrainz.org/ws/2/recording";
     public const string CoverArtArchive = "https://coverartarchive.org/release";
+    public const string DiscogsSearch = "https://api.discogs.com/database/search";
 
     /// <summary>Largest cover downloaded.</summary>
     private const int MaxCoverBytes = 8 * 1024 * 1024;
@@ -102,6 +103,8 @@ public sealed class OnlineLookupService : IDisposable
     private readonly RequestSpacer _musicBrainz;
     private readonly ConcurrentDictionary<string, IReadOnlyList<LookupCandidate>> _searches = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TagPicture?> _covers = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TagPicture?> _discogs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly RequestSpacer _discogsSpacer;
     private readonly ILogger<OnlineLookupService> _logger;
     private readonly bool _ownsClient;
 
@@ -111,11 +114,13 @@ public sealed class OnlineLookupService : IDisposable
     }
 
     /// <summary>For tests: a client over a fake handler, and a spacer with a fake clock.</summary>
-    public OnlineLookupService(HttpClient http, RequestSpacer musicBrainz, ILogger<OnlineLookupService> logger, bool ownsClient = false)
+    public OnlineLookupService(HttpClient http, RequestSpacer musicBrainz, ILogger<OnlineLookupService> logger, bool ownsClient = false,
+        RequestSpacer? discogs = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         _http = http;
         _musicBrainz = musicBrainz;
+        _discogsSpacer = discogs ?? new RequestSpacer(TimeSpan.FromSeconds(1)); // Discogs allows 60 requests a minute with a token
         _logger = logger;
         _ownsClient = ownsClient;
         if (_http.DefaultRequestHeaders.UserAgent.Count == 0)
@@ -187,6 +192,94 @@ public sealed class OnlineLookupService : IDisposable
         return cover;
     }
 
+    /// <summary>The Discogs release search URL for an album and artist (the token goes in a header, never in the URL).</summary>
+    public static string DiscogsSearchUrl(string album, string? artist)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(album);
+        var url = $"{DiscogsSearch}?type=release&per_page=10&release_title={Uri.EscapeDataString(album.Trim())}";
+        return string.IsNullOrWhiteSpace(artist) ? url : url + "&artist=" + Uri.EscapeDataString(artist.Trim());
+    }
+
+    /// <summary>
+    /// MD-03 (Discogs fallback): the cover of the best Discogs release for <paramref name="album"/> by
+    /// <paramref name="artist"/>, or null when Discogs has none. Needs the user's personal token, sent as an
+    /// Authorization header. Requests are spaced one second apart; answers are cached for the session.
+    /// </summary>
+    public async Task<TagPicture?> DiscogsCoverAsync(string album, string? artist, string token, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var url = DiscogsSearchUrl(album, artist);
+        if (_discogs.TryGetValue(url, out var cached))
+        {
+            return cached;
+        }
+        var json = await _discogsSpacer.RunAsync(async () =>
+        {
+            _logger.LogInformation("Discogs cover lookup: {Url}", url);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.ParseAdd("application/json");
+            request.Headers.TryAddWithoutValidation("Authorization", "Discogs token=" + token.Trim());
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException("Discogs did not accept the token (Settings › Metadata).");
+            }
+            if (response.StatusCode == (HttpStatusCode)429)
+            {
+                throw new HttpRequestException("Discogs is busy; try again in a minute.");
+            }
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
+        TagPicture? cover = null;
+        foreach (var image in ParseDiscogsCovers(json))
+        {
+            cover = await _discogsSpacer.RunAsync(() => DownloadImageAsync(image, cancellationToken), cancellationToken).ConfigureAwait(false);
+            if (cover is not null)
+            {
+                break;
+            }
+        }
+        _discogs[url] = cover;
+        return cover;
+    }
+
+    /// <summary>Discogs search JSON → the results' cover image URLs, best match first (placeholders left out).</summary>
+    public static IReadOnlyList<string> ParseDiscogsCovers(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+        var urls = new List<string>();
+        foreach (var result in results.EnumerateArray())
+        {
+            var image = String(result, "cover_image") ?? String(result, "thumb");
+            if (image is not null && image.StartsWith("https://", StringComparison.Ordinal)
+                && !image.Contains("spacer.gif", StringComparison.OrdinalIgnoreCase) && !urls.Contains(image))
+            {
+                urls.Add(image);
+            }
+        }
+        return urls;
+    }
+
+    private async Task<TagPicture?> DownloadImageAsync(string url, CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > MaxCoverBytes)
+        {
+            return null;
+        }
+        var data = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var mime = response.Content.Headers.ContentType?.MediaType;
+        return data.Length is > 0 and <= MaxCoverBytes && mime is "image/jpeg" or "image/png"
+            ? new TagPicture(data, mime)
+            : null;
+    }
+
     /// <summary>MusicBrainz recording search JSON → candidates (one per recording and release), best score first.</summary>
     public static IReadOnlyList<LookupCandidate> ParseRecordings(string json)
     {
@@ -238,6 +331,7 @@ public sealed class OnlineLookupService : IDisposable
     public void Dispose()
     {
         _musicBrainz.Dispose();
+        _discogsSpacer.Dispose();
         if (_ownsClient)
         {
             _http.Dispose();

@@ -205,6 +205,15 @@ public sealed class MetadataSettings
     /// <summary>MD-03: services used: tags from MusicBrainz, covers from the Cover Art Archive.</summary>
     public bool LookupTags { get; set; } = true;
     public bool LookupCovers { get; set; } = true;
+
+    /// <summary>MD-03: when the Cover Art Archive has no cover, search Discogs (needs <see cref="DiscogsToken"/>). Off by default.</summary>
+    public bool LookupDiscogs { get; set; }
+
+    /// <summary>
+    /// MD-03: the user's personal Discogs access token (discogs.com › Settings › Developers). Kept only in this
+    /// settings file: never logged, and left out of settings exports (TL-02).
+    /// </summary>
+    public string? DiscogsToken { get; set; }
 }
 
 public sealed class CastingNetworkSettings

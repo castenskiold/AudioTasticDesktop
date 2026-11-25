@@ -225,7 +225,7 @@ public sealed class ConversionTests : IDisposable
     {
         var tags = new TrackTags(Title: "A/B: C?", Artist: "Art*ist", Album: "Al<bum>", TrackNumber: 7, Year: 1999);
         Assert.Equal(Path.Combine("Art_ist", "Al_bum_", "07 - A_B_ C_"), ConversionNaming.Render(ConversionNaming.DefaultPattern, tags, "x.flac"));
-        Assert.Equal(Path.Combine("Unknown artist", "Unknown album", "00 - song"), ConversionNaming.Render(ConversionNaming.DefaultPattern, null, @"c:\m\song.flac"));
+        Assert.Equal(Path.Combine("Unknown artist", "Unknown album", "00 - song"), ConversionNaming.Render(ConversionNaming.DefaultPattern, null, Path.Combine("m", "song.flac")));
         Assert.Equal("1999 - song", ConversionNaming.Render("%year% - %filename%", tags, "song.flac"));
         Assert.Equal("song", ConversionNaming.Render("  ", tags, "song.flac"));
         Assert.Equal("_", ConversionNaming.Clean(".."));

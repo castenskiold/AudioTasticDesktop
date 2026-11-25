@@ -85,13 +85,28 @@ public static class BackupService
             }
             if (File.Exists(paths.SettingsFile))
             {
-                zip.CreateEntryFromFile(paths.SettingsFile, SettingsEntry);
+                using var writer = new StreamWriter(zip.CreateEntry(SettingsEntry).Open());
+                writer.Write(WithoutSecrets(File.ReadAllText(paths.SettingsFile)));
             }
             AddFolder(zip, paths.PlaylistsFolder, PlaylistsPrefix);
             AddFolder(zip, paths.PresetsFolder, PresetsPrefix);
             AddFolder(zip, paths.SkinsFolder, SkinsPrefix);
         }
         File.Move(temp, target, overwrite: true);
+    }
+
+    /// <summary>The settings JSON without personal secrets (the Discogs token, MD-03), so a shared backup leaks nothing.</summary>
+    internal static string WithoutSecrets(string settingsJson)
+    {
+        if (JsonNode.Parse(settingsJson) is not JsonObject root)
+        {
+            return settingsJson;
+        }
+        if (root["metadata"] is JsonObject metadata)
+        {
+            metadata.Remove("discogsToken");
+        }
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
     private static void AddFolder(ZipArchive zip, string folder, string prefix)
@@ -246,7 +261,12 @@ public static class BackupService
                 var name = JsonName(group);
                 if (incoming[name] is JsonObject value)
                 {
+                    var token = group == SettingsGroup.Metadata ? current["metadata"]?["discogsToken"]?.DeepClone() : null;
                     current[name] = value.DeepClone();
+                    if (token is not null && current[name] is JsonObject metadata && metadata["discogsToken"] is null)
+                    {
+                        metadata["discogsToken"] = token; // backups carry no token: keep this computer's
+                    }
                 }
             }
             // Must still read as settings (a hand-edited backup must not leave a file the app cannot load).

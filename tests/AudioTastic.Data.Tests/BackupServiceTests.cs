@@ -101,6 +101,33 @@ public sealed class BackupServiceTests : IDisposable
     }
 
     [Fact]
+    public void A_backup_never_carries_the_discogs_token_and_an_import_keeps_this_computers()
+    {
+        var source = Paths("source");
+        new SettingsStore(source).Update(SettingsGroup.Metadata, s =>
+        {
+            s.Metadata.LookupDiscogs = true;
+            s.Metadata.DiscogsToken = "source-secret";
+        });
+        var backup = Path.Combine(_dir, "shared.atbackup");
+        BackupService.Export(source, backup, "0.10.0");
+        using (var zip = ZipFile.OpenRead(backup))
+        using (var reader = new StreamReader(zip.GetEntry("settings.json")!.Open()))
+        {
+            var text = reader.ReadToEnd();
+            Assert.DoesNotContain("source-secret", text, StringComparison.Ordinal);
+            Assert.Contains("lookupDiscogs", text, StringComparison.Ordinal);
+        }
+
+        var target = Paths("target");
+        new SettingsStore(target).Update(SettingsGroup.Metadata, s => s.Metadata.DiscogsToken = "target-secret");
+        BackupService.Apply(target, backup, new BackupSelection([SettingsGroup.Metadata], false, false, false));
+        var metadata = new SettingsStore(target).Current.Metadata;
+        Assert.True(metadata.LookupDiscogs);
+        Assert.Equal("target-secret", metadata.DiscogsToken);
+    }
+
+    [Fact]
     public void A_failed_import_keeps_the_current_settings()
     {
         var target = Paths("target");

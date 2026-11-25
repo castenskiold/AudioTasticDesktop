@@ -9,8 +9,9 @@ using AudioTastic.Metadata;
 namespace AudioTastic.App.Ui;
 
 /// <summary>MD-03: what the lookup window needs from the tag editor.</summary>
+/// <param name="DiscogsToken">MD-03: the user's Discogs token when the Discogs fallback is on, else null.</param>
 public sealed record LookupRequest(OnlineLookupService Service, string Title, string? Artist, TimeSpan? Length,
-    IReadOnlyDictionary<TagField, string> Current, bool Tags, bool Covers);
+    IReadOnlyDictionary<TagField, string> Current, bool Tags, bool Covers, string? DiscogsToken = null);
 
 /// <summary>MD-03: the fields and cover the user accepted.</summary>
 public sealed record LookupChoice(IReadOnlyDictionary<TagField, string> Fields, TagPicture? Cover);
@@ -252,7 +253,7 @@ public sealed class LookupWindow : Window
         UpdateUse();
         if (_request.Covers)
         {
-            if (candidate.ReleaseId is not { } release)
+            if (candidate.ReleaseId is null && (_request.DiscogsToken is null || candidate.Album is null))
             {
                 _coverText.Text = "No release: no cover.";
                 return;
@@ -260,7 +261,15 @@ public sealed class LookupWindow : Window
             _coverText.Text = "Loading cover…";
             try
             {
-                var cover = await _request.Service.FrontCoverAsync(release, token);
+                var cover = candidate.ReleaseId is { } release ? await _request.Service.FrontCoverAsync(release, token) : null;
+                var source = "Cover Art Archive";
+                if (cover is null && _request.DiscogsToken is { } discogs && candidate.Album is { } album && !token.IsCancellationRequested)
+                {
+                    // MD-03: the Cover Art Archive has none; try Discogs (Settings › Metadata).
+                    _coverText.Text = "No cover in the Cover Art Archive; asking Discogs…";
+                    cover = await _request.Service.DiscogsCoverAsync(album, candidate.AlbumArtist ?? candidate.Artist, discogs, token);
+                    source = "Discogs";
+                }
                 if (token.IsCancellationRequested)
                 {
                     return;
@@ -268,12 +277,14 @@ public sealed class LookupWindow : Window
                 _cover = cover;
                 if (cover is null)
                 {
-                    _coverText.Text = "The Cover Art Archive has no cover for this release.";
+                    _coverText.Text = _request.DiscogsToken is null
+                        ? "The Cover Art Archive has no cover for this release."
+                        : "Neither the Cover Art Archive nor Discogs has a cover for this release.";
                     return;
                 }
                 using var stream = new MemoryStream(cover.Data);
                 _coverImage.Source = Bitmap.DecodeToWidth(stream, 240);
-                _coverText.Text = $"{cover.MimeType}, {cover.Data.Length / 1024.0:0} KB";
+                _coverText.Text = $"From {source}: {cover.MimeType}, {cover.Data.Length / 1024.0:0} KB";
                 _useCover.IsEnabled = true;
                 _useCover.IsChecked = true;
                 UpdateUse();
