@@ -230,6 +230,10 @@ public sealed class DspChainWindow : Window
                 Tag = item.Id,
             };
             box.IsCheckedChanged += (_, _) => SetEnabled(item.Id, box.IsChecked == true);
+            // A click on the row's check box also selects the row, so its details (Open editor…) show (Anders: a
+            // left click only ticked it; the details came only with a right click).
+            box.AddHandler(PointerPressedEvent, (_, _) => _list.SelectedItem = box, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            box.GotFocus += (_, _) => _list.SelectedItem = box;
             return box;
         }).ToList();
         _list.ItemsSource = rows;
