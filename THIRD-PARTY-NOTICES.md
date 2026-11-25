@@ -37,6 +37,7 @@ When you add a package or native library, add it here in the same pull request.
 |---|---|---|
 | xunit.v3, xunit.v3.assert (with Microsoft.Testing.Platform) | Apache-2.0 / MIT | Unit tests |
 | Microsoft.Extensions.Logging.Console | MIT | Console logging in tools/AudioTastic.SoakTest |
+| Avalonia.Headless | MIT | Accessibility tests of the skin controls without a window system (TL-04) |
 
 ## Native libraries (fetched or built by `native/`)
 

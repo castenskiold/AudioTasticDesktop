@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -16,7 +17,7 @@ namespace AudioTastic.App.Ui.Controls;
 /// new audio arrives (paused, stopped) the bars fall to zero.
 /// Skin properties: fillColor (bars, scope line), thumbColor (peak caps), trackColor (idle baseline).
 /// </summary>
-internal sealed class VisualisationView : Control, IDisposable
+internal sealed class VisualisationView : Control, IDisposable, IAccessibleAction
 {
     private readonly VisualisationFeed _feed;
     private readonly SettingsStore _settings;
@@ -44,6 +45,8 @@ internal sealed class VisualisationView : Control, IDisposable
         Cursor = new Cursor(StandardCursorType.Hand);
         ToolTip.SetTip(this, element.Tooltip ?? "Click: spectrum, oscilloscope, off");
         Avalonia.Automation.AutomationProperties.SetName(this, "Visualisation");
+        Focusable = true; // TL-04: Enter or Space switches spectrum → oscilloscope → off
+        FocusAdorner = Accessible.FocusOutline(skin, 2);
         _timer.Tick += (_, _) => Tick();
         settings.Changed += OnSettingsChanged;
         ApplySettings(settings.Current.Interface);
@@ -75,8 +78,30 @@ internal sealed class VisualisationView : Control, IDisposable
             return;
         }
         e.Handled = true;
+        InvokeAction();
+    }
+
+    public bool CanInvoke => true;
+
+    public bool? IsOn => null;
+
+    /// <summary>Spectrum → oscilloscope → off.</summary>
+    public void InvokeAction()
+    {
         var next = (VisualisationType)(((int)_type + 1) % 3);
         _settings.Update(SettingsGroup.Interface, s => s.Interface.Visualisation = next);
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new ActionPeer(this, this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = true;
+            InvokeAction();
+        }
+        base.OnKeyDown(e);
     }
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
@@ -91,6 +116,12 @@ internal sealed class VisualisationView : Control, IDisposable
     private void ApplySettings(InterfaceSettings ui)
     {
         _type = ui.Visualisation;
+        Avalonia.Automation.AutomationProperties.SetName(this, "Visualisation: " + _type switch
+        {
+            VisualisationType.Spectrum => "spectrum",
+            VisualisationType.Oscilloscope => "oscilloscope",
+            _ => "off",
+        });
         _barCount = Math.Clamp(ui.SpectrumBars, 8, 64);
         _peakFall = Math.Clamp(ui.PeakFallSpeed, 0.1, 5);
         _timer.Interval = TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(ui.VisualisationFps, 15, 60));

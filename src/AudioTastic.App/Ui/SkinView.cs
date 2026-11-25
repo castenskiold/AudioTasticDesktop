@@ -174,21 +174,34 @@ public sealed class SkinView : Border, IDisposable
                 toggle.SetAvailable(_host.IsAvailable(bind));
                 toggle.Clicked += (_, _) => _host.Execute(bind, toggle);
                 _toggles[bind] = toggle;
-                _updates.Add(() => toggle.SetToggle(
-                    bind switch
+                _updates.Add(() =>
+                {
+                    toggle.SetToggle(
+                        bind switch
+                        {
+                            "shuffle" => _vm.Shuffle,
+                            "repeat" => _vm.Repeat != RepeatMode.Off,
+                            "mute" => _vm.Muted,
+                            _ => _host.IsToggleOn(bind),
+                        },
+                        alternate: bind == "repeat" && _vm.Repeat == RepeatMode.Track);
+                    if (bind == "repeat")
                     {
-                        "shuffle" => _vm.Shuffle,
-                        "repeat" => _vm.Repeat != RepeatMode.Off,
-                        "mute" => _vm.Muted,
-                        _ => _host.IsToggleOn(bind),
-                    },
-                    alternate: bind == "repeat" && _vm.Repeat == RepeatMode.Track));
+                        // TL-04: three states; the name says which.
+                        Avalonia.Automation.AutomationProperties.SetName(toggle, _vm.Repeat switch
+                        {
+                            RepeatMode.Track => "Repeat: track",
+                            RepeatMode.Playlist => "Repeat: playlist",
+                            _ => "Repeat: off",
+                        });
+                    }
+                });
                 return toggle;
             }
 
             case "slider" when e.Bind == "volume":
             {
-                var slider = new SkinSlider(skin, e);
+                var slider = new SkinSlider(skin, e) { SmallStep = 0.02, LargeStep = 0.1 };
                 slider.ValueChanging += (_, v) => _vm.Volume = (int)Math.Round(v * 100);
                 slider.ValueCommitted += (_, v) => _vm.Volume = (int)Math.Round(v * 100);
                 slider.ContextRequested += (_, args) =>
@@ -210,9 +223,16 @@ public sealed class SkinView : Border, IDisposable
                         _ = _vm.Player.SeekAsync(d * v);
                     }
                 };
+                slider.DescribeValue = v => _vm.Duration is { } d ? $"{DisplayText.Time(d * v)} of {DisplayText.Time(d)}" : string.Empty;
                 _updates.Add(() =>
                 {
                     var canSeek = _vm.HasTrack && _vm.Duration is { } length && length > TimeSpan.Zero;
+                    if (canSeek)
+                    {
+                        // TL-04: arrow keys move 5 seconds, Page Up/Down 30 seconds.
+                        slider.SmallStep = Math.Min(0.5, 5 / _vm.Duration!.Value.TotalSeconds);
+                        slider.LargeStep = Math.Min(0.5, 30 / _vm.Duration!.Value.TotalSeconds);
+                    }
                     slider.SetAvailable(canSeek);
                     slider.Value = canSeek ? _vm.Position / _vm.Duration!.Value : 0;
                 });
@@ -227,6 +247,7 @@ public sealed class SkinView : Border, IDisposable
                 {
                     ToolTip.SetTip(wave, e.Tooltip);
                 }
+                wave.DescribePosition = () => _vm.Duration is { } d && _vm.HasTrack ? $"{DisplayText.Time(_vm.Position)} of {DisplayText.Time(d)}" : "Nothing playing";
                 wave.SeekRequested += (_, v) =>
                 {
                     if (_vm.Duration is { } d && _vm.HasTrack)
@@ -272,7 +293,7 @@ public sealed class SkinView : Border, IDisposable
 
             case "time" when e.Bind == "duration":
             {
-                var length = new TimeDisplay(skin, e) { Cursor = Cursor.Default };
+                var length = new TimeDisplay(skin, e) { Cursor = Cursor.Default, Label = "Track length" };
                 ToolTip.SetTip(length, "Track length");
                 _updates.Add(() => length.Text = _vm.Duration is { } d && _vm.Track is not null ? DisplayText.Time(d) : string.Empty);
                 return length;
@@ -280,10 +301,11 @@ public sealed class SkinView : Border, IDisposable
 
             case "time":
             {
-                var time = new TimeDisplay(skin, e);
+                var time = new TimeDisplay(skin, e) { IsClickable = true };
                 time.Clicked += (_, _) => _vm.ShowRemaining = !_vm.ShowRemaining;
                 _updates.Add(() =>
                 {
+                    time.Label = _vm.ShowRemaining ? "Remaining time" : "Elapsed time";
                     time.Text = _vm.TimeText;
                     time.SetBlinking(_vm.State == PlaybackState.Paused);
                 });

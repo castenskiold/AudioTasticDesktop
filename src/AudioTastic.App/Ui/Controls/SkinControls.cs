@@ -1,5 +1,8 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -72,7 +75,7 @@ internal sealed class SkinGraphic : Decorator
 }
 
 /// <summary>A skinned push button or toggle (states: normal, hover, pressed, active, alternate, disabled).</summary>
-internal sealed class SkinButton : Panel
+internal sealed class SkinButton : Panel, IAccessibleAction
 {
     private readonly Skin _skin;
     private readonly SkinElement _element;
@@ -117,11 +120,34 @@ internal sealed class SkinButton : Panel
         {
             ToolTip.SetTip(this, element.Tooltip);
         }
-        Avalonia.Automation.AutomationProperties.SetName(this, element.Tooltip ?? element.Bind ?? element.Type);
+        // TL-04: reachable with Tab, pressed with Enter or Space, read as a button (or toggle) with its shortcut key.
+        Focusable = true;
+        FocusAdorner = Accessible.FocusOutline(skin, element.CornerRadius ?? 3);
+        Accessible.Describe(this, element);
         UpdateVisual();
     }
 
     public event EventHandler? Clicked;
+
+    private bool IsToggle => _element.Type == "toggle";
+
+    public bool CanInvoke => _available;
+
+    public bool? IsOn => IsToggle ? _active : null;
+
+    public void InvokeAction() => Clicked?.Invoke(this, EventArgs.Empty);
+
+    protected override AutomationPeer OnCreateAutomationPeer() => IsToggle ? new TogglePeer(this, this) : new ActionPeer(this, this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (_available && e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = true;
+            Clicked?.Invoke(this, EventArgs.Empty);
+        }
+        base.OnKeyDown(e);
+    }
 
     public SkinState State =>
         !_available ? SkinState.Disabled
@@ -134,6 +160,10 @@ internal sealed class SkinButton : Panel
     /// <summary>Toggle state: <paramref name="active"/> on, <paramref name="alternate"/> second on-state (repeat track).</summary>
     public void SetToggle(bool active, bool alternate = false)
     {
+        if (IsToggle && active != _active)
+        {
+            Accessible.Changed(this, TogglePatternIdentifiers.ToggleStateProperty, _active ? ToggleState.On : ToggleState.Off, active ? ToggleState.On : ToggleState.Off);
+        }
         _active = active;
         _alternate = alternate;
         UpdateVisual();
@@ -208,7 +238,7 @@ internal sealed class SkinButton : Panel
 }
 
 /// <summary>A skinned horizontal slider (volume, seek): track, filled part and round thumb, drawn directly.</summary>
-internal sealed class SkinSlider : Control
+internal sealed class SkinSlider : Control, IAccessibleRange
 {
     private readonly IBrush _track;
     private readonly IBrush _fill;
@@ -227,12 +257,75 @@ internal sealed class SkinSlider : Control
         _thumbSize = element.ThumbSize ?? 5;
         _thickness = element.TrackThickness ?? 1;
         Cursor = new Cursor(StandardCursorType.Hand);
-        Focusable = false;
         if (element.Tooltip is not null)
         {
             ToolTip.SetTip(this, element.Tooltip);
         }
-        Avalonia.Automation.AutomationProperties.SetName(this, element.Tooltip ?? element.Bind ?? "slider");
+        // TL-04: arrow keys move it (Up/Right more, Down/Left less), Page Up/Down in big steps, Home/End to the ends.
+        Focusable = true;
+        FocusAdorner = Accessible.FocusOutline(skin);
+        Accessible.Describe(this, element);
+    }
+
+    /// <summary>TL-04: one arrow key press, as a fraction (0–1).</summary>
+    public double SmallStep { get; set; } = 0.02;
+
+    /// <summary>TL-04: one Page Up/Down press, as a fraction (0–1).</summary>
+    public double LargeStep { get; set; } = 0.1;
+
+    /// <summary>TL-04: how a screen reader reads the value (e.g. "1:23 of 5:59"); null reads the percentage.</summary>
+    public Func<double, string>? DescribeValue { get; set; }
+
+    double IAccessibleRange.Minimum => 0;
+
+    double IAccessibleRange.Maximum => 100;
+
+    double IAccessibleRange.Value => Math.Round(_value * 100, 1);
+
+    double IAccessibleRange.SmallChange => SmallStep * 100;
+
+    double IAccessibleRange.LargeChange => LargeStep * 100;
+
+    bool IAccessibleRange.IsReadOnly => !_available;
+
+    string? IAccessibleRange.ValueText => DescribeValue?.Invoke(_value) ?? Accessible.Percent(_value);
+
+    void IAccessibleRange.SetValueFromAutomation(double value) => Commit(value / 100);
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new RangePeer(this, this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (_available && e.KeyModifiers == KeyModifiers.None)
+        {
+            double? target = e.Key switch
+            {
+                Key.Right or Key.Up => _value + SmallStep,
+                Key.Left or Key.Down => _value - SmallStep,
+                Key.PageUp => _value + LargeStep,
+                Key.PageDown => _value - LargeStep,
+                Key.Home => 0,
+                Key.End => 1,
+                _ => null,
+            };
+            if (target is { } v)
+            {
+                e.Handled = true;
+                Commit(v);
+            }
+        }
+        base.OnKeyDown(e);
+    }
+
+    /// <summary>A value chosen with the keyboard or a screen reader: shown, then reported like a click.</summary>
+    private void Commit(double value)
+    {
+        var old = _value;
+        _value = Math.Clamp(value, 0, 1);
+        InvalidateVisual();
+        Accessible.Changed(this, RangeValuePatternIdentifiers.ValueProperty, Math.Round(old * 100, 1), Math.Round(_value * 100, 1));
+        ValueChanging?.Invoke(this, _value);
+        ValueCommitted?.Invoke(this, _value);
     }
 
     /// <summary>While dragging: the value under the pointer (0–1).</summary>
@@ -332,7 +425,7 @@ internal sealed class SkinSlider : Control
 }
 
 /// <summary>CO-06: time display. Click toggles elapsed/remaining; blinks while paused.</summary>
-internal sealed class TimeDisplay : Panel
+internal sealed class TimeDisplay : Panel, IAccessibleAction
 {
     private readonly TextBlock _text;
     private readonly DispatcherTimer _blink = new() { Interval = TimeSpan.FromMilliseconds(500) };
@@ -355,10 +448,44 @@ internal sealed class TimeDisplay : Panel
         Children.Add(_text);
         _blink.Tick += (_, _) => _text.Opacity = _text.Opacity > 0.5 ? 0.15 : 1;
         ToolTip.SetTip(this, "Elapsed / remaining time (click)");
-        Avalonia.Automation.AutomationProperties.SetName(this, "Time display");
+        AutomationProperties.SetName(this, "Time display");
+        FocusAdorner = Accessible.FocusOutline(skin);
     }
 
     public event EventHandler? Clicked;
+
+    /// <summary>TL-04: a clickable time display (elapsed/remaining) takes keyboard focus and acts as a button.</summary>
+    public bool IsClickable
+    {
+        get => Focusable;
+        set
+        {
+            Focusable = value;
+            AutomationProperties.SetHelpText(this, value ? "Press to switch between elapsed and remaining time" : string.Empty);
+        }
+    }
+
+    /// <summary>TL-04: what the time is ("Elapsed time", "Track length").</summary>
+    public string Label { get; set; } = "Time";
+
+    public bool CanInvoke => IsClickable;
+
+    public bool? IsOn => null;
+
+    public void InvokeAction() => Clicked?.Invoke(this, EventArgs.Empty);
+
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        IsClickable ? new ActionPeer(this, this) : new TextPeer(this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (IsClickable && e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = true;
+            Clicked?.Invoke(this, EventArgs.Empty);
+        }
+        base.OnKeyDown(e);
+    }
 
     public string Text
     {
@@ -366,7 +493,7 @@ internal sealed class TimeDisplay : Panel
         set
         {
             _text.Text = value;
-            Avalonia.Automation.AutomationProperties.SetName(this, "Time " + value);
+            AutomationProperties.SetName(this, string.IsNullOrEmpty(value) ? Label : $"{Label} {value}");
         }
     }
 
@@ -433,7 +560,11 @@ internal sealed class MarqueeText : Control
         ClipToBounds = true;
         IsHitTestVisible = false;
         _timer.Tick += (_, _) => Advance();
+        // TL-04: screen readers announce a new title (and the short notices shown in its place) when it changes.
+        AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Polite);
     }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new TextPeer(this);
 
     /// <summary>Pixels per second.</summary>
     public double Speed { get; set; }
@@ -454,7 +585,7 @@ internal sealed class MarqueeText : Control
             _formatted = null;
             _offset = 0;
             _pause = PauseSeconds;
-            Avalonia.Automation.AutomationProperties.SetName(this, value);
+            AutomationProperties.SetName(this, value);
             InvalidateVisual();
             UpdateTimer();
         }
@@ -570,6 +701,8 @@ internal sealed class IndicatorBar : Decorator
         IsHitTestVisible = false;
     }
 
+    protected override AutomationPeer OnCreateAutomationPeer() => new TextPeer(this);
+
     public void SetItems(IReadOnlyList<string> items)
     {
         var children = _row.Children;
@@ -594,6 +727,6 @@ internal sealed class IndicatorBar : Decorator
                 },
             });
         }
-        Avalonia.Automation.AutomationProperties.SetName(this, string.Join(", ", items));
+        AutomationProperties.SetName(this, string.Join(", ", items).ToLowerInvariant().Replace("kbps", "kilobits per second", StringComparison.Ordinal).Replace("khz", "kilohertz", StringComparison.Ordinal));
     }
 }

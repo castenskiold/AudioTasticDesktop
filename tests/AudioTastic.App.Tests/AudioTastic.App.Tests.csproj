@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Avalonia.Headless" /> <!-- TL-04: controls and automation peers without a window system -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AudioTastic.App\AudioTastic.App.csproj" />

@@ -37,6 +37,7 @@ public static class KeyMap
         [(Key.D3, KeyModifiers.Alt)] = "fileInfo", // MD-05 (Winamp's Alt+3)
         [(Key.G, KeyModifiers.Alt)] = "equalizer",
         [(Key.E, KeyModifiers.Alt)] = "playlist",
+        [(Key.F, KeyModifiers.Alt)] = "menu", // TL-04: the main menu from the keyboard (Winamp's Alt+F)
     };
 
     /// <summary>The action for a key press, or null.</summary>

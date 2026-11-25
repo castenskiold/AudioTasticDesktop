@@ -12,6 +12,7 @@ public sealed partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        Ui.Controls.Accessible.NameNumberBoxes(); // TL-04
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && AppHost.Services is { } services)
         {
             // The shell creates the skinned main window and mini player (UI-01, UI-05).

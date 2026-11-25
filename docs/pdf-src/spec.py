@@ -297,7 +297,7 @@ story.append(T.table([
 story += T.h2("2.2 Menus")
 story.append(T.table([
     ("Main menu", "Logo in MW1, or right-click the main window",
-     "Open file… · Open folder… · Open URL… · Play CD · Playback (Shuffle, Repeat, Speed…, A-B repeat, Stop after current) · Sleep timer… · Cast to… · Visualisation · Windows (Equalizer, Playlist, Art & Lyrics, Mini player) · Skins · Options (Double size, Always on top) · Settings… · About AudioTastic · Exit"),
+     "Open file… · Open folder… · Open URL… · Playback (Shuffle, Repeat, Speed…, A-B repeat, Stop after current) · Sleep timer… · Cast to… · Visualisation · Windows (Equalizer, Playlist, Art & Lyrics, Mini player) · Skins · Options (Double size, Always on top) · Settings… · About AudioTastic · Exit"),
     ("Playlist context menu", "Right-click an entry in PW4",
      "Play · Play next (queue) · Stop after this track · File info… · Edit tags… · Look up online… · Convert… · Rip… (CD tracks) · Reset resume position · Show in folder · Remove · Crop"),
     ("Tab context menu", "Right-click a tab in PW2", "Rename · Duplicate · Save as… · Move left · Move right · Close"),
@@ -328,6 +328,8 @@ story.append(T.table([
     ("Alt+G · Alt+E · Alt+L", "Equalizer · Playlist · Art & Lyrics windows"),
     ("Ctrl+W · Ctrl+D", "Mini player · Double size"),
     ("Ctrl+E · Alt+3 · Ctrl+P", "Edit tags · File info · Settings"),
+    ("Alt+F · context-menu key", "Main menu (TL-04)"),
+    ("Tab · Enter / Space · arrows", "Move between controls · press the focused button · move the focused slider (TL-04)"),
 ], head=("Keys", "Action")))
 
 # ---------------------------------------------------------------- 3. architecture
@@ -418,5 +420,5 @@ for n, (title, intro, feats) in enumerate(D.SECTIONS, start=5):
 
 T.build("AudioTastic_Feature_Specification.pdf", "Feature Specification",
         "What each feature does, where it lives in the UI and what it takes to build",
-        "Version 1.44  ·  25 November 2026", story, short_title="Feature Specification  ·  v1.44")
+        "Version 1.45  ·  25 November 2026", story, short_title="Feature Specification  ·  v1.45")
 print("built")

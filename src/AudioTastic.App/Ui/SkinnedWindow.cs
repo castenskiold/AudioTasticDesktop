@@ -35,7 +35,15 @@ public sealed class SkinnedWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(ContextRequestedEvent, OnContextRequested);
-        Avalonia.Automation.AutomationProperties.SetName(this, skinWindowName == "mini" ? "AudioTastic mini player" : "AudioTastic");
+        // TL-04: each window is announced by what it is.
+        Avalonia.Automation.AutomationProperties.SetName(this, skinWindowName switch
+        {
+            "mini" => "AudioTastic mini player",
+            "playlist" => "Playlist",
+            "equalizer" => "Equalizer",
+            "art" => "Art and lyrics",
+            _ => "AudioTastic",
+        });
     }
 
     /// <summary>"main" or "mini".</summary>

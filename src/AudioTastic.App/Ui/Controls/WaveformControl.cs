@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -15,7 +16,7 @@ namespace AudioTastic.App.Ui.Controls;
 /// with a position line. Click or drag to seek. While the waveform is being made, a thin centre line shows the
 /// progress; streams show a scrolling live waveform. Skin properties: trackColor, fillColor, thumbColor.
 /// </summary>
-public sealed class WaveformControl : Control, IDisposable
+public sealed class WaveformControl : Control, IDisposable, IAccessibleRange
 {
     private const double ColumnWidth = 0.5;   // layout units; crisp at 150 % and double size
     private readonly IBrush _track;
@@ -45,8 +46,43 @@ public sealed class WaveformControl : Control, IDisposable
         _thumb = skin.Brush(element.ThumbColor) ?? _fill;
         ClipToBounds = true;
         Cursor = new Cursor(StandardCursorType.Hand);
-        Avalonia.Automation.AutomationProperties.SetName(this, "Waveform and seek bar");
+        Avalonia.Automation.AutomationProperties.SetName(this, "Position");
+        Avalonia.Automation.AutomationProperties.SetHelpText(this, "Waveform seek bar. Left and Right arrows seek, Home goes to the start.");
+        // TL-04: focusable; Left/Right seek through the window's keys (KeyMap), Home goes to the start.
+        Focusable = true;
+        FocusAdorner = Accessible.FocusOutline(skin, 2);
         _liveTimer.Tick += (_, _) => InvalidateVisual();
+    }
+
+    /// <summary>TL-04: the position as words for screen readers ("1:23 of 5:59").</summary>
+    public Func<string?>? DescribePosition { get; set; }
+
+    double IAccessibleRange.Minimum => 0;
+
+    double IAccessibleRange.Maximum => 100;
+
+    double IAccessibleRange.Value => Math.Round(_position * 100, 1);
+
+    double IAccessibleRange.SmallChange => 1;
+
+    double IAccessibleRange.LargeChange => 10;
+
+    bool IAccessibleRange.IsReadOnly => !_canSeek;
+
+    string? IAccessibleRange.ValueText => DescribePosition?.Invoke();
+
+    void IAccessibleRange.SetValueFromAutomation(double value) => SeekRequested?.Invoke(this, Math.Clamp(value / 100, 0, 1));
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new RangePeer(this, this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (_canSeek && e.Key == Key.Home && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = true;
+            SeekRequested?.Invoke(this, 0);
+        }
+        base.OnKeyDown(e);
     }
 
     /// <summary>Raised with the chosen position (0–1) when the user clicks or finishes dragging.</summary>

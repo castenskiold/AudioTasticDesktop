@@ -389,6 +389,15 @@ PROGRESS = {
                      "macOS/Linux: casting not tried by hand.",
                      "MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere.",
                      "Video casting on macOS needs h264_videotoolbox in the macOS FFmpeg build (not checked yet); Linux uses libopenh264 from the FFmpeg build."]),
+    "P13": dict(status="Done on Windows", date="25 Nov 2026", outcome=[
+                        "Scope (Anders, 25 Nov 2026): all four parts; audio CD (FM-11) then deferred because there is no CD drive to test with.",
+                        "TL-01 format conversion: FLAC, Apple Lossless, WAV, MP3 (CBR/VBR), AAC, Opus and Ogg Vorbis through the FFmpeg plugin (SDK 0.4.3), keeping tags and the cover; CUE tracks become separate files; name pattern, existing files skipped/replaced/numbered, several files at once, the original never overwritten.",
+                        "TL-02 settings backup: .atbackup export of settings, playlists, presets and skins; import per settings group, applied at a restart after saving the current state to backups/; older backups migrated, newer refused.",
+                        "TL-04 accessibility: every skin control reachable with Tab, a focus outline in the skin's colour, Enter/Space/arrow keys, screen-reader roles, names, states and values; Alt+F for the main menu; the title announced on a track change.",
+                        "Exit criteria on Windows: converted files keep tags and art and play correctly (passed: automated for all seven formats, lossless bit-exact, lossy gapless; Anders checked MP3 and FLAC); keyboard only and Narrator (passed, Anders); a ripped CD vs. another ripper: deferred with FM-11. 619 tests pass."],
+               open=["Audio CD (FM-11) deferred: needs a CD drive.",
+                     "macOS (VoiceOver) and Linux (Orca) not tried; the Avalonia version decides how much of the UI Automation work carries over.",
+                     "macOS FFmpeg build: libmp3lame, libopus and libvorbis are not in it yet, so MP3, Opus and Vorbis conversion is missing there (FLAC, ALAC, WAV and AAC work)."]),
     "P12": dict(status="Done on Windows", date="23 Nov 2026", outcome=[
                         "Scope (Anders, 23 Nov 2026): VST3 effects only; room correction (EQ-07) and the Winamp plugin bridge (PG-06) are deferred.",
                         "Step 1 (23 Nov 2026): the VST3 host: a native library over the Steinberg VST3 SDK 3.8.1 (MIT) and a scanner that runs each plug-in module in its own process, so one that crashes or hangs is blacklisted; tested with the SDK's ADelay example and a deliberately crashing module, built in CI for all six platforms. ",

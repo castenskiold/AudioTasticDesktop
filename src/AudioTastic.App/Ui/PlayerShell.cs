@@ -1518,7 +1518,6 @@ public sealed class PlayerShell : ISkinHost, IDisposable
                 Item("Open file…", "open"),
                 Item("Open folder…", enabled: false),
                 Item("Open URL…", "openUrl"),
-                Item("Play CD", enabled: false),
                 new Separator(),
                 new MenuItem
                 {

@@ -31,7 +31,7 @@ public static class EqualizerViews
 /// EQ-01 (EQ4): a vertical ±12 dB slider for the preamp ("preamp") or one band ("band0".."band9"). Drag or click to
 /// set (snaps to 0 near the middle), wheel for 0.5 dB steps, double-click resets to 0 dB. Hidden in parametric mode.
 /// </summary>
-internal sealed class EqSlider : Control, IDisposable
+internal sealed class EqSlider : Control, IDisposable, AudioTastic.App.Ui.Controls.IAccessibleRange
 {
     private const double Range = 12;
     private readonly EqualizerController _controller;
@@ -52,6 +52,10 @@ internal sealed class EqSlider : Control, IDisposable
         _band = element.Bind == "preamp" ? -1 : int.Parse(element.Bind!.AsSpan(4), CultureInfo.InvariantCulture);
         Cursor = new Cursor(StandardCursorType.Hand);
         Avalonia.Automation.AutomationProperties.SetName(this, _band < 0 ? "Preamp" : $"{EqualizerViews.Hz(EqualizerSettings.GraphicFrequencies[_band])} band");
+        Avalonia.Automation.AutomationProperties.SetHelpText(this, "Up and Down: half a decibel; Page Up and Page Down: 3 decibels; Home: 0");
+        // TL-04: focusable, changed with the arrow keys.
+        Focusable = true;
+        FocusAdorner = AudioTastic.App.Ui.Controls.Accessible.FocusOutline(skin, 2);
         controller.Changed += OnChanged;
         OnChanged(null, EventArgs.Empty);
     }
@@ -59,6 +63,51 @@ internal sealed class EqSlider : Control, IDisposable
     private double Value => _band < 0 ? _controller.Current.PreampDb : _controller.Current.Bands.ElementAtOrDefault(_band);
 
     public void Dispose() => _controller.Changed -= OnChanged;
+
+    double AudioTastic.App.Ui.Controls.IAccessibleRange.Minimum => -Range;
+
+    double AudioTastic.App.Ui.Controls.IAccessibleRange.Maximum => Range;
+
+    double AudioTastic.App.Ui.Controls.IAccessibleRange.Value => Value;
+
+    double AudioTastic.App.Ui.Controls.IAccessibleRange.SmallChange => 0.5;
+
+    double AudioTastic.App.Ui.Controls.IAccessibleRange.LargeChange => 3;
+
+    bool AudioTastic.App.Ui.Controls.IAccessibleRange.IsReadOnly => false;
+
+    string? AudioTastic.App.Ui.Controls.IAccessibleRange.ValueText => EqualizerViews.Db(Value);
+
+    void AudioTastic.App.Ui.Controls.IAccessibleRange.SetValueFromAutomation(double value) =>
+        _controller.Change(eq => Set(eq, Math.Clamp(Math.Round(value * 2) / 2, -Range, Range)));
+
+    protected override Avalonia.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new AudioTastic.App.Ui.Controls.RangePeer(this, this);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyModifiers == KeyModifiers.None)
+        {
+            double? step = e.Key switch
+            {
+                Key.Up or Key.Right => 0.5,
+                Key.Down or Key.Left => -0.5,
+                Key.PageUp => 3,
+                Key.PageDown => -3,
+                _ => null,
+            };
+            if (step is { } s)
+            {
+                e.Handled = true;
+                _controller.Change(eq => Set(eq, Math.Clamp(Math.Round((Get(eq) + s) * 2) / 2, -Range, Range)));
+            }
+            else if (e.Key is Key.Home or Key.Delete)
+            {
+                e.Handled = true;
+                _controller.Change(eq => Set(eq, 0));
+            }
+        }
+        base.OnKeyDown(e);
+    }
 
     private void OnChanged(object? sender, EventArgs e)
     {

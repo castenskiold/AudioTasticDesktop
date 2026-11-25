@@ -66,7 +66,7 @@ internal sealed class PlaylistTabsView : Panel, IDisposable
         {
             _tabs.Children.Add(Tab(playlist));
         }
-        var add = Pill("+", active: false);
+        var add = Pill("+", active: false, "New playlist", () => _controller.Service.New());
         ToolTip.SetTip(add, "New playlist");
         add.PointerReleased += (_, e) =>
         {
@@ -78,12 +78,13 @@ internal sealed class PlaylistTabsView : Panel, IDisposable
         _tabs.Children.Add(add);
     }
 
-    private Border Tab(Core.Playlists.Playlist playlist)
+    private AudioTastic.App.Ui.Controls.AccessibleBorder Tab(Core.Playlists.Playlist playlist)
     {
         var active = playlist == _controller.Active;
         var label = (_controller.IsPlayingPlaylist(playlist) ? "▸ " : string.Empty) + playlist.Name;
-        var pill = Pill(label, active);
-        Avalonia.Automation.AutomationProperties.SetName(pill, $"Playlist tab {playlist.Name}");
+        var name = $"Playlist {playlist.Name}" + (active ? ", shown" : string.Empty) + (_controller.IsPlayingPlaylist(playlist) ? ", playing" : string.Empty);
+        var pill = Pill(label, active, name, () => _controller.Service.Active = playlist);
+        Avalonia.Automation.AutomationProperties.SetHelpText(pill, "Enter shows it; the context menu key renames, saves or closes it");
         pill.PointerPressed += (_, e) =>
         {
             if (e.GetCurrentPoint(pill).Properties.IsLeftButtonPressed)
@@ -171,12 +172,13 @@ internal sealed class PlaylistTabsView : Panel, IDisposable
         box.SelectAll();
     }
 
-    private Border Pill(string text, bool active)
+    private AudioTastic.App.Ui.Controls.AccessibleBorder Pill(string text, bool active, string name, Action invoke)
     {
         var state = active ? SkinState.Active : SkinState.Normal;
         var e = _element;
-        return new Border
+        return new AudioTastic.App.Ui.Controls.AccessibleBorder(name, invoke)
         {
+            FocusAdorner = AudioTastic.App.Ui.Controls.Accessible.FocusOutline(_skin, e.Height / 2),
             Height = e.Height,
             CornerRadius = new CornerRadius(e.Height / 2),
             BorderThickness = new Thickness(e.StrokeWidth ?? 0.8),

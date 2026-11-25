@@ -41,7 +41,12 @@ internal sealed record PlaylistStyle(
 }
 
 /// <summary>One row's data: the entry and its number in the playlist.</summary>
-internal sealed record RowItem(PlaylistEntry Entry, int Number);
+internal sealed record RowItem(PlaylistEntry Entry, int Number)
+{
+    /// <summary>TL-04: what a screen reader says for the row: "3. Artist – Title, 5:59".</summary>
+    public override string ToString() =>
+        $"{Number}. {Entry.DisplayName}" + (Entry.Duration is { } d ? ", " + DisplayText.Time(d) : string.Empty);
+}
 
 /// <summary>A custom-drawn row: number, "Artist – Title" (trimmed) and duration; the playing entry has a white bar.</summary>
 internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController controller) : Control

@@ -48,7 +48,7 @@ Add `"$schema": "https://audiotastic.app/schemas/skin-1.json"` (or a relative pa
 | `format` | Always `1` for this version. |
 | `name`, `author`, `version`, `description` | Shown in the skin list. |
 | `preview` | Optional preview image for the skin list. |
-| `colors` | Named colours (`#RRGGBB` or `#AARRGGBB`). Anywhere a colour is expected you may use a hex value, `@name` or `transparent`. |
+| `colors` | Named colours (`#RRGGBB` or `#AARRGGBB`). Anywhere a colour is expected you may use a hex value, `@name` or `transparent`. The player also uses `focus` for the keyboard focus outline (falling back to `text`, then white). |
 | `fonts` | Named fonts: `family` (the family name inside the files, or an installed system font), `files`, `weight` (`light` … `bold`) and default `size`. |
 | `windows.main` | The main window. Required. |
 | `windows.mini` | The mini player (UI-05). If it is missing, the default skin's mini player is used. |
