@@ -11,17 +11,24 @@ public static class SdkInfo
     /// Version of these contracts. While the SDK is 0.x (until P8) a plugin needs the same 0.minor; from 1.0 the same
     /// major and a minor not newer than the player's.
     /// </summary>
-    public const string Version = "0.4.3";
+    public const string Version = "1.0.0";
 
+    /// <summary>
+    /// Whether a plugin built for <paramref name="pluginSdkVersion"/> runs on this player. 0.x: the same minor version.
+    /// From 1.0: a plugin built for 1.y runs on every player with SDK 1.z where z ≥ y. SDK 1.0.0 has exactly the
+    /// contracts of 0.4.3, so plugins built for 0.4.x also run on 1.x.
+    /// </summary>
     public static bool IsCompatible(string pluginSdkVersion)
     {
         if (!System.Version.TryParse(pluginSdkVersion, out var plugin) || !System.Version.TryParse(Version, out var host))
         {
             return false;
         }
-        return host.Major == 0
-            ? plugin.Major == 0 && plugin.Minor == host.Minor
-            : plugin.Major == host.Major && plugin.Minor <= host.Minor;
+        if (host.Major == 0)
+        {
+            return plugin.Major == 0 && plugin.Minor == host.Minor;
+        }
+        return (plugin.Major == host.Major && plugin.Minor <= host.Minor) || (host.Major == 1 && plugin.Major == 0 && plugin.Minor == 4);
     }
 }
 

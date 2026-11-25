@@ -186,6 +186,14 @@ public sealed class PlayerShell : ISkinHost, IDisposable
     {
         _desktop = desktop;
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        // P14: start-up steps are timed and logged once, so a slow start can be traced to its cause.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var steps = new List<string>();
+        void Step(string name)
+        {
+            steps.Add($"{name} {clock.ElapsedMilliseconds} ms");
+            clock.Restart();
+        }
         ApplyDialogTheme();
 
         _main = new SkinnedWindow("main", this);
@@ -240,6 +248,7 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             }
         };
         ApplyTopmost();
+        Step("windows");
 
         foreach (var window in new[] { _main, _mini })
         {
@@ -263,13 +272,18 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
         // SI-02: the OS media controls belong to the main window (it exists while hidden, e.g. in the mini player or tray).
         _mediaControls.Start(_main.TryGetPlatformHandle()?.Handle ?? 0);
+        Step("media controls");
         // SI-03: taskbar buttons and progress on the player windows' taskbar buttons (hooked before they are shown).
         _taskbar.Start([_main, _mini], ExecuteFromTray);
+        Step("taskbar");
         // SI-07: notifications on track change, unless a player window has the focus.
         Notifications.Start(() => _platform.IsInForeground()
             ?? new Window?[] { _main, _mini, _playlist, _equalizer, _artWindow }.Any(w => w is { IsVisible: true, IsActive: true }));
+        Step("notifications");
         // SI-01: global hotkeys run the same actions as the buttons and keys ("showHide" like a click on the tray icon).
         Hotkeys.Start(action => ExecuteFromTray(action == "showHide" ? "trayToggle" : action));
+        Step("hotkeys");
+        _logger.LogInformation("Start-up steps: {Steps}", string.Join(", ", steps));
         // SI-04: the tray icon and its menu.
         _tray = new TrayController(Player, _sleep, ExecuteFromTray, () => PlayerShown)
         {
@@ -976,6 +990,11 @@ public sealed class PlayerShell : ISkinHost, IDisposable
             return;
         }
         _firstShownDone = true;
+        // P14: start-up time, for performance checks and field reports.
+        using (var self = System.Diagnostics.Process.GetCurrentProcess())
+        {
+            _logger.LogInformation("Player shown {Seconds:0.00} s after the process started", (DateTime.Now - self.StartTime).TotalSeconds);
+        }
         var owner = _main!.IsVisible ? _main : _mini!;
         if (Program.ImportedAtStart is not null)
         {

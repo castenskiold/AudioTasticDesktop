@@ -13,7 +13,7 @@
     "sdkVersion": {
       "type": "parameter",
       "datatype": "text",
-      "defaultValue": "0.4.3-preview",
+      "defaultValue": "1.0.0",
       "replaces": "SDK_PACKAGE_VERSION",
       "description": "Version of the AudioTastic.Sdk NuGet package."
     }

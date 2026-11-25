@@ -5,7 +5,7 @@
   "author": "AudioTastic samples",
   "description": "A visualisation that draws left/right peak bars. Shown from phase P7 (Main menu › Visualisation).",
   "license": "MIT",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "1.0.0",
   "entryAssembly": "PeakMeter.dll",
   "types": ["visualisation"]
 }

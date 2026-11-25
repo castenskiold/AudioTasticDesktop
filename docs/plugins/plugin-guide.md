@@ -52,7 +52,7 @@ An installed plugin with the same id replaces a built-in one.
   "description": "What it does, in one or two sentences.",
   "website": "https://example.com",
   "license": "MIT",
-  "sdkVersion": "0.4.3",
+  "sdkVersion": "1.0.0",
   "entryAssembly": "MyPlugin.dll",
   "types": ["general"],
   "priority": 0
@@ -226,10 +226,10 @@ Each plugin gets its own view of the API:
 
 ## Versioning
 
-- The SDK follows semantic versioning, but stays **0.x (pre-release)** until phase P8: DSP, visualisation and crossfading work may still change the contracts.
-- **While 0.x:** a plugin must be built for the same minor version (`0.4.x` runs on a 0.4 player).
+- The SDK follows semantic versioning. **1.0.0** (P14) is the first stable version: its contracts are exactly those of 0.4.3, and from now on they only grow (additive minor versions); nothing is removed or changed within 1.x.
+- **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y. Plugins built for the 0.4 previews (`"sdkVersion": "0.4.x"`) also run on 1.x players.
 - **0.4.1** added encoders (`IAudioEncoderFactory`, `IAudioEncoder`, `IInputPlugin.EncoderFactories`). It is additive: plugins built for 0.4.0 keep working unchanged.
 - **0.4.2** added off-screen rendering for visualisations (`IOffscreenVisualisation`, `IVisualisationPlugin.CanRenderOffscreen`) and live video encoders (`IVideoEncoderFactory`, `IVideoEncoder`, `IInputPlugin.VideoEncoderFactories`), so visualisations can be cast to a TV (CN-09). Also additive.
 - **0.4.3** added the encode formats Opus, AAC, ALAC, Vorbis and WAV, MP3 VBR (`EncodeSettings.Vbr`, `VbrQuality`) and `IAudioEncoderFactory.InputFormatFor` (a default method), for format conversion (TL-01). Also additive.
-- **From 1.0:** a plugin built for `1.y` runs on any player with SDK `1.z` where z ≥ y.
+- **0.x (history):** a plugin had to be built for the same minor version as the player.
 - Incompatible plugins are listed as *Incompatible* and are not loaded.

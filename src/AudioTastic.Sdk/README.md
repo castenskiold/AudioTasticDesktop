@@ -2,7 +2,7 @@
 
 Contracts for AudioTastic Desktop plugins (PG-02). The package holds only interfaces, data types and small helpers. It references no AudioTastic internals, and its only dependency is Microsoft.Extensions.Logging.Abstractions.
 
-**Status:** pre-release (0.x). Contracts may still change until the DSP chain and crossfading are built. A plugin must be built against the same 0.minor version as the player (`SdkInfo.IsCompatible`).
+**Status:** 1.0 (stable). A plugin built for SDK 1.y runs on every player with SDK 1.z where z ≥ y; new features arrive as additive minor versions (default interface methods, new optional types), never by changing what is there. Plugins built for the 0.4 previews also run on 1.x (`SdkInfo.IsCompatible`): 1.0.0 has exactly the contracts of 0.4.3.
 
 ## What is in it
 

@@ -4,18 +4,26 @@ AudioTastic uses the components below. Every entry must meet the project's licen
 
 When you add a package or native library, add it here in the same pull request.
 
+**Audit (P14, 25 Nov 2026):** every package the app and its built-in plugins ship (`dotnet list package --include-transitive`) was checked against its own `.nuspec` license or license file, and the FFmpeg build's configuration (`ffmpeg -buildconf`) was read. Corrections from the audit: the transitive packages below were added, Svg.Custom is MS-PL (not MIT), and the FFmpeg build is LGPL-3.0-or-later (it is configured with `--enable-version3`).
+
 ## .NET packages (shipped)
 
 | Component | License | Used for | Since |
 |---|---|---|---|
-| Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent | MIT | UI framework | P0 |
-| Microsoft.Extensions.DependencyInjection, .Logging, .Logging.Abstractions | MIT | DI container, logging abstractions | P0 |
+| Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent (with Avalonia.Skia, .HarfBuzz, .Win32, .X11, .Native, .FreeDesktop, .FreeDesktop.AtSpi, .Remote.Protocol) | MIT | UI framework | P0 |
+| Avalonia.Angle.Windows.Natives (ANGLE, Windows builds) | BSD-3-Clause (The ANGLE Project Authors) | OpenGL ES on Direct3D for Avalonia's renderer | P0 |
+| SkiaSharp with its native assets (Skia) | MIT (SkiaSharp); BSD-3-Clause (Skia; the package's THIRD-PARTY-NOTICES lists its parts) | 2-D drawing under Avalonia, SVG and the cast visualisations | P0 |
+| HarfBuzzSharp with its native assets (HarfBuzz) | MIT (HarfBuzzSharp); MIT-style "Old MIT" (HarfBuzz) | Text shaping under Avalonia | P0 |
+| MicroCom.Runtime | MIT | COM interop used by Avalonia | P0 |
+| Tmds.DBus.Protocol | MIT | D-Bus for Avalonia on Linux (accessibility, tray) | P0 |
+| Microsoft.Extensions.DependencyInjection, .Logging, .Logging.Abstractions (with .Options, .Primitives) | MIT | DI container, logging abstractions | P0 |
 | Microsoft.Data.Sqlite | MIT | Cache database (AN-01) | P0 |
 | SQLitePCLRaw (dependency of Microsoft.Data.Sqlite) | Apache-2.0 | SQLite native bindings | P0 |
 | SQLite (bundled by SQLitePCLRaw) | Public domain | Cache database engine | P0 |
 | Serilog, Serilog.Sinks.File, Serilog.Extensions.Logging | Apache-2.0 | Log files (TL-03) | P0 |
 | FFmpeg.AutoGen | MIT | .NET bindings for the FFmpeg libraries (FM-01); loads them dynamically | P1 |
-| Svg.Controls.Skia.Avalonia (with Svg.Skia, Svg.Model, Svg.Custom) | MIT | SVG skin images (UI-03) | P2 |
+| Svg.Controls.Skia.Avalonia (with Svg.Skia, Svg.Model, Svg.Animation, Svg.SceneGraph, ShimSkiaSharp, ExCSS) | MIT | SVG skin images (UI-03) | P2 |
+| Svg.Custom (dependency of Svg.Skia; the SVG document model) | MS-PL | SVG skin images (UI-03) | P2 |
 | NJsonSchema (with NJsonSchema.Annotations, Namotion.Reflection, Newtonsoft.Json) | MIT | skin.json schema validation (UI-03) | P2 |
 | TagLibSharp | LGPL-2.1 (separate, replaceable DLL) | Tag reading (MD-01) | P3 |
 | MeltySynth | MIT (includes code from C# Synth and TinySoundFont/SFZero, also MIT) | MIDI synthesizer in the MIDI plugin (FM-08) | P4 |
@@ -37,13 +45,14 @@ When you add a package or native library, add it here in the same pull request.
 |---|---|---|
 | xunit.v3, xunit.v3.assert (with Microsoft.Testing.Platform) | Apache-2.0 / MIT | Unit tests |
 | Microsoft.Extensions.Logging.Console | MIT | Console logging in tools/AudioTastic.SoakTest |
+| Avalonia.BuildServices (pulled in by Avalonia; a build-time task, not shipped) | MIT | Avalonia's build tooling (it sends anonymous build telemetry; set `AVALONIA_TELEMETRY_OPTOUT=1` to switch that off) |
 | Avalonia.Headless | MIT | Accessibility tests of the skin controls without a window system (TL-04) |
 
 ## Native libraries (fetched or built by `native/`)
 
 | Component | License | Used for | Since |
 |---|---|---|---|
-| FFmpeg (libavcodec, libavformat, libavutil, libswresample), LGPL shared build; the Windows and Linux builds include LAME (libmp3lame, LGPL) | LGPL-2.1-or-later | Decoding (from P1); encoding FLAC and MP3 for casting (P11) and conversion (P13) | P0 pipeline / P1 use |
+| FFmpeg 8.1 (libavcodec, libavformat, libavutil, libswresample) as shared libraries. Windows and Linux: the BtbN "lgpl-shared" build (configured with `--enable-version3`); macOS: our own audio-only build (`native/build_ffmpeg_macos.sh`) | **LGPL-3.0-or-later** (Windows, Linux; the license text ships as `FFMPEG-LICENSE.txt`, the build's source and checksum in `FFMPEG-BUILDINFO.txt`); LGPL-2.1-or-later (macOS) | Decoding (from P1); encoding for casting (P11) and conversion (P13); H.264 for casting visuals (P11) | P0 pipeline / P1 use |
 | miniaudio (plus our own shim, native/miniaudio) | Public domain or MIT-0 | Audio output (PB-04) | P0 pipeline / P1 use |
 | SoundTouch, SoundTouchDLL | LGPL-2.1 | Time-stretch | P0 pipeline / P6 use |
 | Steinberg VST 3 SDK 3.8.1 (base, pluginterfaces, public.sdk; compiled into our `at_vst3host` library and `at_vst3scan` tool; no VSTGUI) | MIT (since SDK 3.8; LICENSE.txt checked 23 Nov 2026, shipped as `VST3SDK-LICENSE.txt`) | Hosting VST3 effects in the DSP chain (EQ-06) | P12 |
@@ -53,6 +62,35 @@ When you add a package or native library, add it here in the same pull request.
 | openmpt-ogg, openmpt-vorbis (libogg, libvorbis, shipped with libopenmpt on Windows) | BSD-3-Clause | Vorbis-compressed samples inside modules | P4 |
 | openmpt-zlib (zlib, shipped with libopenmpt on Windows) | zlib | Compressed module formats | P4 |
 | OptimFROG Libraries 5.100 / SDK 1.600 (OptimFROG.dll, libOptimFROG.so, libOptimFROG.dylib), by Florin Ghido | **Closed-source freeware** (license-policy exception: no open-source decoder exists, no license key, free for the end user). The license allows redistributing the unmodified Libraries under their original names with software that uses them via the SDK, free and commercial; shipped with its `license.html` (as `OptimFROG-license.html`). The command-line encoders are not shipped. **Not part of the AudioTastic package** (since 19 Nov 2026): the OptimFROG plugin is a separate `.atplugin` download that contains the libraries. | OptimFROG plugin (FM-06), x64 only | P4 |
+
+### Libraries inside the Windows and Linux FFmpeg build
+
+The BtbN build links these libraries statically into the four FFmpeg DLLs (from `ffmpeg -buildconf`, P14 audit). All are free and open source under permissive licenses (BSD, MIT, ISC, Apache-2.0, MPL-2.0, zlib, WTFPL) or LGPL; the "lgpl" variant leaves out every GPL component (x264, x265, xvid, rubberband, vidstab, frei0r and others) and nonfree ones (fdk-aac). Most are for video, subtitles or network protocols that an audio player does not use.
+
+| Libraries | License |
+|---|---|
+| libmp3lame (MP3), libsoxr, libtwolame, libgme, libbluray, libplacebo, libssh, librsvg, fribidi | LGPL-2.0/2.1-or-later |
+| aribb24 | LGPL-3.0-or-later |
+| libopus, libvorbis and libogg, libtheora, libvpx, libwebp, libjxl, libopenmpt, kvazaar, snappy, liboapv | BSD-3-Clause |
+| libopenh264 (H.264), dav1d, rav1e, librist, openjpeg | BSD-2-Clause |
+| libaom, SVT-AV1, vvenc, LCEVC decoder, libvmaf | BSD-2/BSD-3-Clause(-Clear) with the AOM or vendor patent license |
+| libxml2, libvpl, libaribcaption, harfbuzz | MIT (MIT-style) |
+| libass | ISC |
+| opencore-amr, shaderc | Apache-2.0 |
+| libzmq, libsrt | MPL-2.0 |
+| zimg | WTFPL |
+| freetype | FreeType License (FTL) |
+| zlib, SDL2 | zlib |
+| xz (lzma) | 0BSD / public domain |
+| lcms2, fontconfig, AMF and nv-codec headers, libva (VA-API), winpthreads | MIT (MIT-style) |
+| LV2 host libraries (lilv, serd, sord, sratom) | ISC |
+| OpenCL ICD loader, Vulkan loader | Apache-2.0 |
+| libiconv, gmp, Chromaprint, OpenAL Soft, VapourSynth (loaded at run time if installed) | LGPL (2.0/2.1/3.0-or-later; gmp dual LGPL-3.0 / GPL-2.0, used under LGPL) |
+| uavs3d (AVS3 decoder) | BSD-style (text to be collected with the others) |
+
+**Still open (P14 audit):** the binary distribution ships FFmpeg's own license and build information, but not each of these libraries' license texts, which the BSD-style licenses ask to travel with binaries. Either ship the texts from the BtbN build, or (recommended) build our own audio-focused FFmpeg for Windows and Linux like the macOS one, which would leave only a handful of libraries (LAME, Opus, Vorbis, OpenH264 for casting visuals) and make the DLLs much smaller (avcodec is 87 MB today).
+
+**Patents (not a copyright license matter, noted for releases):** encoding H.264 (casting visuals) uses the operating system's encoder on Windows (Media Foundation) and macOS (VideoToolbox), which carry the vendors' licenses; on Linux it uses OpenH264 compiled from source, which is not covered by Cisco's patent license (that covers only Cisco's own binaries). AAC encoding uses FFmpeg's own encoder. MP3 patents have expired.
 
 The license texts of libopenmpt and its helper libraries are shipped next to them in the plugin folder (`plugins/AudioTastic.Input.OpenMpt/runtimes/<rid>/native/libopenmpt-*.txt`).
 

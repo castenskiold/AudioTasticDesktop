@@ -93,6 +93,18 @@ public sealed partial class PluginHostTests : IDisposable
         Assert.Equal(2, reloaded.Current.Plugins.Data["test.good"]["starts"]!.GetValue<int>());
     }
 
+    [Theory]
+    [InlineData("1.0.0", true)]
+    [InlineData("1.0.5", true)]
+    [InlineData("0.4.0", true)] // the 0.4 previews have the 1.0 contracts
+    [InlineData("0.4.3", true)]
+    [InlineData("0.3.0", false)]
+    [InlineData("1.1.0", false)] // needs a newer player
+    [InlineData("2.0.0", false)]
+    [InlineData("not a version", false)]
+    public void Sdk_1_0_runs_plugins_built_for_1_x_and_the_0_4_previews(string pluginSdk, bool runs) =>
+        Assert.Equal(runs, SdkInfo.IsCompatible(pluginSdk));
+
     [Fact]
     public void Invalid_manifest_marks_the_plugin_incompatible()
     {

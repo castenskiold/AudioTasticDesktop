@@ -5,7 +5,7 @@
   "author": "AudioTastic samples",
   "description": "A DSP effect that changes the level (setting 'gainDb'). Used by the DSP chain from phase P7.",
   "license": "MIT",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "1.0.0",
   "entryAssembly": "GainDsp.dll",
   "types": ["dsp"]
 }

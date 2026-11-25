@@ -68,7 +68,7 @@ internal static class Program
         {
             return forwarded ? 0 : 1;
         }
-        if (options.OnlyQuit)
+        if (options.OnlyQuit) // quit, stop or pause with no player running: nothing to do
         {
             return 0; // --quit with no player running: nothing to do, and nothing to start
         }

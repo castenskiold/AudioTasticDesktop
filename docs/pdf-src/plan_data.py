@@ -390,6 +390,15 @@ PROGRESS = {
                      "macOS/Linux: casting not tried by hand.",
                      "MP3 transcoding needs libmp3lame in the macOS FFmpeg build (not yet); FLAC and WAV work everywhere.",
                      "Video casting on macOS needs h264_videotoolbox in the macOS FFmpeg build (not checked yet); Linux uses libopenh264 from the FFmpeg build."]),
+    "P14": dict(status="In progress", date="", outcome=[
+                        "Decisions (Anders, 25 Nov 2026): the 24-hour soak runs now; the SDK is prepared as 1.0.0 but not published on nuget.org yet; no release in P14 (no tag); Windows signing stays deferred.",
+                        "Stability: fuzz tests for every parser that reads files or network input (playlists, CUE, EQF, damaged audio in eleven formats, mDNS, SSDP, UPnP, Cast); they found and fixed nine bugs, among them a broken mDNS answer from any device that could stop the Chromecast search and damaged playlists that failed the import. The 24-hour soak (six formats, crossfading, DSP) started on 25 Nov 2026.",
+                        "Performance on the test PC (Windows 11, Core i7-1185G7 running at 1.2 GHz): start-up to the first window 1.7–1.8 s (0.8 s of it building the skinned windows; each start now logs its steps); idle 4 % of one core, playing with the spectrum at 60 fps 7 %, paused 4 %; 250 MB working set; a 100,000-entry playlist adds about 280 MB. A track's first analysis (waveform, loudness, beats) uses up to half a core for a while, once per track.",
+                        "SDK 1.0.0 packaged and checked with the template; generated SDK reference; user guide (docs/guide); licence audit (missing transitive packages added, Svg.Custom MS-PL, FFmpeg LGPL-3.0-or-later with the libraries built into it); release packaging adds a portable Windows zip and SHA256SUMS.txt."],
+               open=["The 24-hour soak result (due 26 Nov 2026).",
+                     "Clean-machine install tests on each OS (Anders); macOS and Linux runs by hand.",
+                     "Ship the licence texts of the libraries built into the Windows/Linux FFmpeg, or (recommended) build an audio-focused FFmpeg like the macOS one.",
+                     "Publishing the SDK on nuget.org and a release, when Anders decides; Windows code signing."]),
     "P13": dict(status="Done on Windows", date="25 Nov 2026", outcome=[
                         "Scope (Anders, 25 Nov 2026): all four parts; audio CD (FM-11) then deferred because there is no CD drive to test with.",
                         "TL-01 format conversion: FLAC, Apple Lossless, WAV, MP3 (CBR/VBR), AAC, Opus and Ogg Vorbis through the FFmpeg plugin (SDK 0.4.3), keeping tags and the cover; CUE tracks become separate files; name pattern, existing files skipped/replaced/numbered, several files at once, the original never overwritten.",

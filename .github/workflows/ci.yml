@@ -281,8 +281,11 @@ jobs:
             name="AudioTastic-${version}-${rid}"
             mv "$folder" "$name"
             if [[ "$rid" == win-* ]]; then
-              zip -qr "${name}.zip" "$name"
-              files+=("${name}.zip")
+              # P14: the Windows zip is the portable edition (settings, playlists and caches next to the program);
+              # the setup.exe is the installed one.
+              touch "$name/portable"
+              zip -qr "${name}-portable.zip" "$name"
+              files+=("${name}-portable.zip")
             else
               # Artifacts lose the execute bit; tar keeps it for the app's launcher.
               chmod +x "$name/AudioTastic"
@@ -295,5 +298,8 @@ jobs:
           for package in packages/*; do
             files+=("$package")
           done
+          # P14: checksums of every asset, so downloads can be verified (sha256sum -c SHA256SUMS.txt).
+          sha256sum "${files[@]}" | sed 's#packages/##' > SHA256SUMS.txt
+          files+=(SHA256SUMS.txt)
           gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
             --title "AudioTastic ${version}" --notes-file "../docs/releases/${version}.md"

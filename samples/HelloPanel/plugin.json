@@ -5,7 +5,7 @@
   "author": "AudioTastic samples",
   "description": "Shows the playing track in a small window (Main menu › Windows) and counts track changes. Has a settings page.",
   "license": "MIT",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "1.0.0",
   "entryAssembly": "HelloPanel.dll",
   "types": ["uiPanel", "general"]
 }

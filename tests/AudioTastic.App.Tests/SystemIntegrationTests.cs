@@ -33,6 +33,10 @@ public sealed class SystemIntegrationTests
         Assert.Empty(options.Files);
         Assert.False(options.OnlyQuit);
         Assert.True(StartupOptions.Parse(["--quit"]).OnlyQuit);
+        Assert.True(StartupOptions.Parse(["--stop"]).OnlyQuit); // nothing to stop: no player is started
+        Assert.True(StartupOptions.Parse(["--pause"]).OnlyQuit);
+        Assert.False(StartupOptions.Parse(["--play"]).OnlyQuit);
+        Assert.False(StartupOptions.Parse(["--next"]).OnlyQuit);
         Assert.Equal("previous", Assert.Single(StartupOptions.Parse(["--prev"]).Controls).Name);
         Assert.Equal("previous", Assert.Single(StartupOptions.Parse(["--previous"]).Controls).Name);
     }

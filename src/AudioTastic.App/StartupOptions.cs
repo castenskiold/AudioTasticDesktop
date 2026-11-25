@@ -38,7 +38,11 @@ public sealed record StartupOptions(bool CrashTest, IReadOnlyList<string> Files,
     public IReadOnlyList<ControlCommand> Controls { get; init; } = Controls ?? [];
 
     /// <summary>True when the only request is to quit: nothing to do when the player is not running.</summary>
-    public bool OnlyQuit => Files.Count == 0 && Controls.Count > 0 && Controls.All(c => c.Name == "quit");
+    /// <summary>
+    /// Only commands that make no sense without a running player (quit, stop, pause): with none running, nothing starts
+    /// (P14: --stop used to start a player just to stop it).
+    /// </summary>
+    public bool OnlyQuit => Files.Count == 0 && Controls.Count > 0 && Controls.All(c => c.Name is "quit" or "stop" or "pause");
 
     /// <summary>Parses <paramref name="args"/>; throws <see cref="ArgumentException"/> on errors (tests and tools).</summary>
     public static StartupOptions Parse(IReadOnlyList<string> args)

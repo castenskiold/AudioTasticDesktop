@@ -2,8 +2,9 @@
 
 A Winamp replacement with extra features: a Winamp-style desktop audio player for Windows, macOS and Linux, built with .NET 10 and Avalonia.
 
+- **Using AudioTastic:** the [user guide](docs/guide/README.md).
 - **Specification and plan:** the PDFs in this folder (Required Features, Feature Specification, Implementation Plan). Their sources are in `docs/pdf-src/`.
-- **Skins and plugins:** `docs/skins/` (skin format) and `docs/plugins/` (plugin guide; the SDK is `src/AudioTastic.Sdk`).
+- **Skins and plugins:** `docs/skins/` (skin format) and `docs/plugins/` ([plugin guide](docs/plugins/plugin-guide.md) and the generated [SDK reference](docs/plugins/sdk-reference.md); the SDK is `src/AudioTastic.Sdk`, version 1.0.0).
 
 ## Requirements
 
@@ -84,7 +85,9 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 
 - **Native libraries:** see `native/README.md` (FFmpeg LGPL builds, miniaudio, SoundTouch; for plugins libopenmpt, OptimFROG and the GeneralUser GS SoundFont).
 - **Test media:** run `python scripts/generate_test_media.py` (add `--ffmpeg <path>` when ffmpeg is not on PATH; the Windows FFmpeg download in `native/downloads` contains one). It writes to `tests/media/generated/`, which is ignored by git.
-- **Soak test (P1 exit criterion):** `dotnet run -c Release --project tools/AudioTastic.SoakTest -- --minutes 60 --buffer 20` plays a long file silently through the real output and reports underruns, slow audio callbacks, memory and handles.
+- **Soak test (P1 exit criterion):** `dotnet run -c Release --project tools/AudioTastic.SoakTest -- --minutes 60 --buffer 20` plays a long file silently through the real output and reports underruns, slow audio callbacks, memory and handles. `--mix` (P14) plays six formats on repeat with crossfading and the DSP chain instead; `--minutes 1440 --mix` is the 24-hour run.
+- **Fuzz tests (P14):** part of the normal suite (a few hundred damaged inputs per parser); `AUDIOTASTIC_FUZZ_COUNT=20000` makes a deeper local run.
+- **SDK reference:** `dotnet build src/AudioTastic.Sdk -c Release` then `python scripts/make_sdk_reference.py` regenerates `docs/plugins/sdk-reference.md`.
 
 ## Repository layout
 
@@ -99,7 +102,8 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 | `native/` | Scripts that fetch or build the native libraries |
 | `scripts/` | Developer scripts (test media, sample skin, plugin template check) |
 | `assets/branding/` | Logo and app icons |
-| `docs/skins/`, `docs/plugins/` | Skin format and schema; plugin author guide |
+| `docs/guide/` | User guide and its screenshots |
+| `docs/skins/`, `docs/plugins/` | Skin format and schema; plugin author guide and SDK reference |
 | `docs/pdf-src/` | Sources of the PDF documents |
 | `.vscode/` | VS Code tasks, launch configurations and recommended extensions |
 | `.github/workflows/` | CI workflow (build/test on 3 OSes, publish 6 RIDs, native libraries) |
@@ -112,9 +116,11 @@ AudioTastic is free software under the MIT license (`LICENSE`), copyright Big Ap
 
 Releases are on the [Releases page](https://github.com/castenskiold/AudioTasticDesktop/releases): for each of Windows, macOS and Linux (x64 and ARM64) an installer or package and a plain archive, plus the optional OptimFROG plugin. Each release's notes say what was tested.
 
-- **Windows:** `AudioTastic-<version>-win-x64-setup.exe` (or `-win-arm64-`) installs for the current user without administrator rights, with a Start menu entry and an uninstall entry (which also removes the file types and context menu entries). The `.zip` is the same program to unpack anywhere (add a file named `portable` for portable mode).
+- **Windows:** `AudioTastic-<version>-win-x64-setup.exe` (or `-win-arm64-`) installs for the current user without administrator rights, with a Start menu entry and an uninstall entry (which also removes the file types and context menu entries). The `-portable.zip` is the same program to unpack anywhere; it runs in portable mode (settings, playlists and caches in a `Data` folder next to the program).
 - **macOS:** open the `.dmg` and drag AudioTastic to Applications. It is not notarised yet: the first time, right-click AudioTastic and choose *Open*.
 - **Linux:** the `.AppImage` is one file: make it executable (`chmod +x`) and run it. The `.tar.gz` holds the same program.
+
+Every release also has `SHA256SUMS.txt` with the checksums of all its files: `sha256sum -c SHA256SUMS.txt` (Linux, macOS with `shasum -a 256 -c`), or compare with `Get-FileHash` on Windows.
 
 Building the packages yourself: `packaging/` holds the Inno Setup script (`windows/AudioTastic.iss`, compile with ISCC), `macos/make_app.sh` and `linux/make_appimage.sh`; CI runs them after `dotnet publish`.
 

@@ -5,7 +5,7 @@
   "author": "AudioTastic",
   "description": "Plays most audio formats and internet radio through FFmpeg (LGPL build).",
   "license": "MIT (part of AudioTastic); uses FFmpeg (LGPL-2.1-or-later)",
-  "sdkVersion": "0.4.1",
+  "sdkVersion": "1.0.0",
   "entryAssembly": "AudioTastic.Input.Ffmpeg.dll",
   "types": ["input"],
   "priority": -100
