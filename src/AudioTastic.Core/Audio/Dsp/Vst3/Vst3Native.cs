@@ -8,7 +8,7 @@ namespace AudioTastic.Core.Audio.Dsp.Vst3;
 /// </summary>
 internal static unsafe partial class Vst3Native
 {
-    public const int ApiVersionExpected = 1;
+    public const int ApiVersionExpected = 2;
     public const string Library = "at_vst3host";
 
     static Vst3Native() => AudioTastic.Sdk.Interop.NativeLibraries.RegisterResolver(typeof(Vst3Native).Assembly);
@@ -30,6 +30,12 @@ internal static unsafe partial class Vst3Native
 
     [LibraryImport(Library, EntryPoint = "at_vst3_latency")]
     public static partial int Latency(nint plugin);
+
+    [LibraryImport(Library, EntryPoint = "at_vst3_flush_output")]
+    public static partial int FlushOutput(nint plugin);
+
+    [LibraryImport(Library, EntryPoint = "at_vst3_take_restart_flags")]
+    public static partial int TakeRestartFlags(nint plugin);
 
     [LibraryImport(Library, EntryPoint = "at_vst3_get_state")]
     public static partial int GetState(nint plugin, byte* buffer, int capacity);

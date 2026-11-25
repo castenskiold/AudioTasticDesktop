@@ -364,7 +364,7 @@ public sealed class SettingsWindow : Window
         Check(services, "Tags from MusicBrainz", m.LookupTags, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupTags = v));
         Check(services, "Covers from the Cover Art Archive", m.LookupCovers, v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupCovers = v));
         // MD-03: optional Discogs fallback for covers, with the user's own token.
-        Check(services, "When the Cover Art Archive has no cover, ask Discogs", m.LookupDiscogs,
+        Check(services, "Discogs first (tags and covers; MusicBrainz and the Cover Art Archive when Discogs has nothing)", m.LookupDiscogs,
             v => _settings.Update(SettingsGroup.Metadata, s => s.Metadata.LookupDiscogs = v));
         var discogsToken = new TextBox { Text = m.DiscogsToken ?? string.Empty, PasswordChar = '•', Width = 320, PlaceholderText = "Personal access token" };
         discogsToken.LostFocus += (_, _) =>

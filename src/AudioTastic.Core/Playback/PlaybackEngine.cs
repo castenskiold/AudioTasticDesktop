@@ -165,7 +165,14 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
 
     public TimeSpan Position => _state == PlaybackState.Stopped || _track is null
         ? TimeSpan.Zero
-        : _remote is { } remote ? remote.Position : _sourceFormat.FramesToTime(_deck.PositionFrames);
+        : _remote is { } remote ? remote.Position : _sourceFormat.FramesToTime(AudiblePositionFrames());
+
+    /// <summary>
+    /// EQ-06 latency compensation: what is heard lags what the deck has handed on by the DSP chain's delay (look-ahead
+    /// limiter, VST3 effects), so the position is that much earlier, but never before the point playback started or
+    /// last jumped to.
+    /// </summary>
+    private long AudiblePositionFrames() => _deck.AudiblePositionFrames(_graph.Dsp.LatencyFrames);
 
     private IRemotePlayer? _remote;
     private int _remoteFailures; // tracks the device refused in a row
@@ -2220,17 +2227,27 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
         Raise(PlayModeChanged, EventArgs.Empty);
     }
 
+    /// <summary>Runs on a timer thread: nothing may escape it (an unhandled exception there ends the process).</summary>
     private void SavePlaybackState()
     {
-        var (volume, muted) = (_volume, _muted);
-        var current = _settings.Current.Playback;
-        if (current.Volume != volume || current.Muted != muted)
+        try
         {
-            _settings.Update(SettingsGroup.Playback, s =>
+            var (volume, muted) = (_volume, _muted);
+            var current = _settings.Current.Playback;
+            if (current.Volume != volume || current.Muted != muted)
             {
-                s.Playback.Volume = volume;
-                s.Playback.Muted = muted;
-            });
+                _settings.Update(SettingsGroup.Playback, s =>
+                {
+                    s.Playback.Volume = volume;
+                    s.Playback.Muted = muted;
+                });
+            }
+        }
+#pragma warning disable CA1031 // Timer callback: log, never crash the player over saving the volume.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "Could not save the volume");
         }
     }
 

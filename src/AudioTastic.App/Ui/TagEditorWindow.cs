@@ -183,7 +183,7 @@ public sealed class TagEditorWindow : Window
         }
         var current = _boxes.Where(b => !string.IsNullOrEmpty(b.Value.Box.Text)).ToDictionary(b => b.Key, b => b.Value.Box.Text!);
         var choice = await LookupWindow.ShowAsync(this, new LookupRequest(_lookup.Service, title, string.IsNullOrEmpty(artist) ? null : artist, _lookup.Length,
-            current, _lookup.Tags, _lookup.Covers, _lookup.Covers ? _lookup.DiscogsToken : null));
+            current, _lookup.Tags, _lookup.Covers, _lookup.DiscogsToken));
         if (choice is null)
         {
             return;

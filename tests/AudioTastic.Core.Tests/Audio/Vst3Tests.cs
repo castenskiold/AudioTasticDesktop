@@ -245,9 +245,11 @@ public sealed class Vst3Tests
                 }
                 Assert.True(plugin.Process(audio), effect.Name);
                 Assert.All(audio, v => Assert.True(float.IsFinite(v), effect.Name));
+                var meters = plugin.FlushOutputParameters(); // API v2: values reported while processing
+                Assert.True(meters >= 0);
                 var state = plugin.GetState();
                 plugin.SetState(state);
-                report.Add($"{effect.Name} ({effect.Vendor}): latency {plugin.Latency}, editor {plugin.HasEditor}, state {state.Length} bytes");
+                report.Add($"{effect.Name} ({effect.Vendor}): latency {plugin.Latency}, editor {plugin.HasEditor}, output values {meters}, state {state.Length} bytes");
             }
         }
         Assert.NotEmpty(report);

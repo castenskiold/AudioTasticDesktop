@@ -62,6 +62,30 @@ public sealed class DspChain
     /// <summary>Any thread: clear effect state (reverb tails etc.) before the next block (seek, new track).</summary>
     public void RequestReset() => _resetRequested = true;
 
+    /// <summary>
+    /// EQ-06: the frames by which the enabled stages delay the audio, summed (0 while bypassed). Not for the audio
+    /// thread.
+    /// </summary>
+    public int LatencyFrames
+    {
+        get
+        {
+            if (Bypass)
+            {
+                return 0;
+            }
+            var total = 0;
+            foreach (var stage in Stages)
+            {
+                if (stage.Enabled)
+                {
+                    total += Math.Max(0, stage.LatencyFrames);
+                }
+            }
+            return total;
+        }
+    }
+
     /// <summary>Audio thread.</summary>
     public void Process(Span<float> samples, int channels)
     {

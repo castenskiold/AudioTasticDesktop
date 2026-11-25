@@ -128,8 +128,12 @@ public sealed class Vst3EditorWindow : Window
         CanResize = false;
         var host = new Vst3EditorHost(plugin, this, message => Dispatcher.UIThread.Post(() => Content = new TextBlock { Text = message, Margin = new Thickness(16), TextWrapping = TextWrapping.Wrap, MaxWidth = 360 }));
         Content = host;
+        // EQ-06: the plug-in's meters (output parameters) reach its editor, and a changed latency is picked up.
+        var meters = new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Background, (_, _) => stage.Poll());
+        meters.Start();
         Closed += (_, _) =>
         {
+            meters.Stop();
             Open.Remove(stage.Id);
             _dsp.SaveVst3States(); // the editor's changes survive a restart
         };

@@ -101,28 +101,38 @@ public sealed class Deck : IDisposable
     public bool HasEnded => Volatile.Read(ref _state) == StateEnded;
 
     /// <summary>Playback position in source frames (what has been handed to the output).</summary>
-    public long PositionFrames
+    public long PositionFrames => PositionAt(Volatile.Read(ref _consumedFrames));
+
+    /// <summary>
+    /// EQ-06: the position of what is heard when the audio after the deck is delayed by <paramref name="latencyFrames"/>
+    /// output frames (DSP look-ahead, plug-in latency); never before the point the deck was loaded or seeked to.
+    /// </summary>
+    public long AudiblePositionFrames(int latencyFrames)
     {
-        get
+        var consumed = Volatile.Read(ref _consumedFrames);
+        return latencyFrames <= 0 ? PositionAt(consumed)
+            : consumed <= latencyFrames ? Volatile.Read(ref _positionBase)
+            : PositionAt(consumed - latencyFrames);
+    }
+
+    private long PositionAt(long consumed)
+    {
+        var count = Volatile.Read(ref _cpCount);
+        if (count == 0)
         {
-            var consumed = Volatile.Read(ref _consumedFrames);
-            var count = Volatile.Read(ref _cpCount);
-            if (count == 0)
-            {
-                return Volatile.Read(ref _positionBase) + consumed;
-            }
-            // The newest checkpoint at or before the consumed frame; the chunk after it ran at the next one's speed.
-            for (var k = count - 1; k >= Math.Max(0, count - Checkpoints); k--)
-            {
-                var i = k % Checkpoints;
-                if (_cpWritten[i] <= consumed)
-                {
-                    var speed = k + 1 < count ? _cpSpeed[(k + 1) % Checkpoints] : _cpSpeed[i];
-                    return _cpPosition[i] + (long)Math.Round((consumed - _cpWritten[i]) * speed);
-                }
-            }
             return Volatile.Read(ref _positionBase) + consumed;
         }
+        // The newest checkpoint at or before the consumed frame; the chunk after it ran at the next one's speed.
+        for (var k = count - 1; k >= Math.Max(0, count - Checkpoints); k--)
+        {
+            var i = k % Checkpoints;
+            if (_cpWritten[i] <= consumed)
+            {
+                var speed = k + 1 < count ? _cpSpeed[(k + 1) % Checkpoints] : _cpSpeed[i];
+                return _cpPosition[i] + (long)Math.Round((consumed - _cpWritten[i]) * speed);
+            }
+        }
+        return Volatile.Read(ref _positionBase) + consumed;
     }
 
     /// <summary>

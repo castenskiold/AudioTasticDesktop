@@ -117,6 +117,18 @@ public sealed unsafe class Vst3Plugin : IDisposable
     /// <summary>The plug-in's processing latency in frames.</summary>
     public int Latency => Vst3Native.Latency(Handle);
 
+    /// <summary>VST3 restart flag: the plug-in's latency changed.</summary>
+    public const int RestartLatencyChanged = 1 << 3;
+
+    /// <summary>
+    /// UI thread: hands the values the plug-in reported while processing (meters, gain reduction) to its editor.
+    /// Returns how many were handed over.
+    /// </summary>
+    public int FlushOutputParameters() => Math.Max(0, Vst3Native.FlushOutput(Handle));
+
+    /// <summary>The restart flags the plug-in raised since the last call (e.g. <see cref="RestartLatencyChanged"/>).</summary>
+    public int TakeRestartFlags() => Vst3Native.TakeRestartFlags(Handle);
+
     /// <summary>The plug-in's state (parameters, presets), to be stored with the chain.</summary>
     public byte[] GetState()
     {

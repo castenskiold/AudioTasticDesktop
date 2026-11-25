@@ -58,7 +58,7 @@ API version 2 (P6) added sample formats (`AT_MA_FORMAT_F32/S16/S24/S32`), exclus
 
 ## VST3 host shim
 
-`vst3host/at_vst3host.h` is a flat C API (opaque handle, API version 1) over the SDK's hosting classes: scan a module, open a class, set up stereo processing, process interleaved float in place, latency, state (component + controller, length-prefixed), and the editor in a native window (HWND, NSView, X11). `at_vst3scan <module>` prints a module's effect classes as JSON; the player runs it as a separate process per module so a plug-in that crashes or hangs while loading is blacklisted instead of taking the player down. Bump `AT_VST3_API_VERSION` and `Vst3Native.ApiVersionExpected` together.
+`vst3host/at_vst3host.h` is a flat C API (opaque handle, API version 2) over the SDK's hosting classes: scan a module, open a class, set up stereo processing, process interleaved float in place, latency, output parameters (meters: queued lock-free on the audio thread, handed to the edit controller by `at_vst3_flush_output` on the UI thread; API v2), restart flags (`at_vst3_take_restart_flags`, e.g. latency changed; API v2), state (component + controller, length-prefixed), and the editor in a native window (HWND, NSView, X11). `at_vst3scan <module>` prints a module's effect classes as JSON; the player runs it as a separate process per module so a plug-in that crashes or hangs while loading is blacklisted instead of taking the player down. Bump `AT_VST3_API_VERSION` and `Vst3Native.ApiVersionExpected` together.
 
 The SDK's `HostProcessData` owns the bus buffers (it frees them): audio is copied into and out of them, never replaced by our own pointers (that corrupted the heap in the first version).
 

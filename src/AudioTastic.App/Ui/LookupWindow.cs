@@ -17,9 +17,11 @@ public sealed record LookupRequest(OnlineLookupService Service, string Title, st
 public sealed record LookupChoice(IReadOnlyDictionary<TagField, string> Fields, TagPicture? Cover);
 
 /// <summary>
-/// MD-03: Tag editor › Look up online…. Searches MusicBrainz (title, artist, length), lists the matches, and shows a
-/// match's values next to the current ones with a tick per field (ticked where they differ), plus its Cover Art
-/// Archive cover. "Use" copies the ticked values into the editor; nothing is written until the editor's Save.
+/// MD-03: Tag editor › Look up online…. With a Discogs token (Settings › Metadata) Discogs is searched first and
+/// MusicBrainz only when Discogs has no match or cannot be reached; without one, MusicBrainz (title, artist, length).
+/// Lists the matches and shows a match's values next to the current ones with a tick per field (ticked where they
+/// differ), plus its cover (Discogs' own, or the Cover Art Archive's with Discogs as the fallback). "Use" copies the
+/// ticked values into the editor; nothing is written until the editor's Save.
 /// </summary>
 #pragma warning disable CA1001 // The cancellation source is disposed when replaced and on Closed (windows are not IDisposable).
 public sealed class LookupWindow : Window
@@ -29,6 +31,7 @@ public sealed class LookupWindow : Window
     [
         (TagField.Title, "Title"), (TagField.Artist, "Artist"), (TagField.AlbumArtist, "Album artist"), (TagField.Album, "Album"),
         (TagField.Year, "Year"), (TagField.Track, "Track"), (TagField.TrackCount, "Tracks"), (TagField.Disc, "Disc"),
+        (TagField.Genre, "Genre"),
     ];
 
     private readonly LookupRequest _request;
@@ -50,7 +53,7 @@ public sealed class LookupWindow : Window
     private LookupWindow(LookupRequest request)
     {
         _request = request;
-        Title = "Look up online (MusicBrainz)";
+        Title = request.DiscogsToken is null ? "Look up online (MusicBrainz)" : "Look up online (Discogs, then MusicBrainz)";
         Width = 720;
         Height = 620;
         MinWidth = 560;
@@ -109,7 +112,8 @@ public sealed class LookupWindow : Window
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), Children = { cancel, _use } };
         var footnote = new TextBlock
         {
-            Text = "Data from MusicBrainz (CC0) and the Cover Art Archive. Nothing is written until you save in the tag editor.",
+            Text = (request.DiscogsToken is null ? "Data from MusicBrainz (CC0) and the Cover Art Archive." : "Data from Discogs, else MusicBrainz (CC0) and the Cover Art Archive.")
+                   + " Nothing is written until you save in the tag editor.",
             FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0),
         };
         DockPanel.SetDock(top, Dock.Top);
@@ -152,9 +156,37 @@ public sealed class LookupWindow : Window
             return;
         }
         var token = Restart();
-        _status.Text = "Searching MusicBrainz…";
         _matches.ItemsSource = null;
         Clear();
+        string? discogsNote = null;
+        if (_request.DiscogsToken is { } discogs)
+        {
+            // MD-03: Discogs first when the user has a token; MusicBrainz only when Discogs has nothing.
+            _status.Text = "Searching Discogs…";
+            try
+            {
+                _candidates = await _request.Service.DiscogsSearchAsync(title, _artist.Text, _request.Current.GetValueOrDefault(TagField.Album), discogs, token);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+                if (_candidates.Count > 0)
+                {
+                    Show($"{_candidates.Count} matches on Discogs: pick one to compare.");
+                    return;
+                }
+                discogsNote = "Not found on Discogs. ";
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+            {
+                discogsNote = $"Discogs could not be used ({ex.Message}). ";
+            }
+        }
+        _status.Text = (discogsNote ?? string.Empty) + "Searching MusicBrainz…";
         try
         {
             _candidates = await _request.Service.SearchAsync(title, _artist.Text, _request.Length, token);
@@ -167,23 +199,28 @@ public sealed class LookupWindow : Window
                 // Lengths differ between releases: try once more without it.
                 _candidates = await _request.Service.SearchAsync(title, _artist.Text, null, token);
             }
-            _status.Text = _candidates.Count == 0 ? "No matches. Check the title and artist, or try without the artist." : $"{_candidates.Count} matches: pick one to compare.";
-            _matches.ItemsSource = _candidates.Select(Describe).ToList();
-            if (_candidates.Count > 0)
-            {
-                _matches.SelectedIndex = 0;
-            }
+            Show((discogsNote ?? string.Empty) + (_candidates.Count == 0 ? "No matches. Check the title and artist, or try without the artist." : $"{_candidates.Count} matches on MusicBrainz: pick one to compare."));
         }
         catch (OperationCanceledException)
         {
         }
         catch (HttpRequestException ex)
         {
-            _status.Text = $"MusicBrainz could not be reached: {ex.Message}";
+            _status.Text = (discogsNote ?? string.Empty) + $"MusicBrainz could not be reached: {ex.Message}";
         }
         catch (System.Text.Json.JsonException)
         {
-            _status.Text = "MusicBrainz sent an answer that could not be read.";
+            _status.Text = (discogsNote ?? string.Empty) + "MusicBrainz sent an answer that could not be read.";
+        }
+    }
+
+    private void Show(string status)
+    {
+        _status.Text = status;
+        _matches.ItemsSource = _candidates.Select(Describe).ToList();
+        if (_candidates.Count > 0)
+        {
+            _matches.SelectedIndex = 0;
         }
     }
 
@@ -202,7 +239,11 @@ public sealed class LookupWindow : Window
         {
             parts.Add(FileInfoReader.Time(l)[..^4]);
         }
-        parts.Add($"score {c.Score}");
+        if (c.Genre is { } g)
+        {
+            parts.Add(g);
+        }
+        parts.Add(c.Source == LookupSource.Discogs ? "Discogs" : $"score {c.Score}");
         return string.Join("  ·  ", parts);
     }
 
@@ -228,9 +269,32 @@ public sealed class LookupWindow : Window
         }
         var candidate = _candidates[index];
         var token = Restart();
+        if (candidate.Source == LookupSource.Discogs && !candidate.IsComplete && _request.DiscogsToken is { } discogs)
+        {
+            // The release's track list gives the track number, disc and exact title.
+            _coverText.Text = "Reading the release from Discogs…";
+            try
+            {
+                candidate = await _request.Service.DiscogsCompleteAsync(candidate, discogs, token);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+                _candidates = [.. _candidates.Select((c, i) => i == index ? candidate : c)];
+                _coverText.Text = string.Empty;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+            {
+                _coverText.Text = $"Discogs: {ex.Message}";
+            }
+        }
         if (_request.Tags)
         {
-            AddRow(0, null, "Field", "Current", "MusicBrainz", header: true);
+            AddRow(0, null, "Field", "Current", candidate.Source == LookupSource.Discogs ? "Discogs" : "MusicBrainz", header: true);
             var row = 1;
             foreach (var (field, label) in Compared)
             {
@@ -251,6 +315,11 @@ public sealed class LookupWindow : Window
             }
         }
         UpdateUse();
+        if (_request.Covers && candidate.Source == LookupSource.Discogs)
+        {
+            await ShowDiscogsCoverAsync(candidate, token);
+            return;
+        }
         if (_request.Covers)
         {
             if (candidate.ReleaseId is null && (_request.DiscogsToken is null || candidate.Album is null))
@@ -263,11 +332,11 @@ public sealed class LookupWindow : Window
             {
                 var cover = candidate.ReleaseId is { } release ? await _request.Service.FrontCoverAsync(release, token) : null;
                 var source = "Cover Art Archive";
-                if (cover is null && _request.DiscogsToken is { } discogs && candidate.Album is { } album && !token.IsCancellationRequested)
+                if (cover is null && _request.DiscogsToken is { } discogsToken && candidate.Album is { } album && !token.IsCancellationRequested)
                 {
                     // MD-03: the Cover Art Archive has none; try Discogs (Settings › Metadata).
                     _coverText.Text = "No cover in the Cover Art Archive; asking Discogs…";
-                    cover = await _request.Service.DiscogsCoverAsync(album, candidate.AlbumArtist ?? candidate.Artist, discogs, token);
+                    cover = await _request.Service.DiscogsCoverAsync(album, candidate.AlbumArtist ?? candidate.Artist, discogsToken, token);
                     source = "Discogs";
                 }
                 if (token.IsCancellationRequested)
@@ -298,6 +367,46 @@ public sealed class LookupWindow : Window
             {
                 _coverText.Text = $"No cover: {ex.Message}";
             }
+        }
+    }
+
+    /// <summary>A Discogs match's own cover (the release's primary image, else the search's).</summary>
+    private async Task ShowDiscogsCoverAsync(LookupCandidate candidate, CancellationToken token)
+    {
+        if (candidate.CoverUrl is not { } url)
+        {
+            _coverText.Text = "Discogs has no cover for this release.";
+            return;
+        }
+        _coverText.Text = "Loading cover…";
+        try
+        {
+            var cover = await _request.Service.DownloadCoverAsync(url, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+            _cover = cover;
+            if (cover is null)
+            {
+                _coverText.Text = "Discogs has no usable cover for this release.";
+                return;
+            }
+            using var stream = new MemoryStream(cover.Data);
+            _coverImage.Source = Bitmap.DecodeToWidth(stream, 240);
+            _coverText.Text = $"From Discogs: {cover.MimeType}, {cover.Data.Length / 1024.0:0} KB";
+            _useCover.IsEnabled = true;
+            _useCover.IsChecked = true;
+            UpdateUse();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+#pragma warning disable CA1031 // A cover that cannot be fetched or decoded is simply not offered.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _coverText.Text = $"No cover: {ex.Message}";
         }
     }
 

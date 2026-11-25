@@ -3,11 +3,19 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace AudioTastic.Metadata;
 
-/// <summary>MD-03: one MusicBrainz match: a recording on a release.</summary>
+/// <summary>MD-03: where a lookup match comes from.</summary>
+public enum LookupSource
+{
+    MusicBrainz,
+    Discogs,
+}
+
+/// <summary>MD-03: one match: a recording on a release (MusicBrainz), or a release with the track (Discogs).</summary>
 public sealed record LookupCandidate(
     string Title,
     string? Artist,
@@ -22,6 +30,18 @@ public sealed record LookupCandidate(
     string RecordingId,
     string? ReleaseId)
 {
+    /// <summary>The service the match comes from.</summary>
+    public LookupSource Source { get; init; } = LookupSource.MusicBrainz;
+
+    /// <summary>Discogs: the release's style (more specific) or genre.</summary>
+    public string? Genre { get; init; }
+
+    /// <summary>Discogs: the cover image the search listed (the release details may name a better one).</summary>
+    public string? CoverUrl { get; init; }
+
+    /// <summary>Discogs: true once the release details (track number, disc) have been read.</summary>
+    public bool IsComplete { get; init; }
+
     /// <summary>The candidate as tag fields (only those it has).</summary>
     public IReadOnlyDictionary<TagField, string> Fields
     {
@@ -43,6 +63,7 @@ public sealed record LookupCandidate(
             Add(TagField.Track, Track?.ToString(c));
             Add(TagField.TrackCount, TrackCount?.ToString(c));
             Add(TagField.Disc, Disc?.ToString(c));
+            Add(TagField.Genre, Genre);
             return fields;
         }
     }
@@ -90,7 +111,7 @@ public sealed class RequestSpacer(TimeSpan interval, Func<DateTimeOffset>? now =
 /// User-Agent; answers are cached for the session. Nothing is written here: the tag editor shows the results for the
 /// user to accept.
 /// </summary>
-public sealed class OnlineLookupService : IDisposable
+public sealed partial class OnlineLookupService : IDisposable
 {
     public const string MusicBrainzSearch = "https://musicbrainz.org/ws/2/recording";
     public const string CoverArtArchive = "https://coverartarchive.org/release";
@@ -213,9 +234,27 @@ public sealed class OnlineLookupService : IDisposable
         {
             return cached;
         }
-        var json = await _discogsSpacer.RunAsync(async () =>
+        var json = await DiscogsJsonAsync(url, token, cancellationToken).ConfigureAwait(false);
+        TagPicture? cover = null;
+        foreach (var image in ParseDiscogsCovers(json))
         {
-            _logger.LogInformation("Discogs cover lookup: {Url}", url);
+            cover = await DownloadCoverAsync(image, cancellationToken).ConfigureAwait(false);
+            if (cover is not null)
+            {
+                break;
+            }
+        }
+        _discogs[url] = cover;
+        return cover;
+    }
+
+    /// <summary>One Discogs API request (spaced one second apart; the token in the Authorization header only).</summary>
+    private Task<string> DiscogsJsonAsync(string url, string token, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        return _discogsSpacer.RunAsync(async () =>
+        {
+            _logger.LogInformation("Discogs lookup: {Url}", url);
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.ParseAdd("application/json");
             request.Headers.TryAddWithoutValidation("Authorization", "Discogs token=" + token.Trim());
@@ -230,19 +269,249 @@ public sealed class OnlineLookupService : IDisposable
             }
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        }, cancellationToken).ConfigureAwait(false);
-        TagPicture? cover = null;
-        foreach (var image in ParseDiscogsCovers(json))
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// The Discogs search URL for releases with a track called <paramref name="title"/> (by <paramref name="artist"/>),
+    /// on the album <paramref name="album"/> or, with <paramref name="albumsOnly"/>, on any album.
+    /// </summary>
+    public static string DiscogsTrackSearchUrl(string title, string? artist, string? album = null, bool albumsOnly = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        var url = new StringBuilder($"{DiscogsSearch}?type=release&per_page=50&track={Uri.EscapeDataString(title.Trim())}");
+        if (!string.IsNullOrWhiteSpace(artist))
         {
-            cover = await _discogsSpacer.RunAsync(() => DownloadImageAsync(image, cancellationToken), cancellationToken).ConfigureAwait(false);
-            if (cover is not null)
+            url.Append("&artist=").Append(Uri.EscapeDataString(artist.Trim()));
+        }
+        if (!string.IsNullOrWhiteSpace(album))
+        {
+            url.Append("&release_title=").Append(Uri.EscapeDataString(album.Trim()));
+        }
+        if (albumsOnly)
+        {
+            url.Append("&format=Album");
+        }
+        return url.ToString();
+    }
+
+    /// <summary>
+    /// MD-03 (Discogs first, when the user has a token): releases with this track, best first. Discogs' own order puts
+    /// singles named after a well-known song first, so the search narrows step by step and stops at the first that finds
+    /// something: on the file's album (when it has an album tag), on any album, then anywhere. Track and disc numbers come
+    /// with <see cref="DiscogsCompleteAsync"/> when a match is picked.
+    /// </summary>
+    public async Task<IReadOnlyList<LookupCandidate>> DiscogsSearchAsync(string title, string? artist, string? album, string token, CancellationToken cancellationToken)
+    {
+        var urls = new List<string>();
+        if (!string.IsNullOrWhiteSpace(album))
+        {
+            urls.Add(DiscogsTrackSearchUrl(title, artist, album));
+        }
+        urls.Add(DiscogsTrackSearchUrl(title, artist, albumsOnly: true));
+        urls.Add(DiscogsTrackSearchUrl(title, artist));
+        foreach (var url in urls)
+        {
+            if (!_searches.TryGetValue(url, out var candidates))
             {
-                break;
+                candidates = ParseDiscogsSearch(await DiscogsJsonAsync(url, token, cancellationToken).ConfigureAwait(false), title, artist);
+                _searches[url] = candidates;
+            }
+            if (candidates.Count > 0)
+            {
+                return candidates;
             }
         }
-        _discogs[url] = cover;
+        return [];
+    }
+
+    /// <summary>A Discogs match with its release details: the track's number, disc, exact title and artists.</summary>
+    public async Task<LookupCandidate> DiscogsCompleteAsync(LookupCandidate candidate, string token, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        if (candidate.Source != LookupSource.Discogs || candidate.IsComplete || candidate.ReleaseId is null)
+        {
+            return candidate;
+        }
+        var json = await DiscogsJsonAsync($"https://api.discogs.com/releases/{Uri.EscapeDataString(candidate.ReleaseId)}", token, cancellationToken).ConfigureAwait(false);
+        return CompleteFromDiscogsRelease(candidate, json);
+    }
+
+    /// <summary>Downloads a cover image (JPEG or PNG, at most 8 MB), cached for the session; null when it is not one.</summary>
+    public async Task<TagPicture?> DownloadCoverAsync(string url, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        if (_covers.TryGetValue(url, out var cached))
+        {
+            return cached;
+        }
+        var cover = await DownloadImageAsync(url, cancellationToken).ConfigureAwait(false);
+        _covers[url] = cover;
         return cover;
     }
+
+    /// <summary>
+    /// Discogs search JSON → candidates, best first ("Artist - Album" titles split; style before genre). Ranked by how
+    /// many Discogs users own the release, albums up, singles, promos and unofficial releases down; pressings of the
+    /// same album are merged (the most owned one stays).
+    /// </summary>
+    public static IReadOnlyList<LookupCandidate> ParseDiscogsSearch(string json, string title, string? artist)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+        var list = new List<LookupCandidate>();
+        foreach (var result in results.EnumerateArray())
+        {
+            var id = result.TryGetProperty("id", out var idValue) && idValue.TryGetInt64(out var n) ? n.ToString(CultureInfo.InvariantCulture) : null;
+            var full = String(result, "title");
+            if (id is null || full is null)
+            {
+                continue;
+            }
+            var dash = full.IndexOf(" - ", StringComparison.Ordinal);
+            var albumArtist = dash > 0 ? CleanDiscogsName(full[..dash]) : null;
+            var album = dash > 0 ? full[(dash + 3)..].Trim() : full;
+            var year = Year(String(result, "year"));
+            var cover = String(result, "cover_image");
+            var formats = result.TryGetProperty("format", out var f) && f.ValueKind == JsonValueKind.Array
+                ? f.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : [];
+            var have = result.TryGetProperty("community", out var community) && community.TryGetProperty("have", out var h) && h.TryGetInt32(out var count) ? count : 0;
+            var score = 40 + Math.Min(40, 10 * Math.Log10(have + 1))
+                + (formats.Contains("Album") ? 15 : 0)
+                - (formats.Contains("Single") ? 20 : 0)
+                - (formats.Contains("Promo") ? 10 : 0)
+                - (formats.Contains("Unofficial Release") ? 30 : 0)
+                - (string.Equals(album, title.Trim(), StringComparison.OrdinalIgnoreCase) ? 10 : 0);
+            list.Add(new LookupCandidate(title.Trim(), string.IsNullOrWhiteSpace(artist) ? albumArtist : artist.Trim(), album, albumArtist, year,
+                null, null, null, null, (int)Math.Clamp(Math.Round(score), 1, 100), $"discogs:{id}", id)
+            {
+                Source = LookupSource.Discogs,
+                Genre = First(result, "style") ?? First(result, "genre"),
+                CoverUrl = cover is not null && cover.StartsWith("https://", StringComparison.Ordinal) && !cover.Contains("spacer.gif", StringComparison.OrdinalIgnoreCase) ? cover : null,
+            });
+        }
+        // Best first (a stable sort keeps Discogs' order for equal scores), one entry per album.
+        return [.. list.OrderByDescending(c => c.Score)
+            .DistinctBy(c => (c.AlbumArtist?.ToUpperInvariant(), c.Album?.ToUpperInvariant()))];
+    }
+
+    /// <summary>
+    /// Discogs release JSON → the candidate with the track's number and disc (matched by title in the track list),
+    /// the release's artists and year, and its primary image.
+    /// </summary>
+    public static LookupCandidate CompleteFromDiscogsRelease(LookupCandidate candidate, string json)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(json);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var releaseArtist = DiscogsArtists(root) ?? candidate.AlbumArtist;
+        var year = root.TryGetProperty("year", out var y) && y.TryGetInt32(out var yy) && yy > 0 ? yy : candidate.Year;
+        var cover = candidate.CoverUrl;
+        if (root.TryGetProperty("images", out var images) && images.ValueKind == JsonValueKind.Array)
+        {
+            var best = images.EnumerateArray().OrderBy(i => String(i, "type") == "primary" ? 0 : 1).Select(i => String(i, "uri")).FirstOrDefault(u => u is not null);
+            cover = best ?? cover;
+        }
+        var result = candidate with { AlbumArtist = releaseArtist, Year = year, CoverUrl = cover, IsComplete = true, Album = String(root, "title") ?? candidate.Album };
+        if (!root.TryGetProperty("tracklist", out var tracklist) || tracklist.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+        var tracks = new List<(string Title, int? Disc, int Number, string? Artist)>();
+        var sequence = new Dictionary<int, int>();
+        foreach (var t in tracklist.EnumerateArray())
+        {
+            if (String(t, "type_") is { } kind && kind != "track")
+            {
+                continue; // headings and index tracks
+            }
+            var name = String(t, "title");
+            if (name is null)
+            {
+                continue;
+            }
+            var (disc, number) = Position(String(t, "position"));
+            var key = disc ?? 0;
+            sequence[key] = sequence.GetValueOrDefault(key) + 1;
+            tracks.Add((name, disc, number ?? sequence[key], DiscogsArtists(t)));
+        }
+        var wanted = Normalise(candidate.Title);
+        var match = tracks.FirstOrDefault(t => Normalise(t.Title) == wanted);
+        if (match.Title is null)
+        {
+            match = tracks.FirstOrDefault(t => Normalise(t.Title).Contains(wanted, StringComparison.Ordinal) || wanted.Contains(Normalise(t.Title), StringComparison.Ordinal));
+        }
+        if (match.Title is null)
+        {
+            return result;
+        }
+        return result with
+        {
+            Title = match.Title,
+            Artist = match.Artist ?? releaseArtist ?? candidate.Artist,
+            AlbumArtist = match.Artist is not null && match.Artist != releaseArtist ? releaseArtist : null, // only when it differs (compilations)
+            Track = match.Number,
+            TrackCount = tracks.Count(t => t.Disc == match.Disc),
+            Disc = match.Disc,
+        };
+    }
+
+    /// <summary>"1-3" / "CD2-5" / "2.07" → (disc, track); "7" → (null, 7); vinyl sides ("A1") → (null, null).</summary>
+    private static (int? Disc, int? Track) Position(string? position)
+    {
+        if (position is null)
+        {
+            return (null, null);
+        }
+        var m = DiscTrack().Match(position.Trim());
+        if (m.Success)
+        {
+            return (int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture));
+        }
+        return int.TryParse(position.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var track) ? (null, track) : (null, null);
+    }
+
+    [GeneratedRegex(@"^(?:CD|DVD|Disc)?\s*(\d+)[-.](\d+)$", RegexOptions.IgnoreCase)]
+    private static partial Regex DiscTrack();
+
+    /// <summary>Lower-case letters and digits only, for comparing titles.</summary>
+    private static string Normalise(string text) => new([.. text.ToLowerInvariant().Where(char.IsLetterOrDigit)]);
+
+    /// <summary>Discogs adds " (2)" to tell same-named artists apart, and "*" for name variations: neither belongs in a tag.</summary>
+    private static string CleanDiscogsName(string name) => DiscogsNumber().Replace(name.Trim().TrimEnd('*'), string.Empty).Trim();
+
+    [GeneratedRegex(@"\s\(\d+\)$")]
+    private static partial Regex DiscogsNumber();
+
+    /// <summary>"artists": names joined with their joins ("A & B"), cleaned.</summary>
+    private static string? DiscogsArtists(JsonElement element)
+    {
+        if (!element.TryGetProperty("artists", out var artists) || artists.ValueKind != JsonValueKind.Array || artists.GetArrayLength() == 0)
+        {
+            return null;
+        }
+        var text = new StringBuilder();
+        foreach (var a in artists.EnumerateArray())
+        {
+            text.Append(CleanDiscogsName(String(a, "anv") ?? String(a, "name") ?? string.Empty));
+            if (String(a, "join") is { } join)
+            {
+                text.Append(join == "," ? ", " : $" {join} ");
+            }
+        }
+        var joined = text.ToString().Trim();
+        return joined.Length > 0 ? joined : null;
+    }
+
+    private static string? First(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var array) && array.ValueKind == JsonValueKind.Array && array.GetArrayLength() > 0
+            && array[0].ValueKind == JsonValueKind.String && array[0].GetString() is { Length: > 0 } text ? text : null;
 
     /// <summary>Discogs search JSON → the results' cover image URLs, best match first (placeholders left out).</summary>
     public static IReadOnlyList<string> ParseDiscogsCovers(string json)

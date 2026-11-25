@@ -29,6 +29,9 @@ public abstract class DspStage
     /// <summary>Called for each new graph format, before any <see cref="Process"/> at that format.</summary>
     public abstract void Configure(int sampleRate, int channels);
 
+    /// <summary>EQ-06: how many frames this stage delays the audio (look-ahead, plug-in latency); 0 for most.</summary>
+    public virtual int LatencyFrames => 0;
+
     /// <summary>Audio thread: processes interleaved samples in place.</summary>
     public abstract void Process(Span<float> samples, int channels);
 

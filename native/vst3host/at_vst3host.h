@@ -18,7 +18,7 @@
 #define AT_VST3_API __attribute__((visibility("default")))
 #endif
 
-#define AT_VST3_API_VERSION 1
+#define AT_VST3_API_VERSION 2
 
 #define AT_VST3_E_FAILED -1
 #define AT_VST3_E_ARGUMENT -2
@@ -54,6 +54,15 @@ AT_VST3_API int32_t at_vst3_process(at_vst3_plugin* plugin, float* interleaved, 
 
 /* The plugin's processing latency in frames. */
 AT_VST3_API int32_t at_vst3_latency(at_vst3_plugin* plugin);
+
+/* API v2. UI thread: hands the output parameter values the processor reported (meters, gain reduction) to the edit
+ * controller, so the editor shows them. The audio thread queues them without locks; values beyond the queue's room
+ * are dropped until the next flush. Returns the number of values handed over. */
+AT_VST3_API int32_t at_vst3_flush_output(at_vst3_plugin* plugin);
+
+/* API v2. The IComponentHandler::restartComponent flags the plugin raised since the last call (e.g. 8 =
+ * kLatencyChanged), cleared by the call. */
+AT_VST3_API int32_t at_vst3_take_restart_flags(at_vst3_plugin* plugin);
 
 /* The plugin's state (component + controller). Returns the size in bytes; if > capacity nothing was written. */
 AT_VST3_API int32_t at_vst3_get_state(at_vst3_plugin* plugin, uint8_t* buffer, int32_t capacity);

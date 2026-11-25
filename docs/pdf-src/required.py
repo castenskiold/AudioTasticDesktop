@@ -91,7 +91,7 @@ sections2=[
 ("7. Metadata",[
 ("Tag reading and editing","ID3v1/v2, Vorbis comments, APEv2 and MP4 atoms."),
 ("Album art",f"Embedded and folder cover art in the main window. Can be switched on/off in {GS}."),
-("Online lookup",f"Fetch tags and cover art from MusicBrainz and the Cover Art Archive. Can be switched on/off in {GS}. Optional Discogs fallback for covers, with the user's own Discogs token (off by default)."),
+("Online lookup",f"Fetch tags and cover art from MusicBrainz and the Cover Art Archive. Can be switched on/off in {GS}. Optional: with the user's own Discogs token, Discogs is asked first for tags and covers, and MusicBrainz and the Cover Art Archive when Discogs has nothing (off by default)."),
 ("Lyrics",f"Show embedded or synced (LRC) lyrics. Can be switched on/off in {GS}."),
 ("File info dialog","Format, bitrate, sample rate, bit depth, channels, codec and file size."),
 ]),
@@ -249,4 +249,4 @@ story+=[KeepTogether([*HH1("16. Decisions"),table(res,head=("Decision","Outcome"
 
 
 T.build("AudioTastic_Required_Features.pdf","Required Features","Required features specification",
- "Version 1.22  ·  25 November 2026", story, short_title="Required Features  ·  v1.22")
+ "Version 1.23  ·  25 November 2026", story, short_title="Required Features  ·  v1.23")

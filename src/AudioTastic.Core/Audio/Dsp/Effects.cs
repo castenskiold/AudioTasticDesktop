@@ -124,8 +124,8 @@ public sealed class LimiterStage() : DspStage(DspChainEntry.Limiter, "Limiter")
     private static Parameters Build(LimiterSettings s, int rate) =>
         new((float)Math.Pow(10, Math.Clamp(s.CeilingDb, -24, 0) / 20), CompressorStage.Coefficient(s.ReleaseMs, rate));
 
-    /// <summary>Latency in frames.</summary>
-    public int LatencyFrames => _lookahead;
+    /// <summary>Latency in frames (the look-ahead).</summary>
+    public override int LatencyFrames => _lookahead;
 
     public override void Process(Span<float> samples, int channels)
     {

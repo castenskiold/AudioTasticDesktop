@@ -17,6 +17,8 @@
 #include "public.sdk/source/vst/utility/stringconvert.h"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -91,7 +93,14 @@ class ComponentHandler : public IComponentHandler
 public:
     tresult PLUGIN_API beginEdit(ParamID) override { return kResultOk; }
     tresult PLUGIN_API endEdit(ParamID) override { return kResultOk; }
-    tresult PLUGIN_API restartComponent(int32) override { return kResultOk; }
+    // Remembered for the .NET side (at_vst3_take_restart_flags): kLatencyChanged makes it read the latency again.
+    tresult PLUGIN_API restartComponent(int32 flags) override
+    {
+        restartFlags.fetch_or(flags);
+        return kResultOk;
+    }
+
+    std::atomic<int32> restartFlags {0};
 
     tresult PLUGIN_API performEdit(ParamID id, ParamValue value) override
     {
@@ -145,6 +154,41 @@ public:
     uint32 PLUGIN_API release() override { return 1000; }
 };
 
+// Output parameter values from the audio thread to the UI thread: single producer, single consumer, no locks.
+class OutputQueue
+{
+public:
+    static constexpr uint32_t Capacity = 1024; // a power of two
+    static constexpr uint32_t Mask = Capacity - 1;
+
+    bool Push(ParamID id, ParamValue value)
+    {
+        auto head = head_.load(std::memory_order_relaxed);
+        auto next = (head + 1) & Mask;
+        if (next == tail_.load(std::memory_order_acquire))
+            return false; // full: dropped until the UI flushes
+        items_[head] = {id, value};
+        head_.store(next, std::memory_order_release);
+        return true;
+    }
+
+    bool Pop(ParamID& id, ParamValue& value)
+    {
+        auto tail = tail_.load(std::memory_order_relaxed);
+        if (tail == head_.load(std::memory_order_acquire))
+            return false;
+        id = items_[tail].first;
+        value = items_[tail].second;
+        tail_.store((tail + 1) & Mask, std::memory_order_release);
+        return true;
+    }
+
+private:
+    std::array<std::pair<ParamID, ParamValue>, Capacity> items_ {};
+    std::atomic<uint32_t> head_ {0};
+    std::atomic<uint32_t> tail_ {0};
+};
+
 // The editor's frame: passes size requests on to the .NET window.
 class PlugFrame : public IPlugFrame
 {
@@ -190,6 +234,8 @@ struct at_vst3_plugin
     PlugFrame frame;
     HostProcessData data;
     ParameterChanges inputChanges;
+    ParameterChanges outputChanges; // API v2: what the processor reports back (meters)
+    OutputQueue output;
     int32_t maxFrames = 0;
     int32_t inChannels = 0;
     int32_t outChannels = 0;
@@ -300,6 +346,7 @@ AT_VST3_API at_vst3_plugin* at_vst3_open(const char* path, const char* class_id,
             plugin->controller->setComponentHandler(&plugin->handler);
         plugin->handler.pending.reserve(512);
         plugin->inputChanges.setMaxParameters(512);
+        plugin->outputChanges.setMaxParameters(512);
         return plugin.release();
     }
     CopyText("The class was not found in the module", error, error_capacity);
@@ -378,11 +425,26 @@ AT_VST3_API int32_t at_vst3_process(at_vst3_plugin* plugin, float* interleaved, 
     }
 
     plugin->inputChanges.clearQueue();
+    plugin->outputChanges.clearQueue();
     plugin->handler.Drain(plugin->inputChanges);
     plugin->data.inputParameterChanges = &plugin->inputChanges;
+    plugin->data.outputParameterChanges = &plugin->outputChanges;
     plugin->data.numSamples = frames;
     if (plugin->processor->process(plugin->data) != kResultOk)
         return AT_VST3_E_FAILED;
+
+    // API v2: the last value of each output parameter goes to the UI thread (at_vst3_flush_output).
+    auto count = plugin->outputChanges.getParameterCount();
+    for (int32 i = 0; i < count; ++i)
+    {
+        auto* queue = plugin->outputChanges.getParameterData(i);
+        if (queue == nullptr || queue->getPointCount() <= 0)
+            continue;
+        int32 offset = 0;
+        ParamValue value = 0;
+        if (queue->getPoint(queue->getPointCount() - 1, offset, value) == kResultOk)
+            plugin->output.Push(queue->getParameterId(), value);
+    }
 
     float* outL = data.outputs[0].channelBuffers32[0];
     float* outR = plugin->outChannels > 1 ? data.outputs[0].channelBuffers32[1] : outL;
@@ -397,6 +459,27 @@ AT_VST3_API int32_t at_vst3_process(at_vst3_plugin* plugin, float* interleaved, 
 AT_VST3_API int32_t at_vst3_latency(at_vst3_plugin* plugin)
 {
     return plugin == nullptr ? 0 : static_cast<int32_t>(plugin->processor->getLatencySamples());
+}
+
+AT_VST3_API int32_t at_vst3_flush_output(at_vst3_plugin* plugin)
+{
+    if (plugin == nullptr)
+        return AT_VST3_E_ARGUMENT;
+    int32_t count = 0;
+    ParamID id = 0;
+    ParamValue value = 0;
+    while (plugin->output.Pop(id, value))
+    {
+        if (plugin->controller)
+            plugin->controller->setParamNormalized(id, value);
+        ++count;
+    }
+    return count;
+}
+
+AT_VST3_API int32_t at_vst3_take_restart_flags(at_vst3_plugin* plugin)
+{
+    return plugin == nullptr ? 0 : plugin->handler.restartFlags.exchange(0);
 }
 
 // State layout: [u32 component length][component state][u32 controller length][controller state].

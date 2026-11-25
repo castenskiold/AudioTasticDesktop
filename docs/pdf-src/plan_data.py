@@ -186,7 +186,7 @@ dict(id="P9", name="Metadata", size="M",
   ("MD-02", "ArtService (embedded + folder images), MW2 thumbnail and the Art & Lyrics window (AL1) with its own skin window."),
   ("MD-04", "LyricsService (.lrc incl. offset, embedded SYLT/USLT/LYRICS), synced lyrics pane AL2 with click-to-seek."),
   ("MD-05", "File info dialog (decoder details + tags + ReplayGain, loudness and BPM values)."),
-  ("MD-03", "OnlineLookupService: MusicBrainz (rate-limited, User-Agent), Cover Art Archive; side-by-side confirm UI. Discogs cover fallback with the user's token (added 25 Nov 2026, Anders)."),
+  ("MD-03", "OnlineLookupService: MusicBrainz (rate-limited, User-Agent), Cover Art Archive; side-by-side confirm UI. Discogs first for tags and covers with the user's token, MusicBrainz as the fallback (added 25 Nov 2026, Anders)."),
  ],
  tasks=["Settings › Metadata on/off switches for art, lookup and lyrics."],
  prereq_int=["P8"], prereq_ext=[],
@@ -404,7 +404,7 @@ PROGRESS = {
                         "Steps 2–4 (23 Nov 2026): VST3 effects in the DSP chain with their settings saved, DSP chain › Add VST3 effect…, the plug-ins' own editors, Settings › Equalizer & DSP › VST3 folders, Rescan and the blacklist; checked by Anders (found, heard, editor, kept after a restart, removed).",
                         "Exit criteria on Windows: six free open-source effects (Airwindows Consolidated, four Dragonfly reverbs, Surge XT Effects) load, process and show their editors (passed); a module that crashes while scanned is blacklisted and the player carries on (passed, automated)."],
                open=["macOS and Linux: the host builds in CI; editors not tried by hand (Linux editors need the host's run loop).",
-                     "Latency compensation in the time display; plug-ins' output parameters (meters) are not passed back to their editors."]),
+                     "Done 25 Nov 2026 (host API v2): latency compensation in the position the player shows, and plug-ins' meters passed to their editors."]),
 }
 
 # Status of external prerequisites (text as in each phase's prereq_ext).
