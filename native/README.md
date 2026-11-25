@@ -8,7 +8,7 @@ AudioTastic uses a few native (C/C++) libraries and assets. They are **never com
 
 | Library | Licence | Needed from | How it is obtained |
 |---|---|---|---|
-| FFmpeg (avformat, avcodec, avutil, swresample) | LGPL (shared, no GPL parts) | P1 | `fetch_ffmpeg.py` (Windows, Linux: BtbN LGPL builds); `build_ffmpeg_macos.sh` (macOS, built from source) |
+| FFmpeg 8.1.3 (avformat, avcodec, avutil, swresample), our own audio-focused build with LAME, Opus, Ogg/Vorbis (+ OpenH264 on Linux, zlib on Windows) linked in | LGPL-2.1-or-later (shared, no GPL, nonfree or version3 parts) | P1 (own build P14) | `build_ffmpeg.sh <rid>` (from pinned, SHA-256-checked sources; Windows cross-built on Linux with llvm-mingw); `fetch_ffmpeg.py` downloads CI's build (needs `gh`) |
 | miniaudio + AudioTastic shim (`miniaudio/at_miniaudio.{h,c}`) | Public domain / MIT-0 (shim: ours) | P1 | `CMakeLists.txt` |
 | SoundTouch + SoundTouchDLL | LGPL-2.1 (shared) | P6 | `CMakeLists.txt` |
 | libopenmpt 0.8.10 (+ mpg123 LGPL, ogg/vorbis BSD, zlib on Windows) | BSD-3-Clause | P4 (FM-07) | `fetch_libopenmpt.py` (Windows x64/arm64, official package, SHA-256 pinned) → `out/libopenmpt/`; `build_libopenmpt_unix.sh <rid>` (Linux/macOS from source, untested until CI) |
@@ -22,12 +22,14 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 ## Commands
 
 ```
-# FFmpeg (Windows and Linux targets; works from any OS with Python 3)
-python native/fetch_ffmpeg.py --rid win-x64 linux-x64
+# FFmpeg: download CI's build of native/build_ffmpeg.sh (any OS with Python 3 and a signed-in GitHub CLI)
+python native/fetch_ffmpeg.py --rid win-x64
 
-# FFmpeg on macOS (run on a Mac, once per architecture)
-native/build_ffmpeg_macos.sh arm64
-native/build_ffmpeg_macos.sh x86_64
+# FFmpeg: build it yourself (Linux for linux-* and win-*, a Mac for osx-*; needs curl, make, pkg-config, nasm, and
+# libssl-dev on Linux). Takes 5-15 minutes.
+native/build_ffmpeg.sh linux-x64
+native/build_ffmpeg.sh win-x64        # cross build with llvm-mingw (downloaded once, pinned)
+native/build_ffmpeg.sh sources        # only download and verify every source archive
 
 # miniaudio and SoundTouch (run on the target OS)
 cmake -S native -B native/build/win-x64 -DCMAKE_BUILD_TYPE=Release -DAT_RID=win-x64
@@ -47,8 +49,26 @@ python native/fetch_soundfont.py
 After fetching, rebuild the solution so the plugins pick the files up.
 
 CI (`.github/workflows/ci.yml`) runs the same steps:
+- the `ffmpeg` job runs `build_ffmpeg.sh` per RID (cached until the script changes) and publishes `ffmpeg-<rid>`; the release job attaches the source archives and the script (`AudioTastic-<version>-ffmpeg-sources.tar`, for the LGPL);
 - the `native` job publishes `native-<rid>` and `libopenmpt-<rid>` artifacts;
 - the `plugin-assets` job publishes the SoundFont and the OptimFROG libraries.
+
+## FFmpeg build
+
+`build_ffmpeg.sh` (P14) replaced the BtbN downloads (Windows, Linux: about 50 libraries inside, mostly video, avcodec 87 MB) and the macOS-only script. What it builds:
+
+- **Libraries:** avformat, avcodec, avutil, swresample; no avfilter, avdevice, swscale or programs.
+- **Decoders:** every native audio decoder (read from `allcodecs.c` between `/* audio codecs */` and `/* subtitles */`), plus mjpeg and png for cover-art streams.
+- **Encoders:** flac, alac, aac, pcm_s16le/s24le, libmp3lame, libopus, libvorbis, and the platform's H.264 encoder (h264_mf on Windows, h264_videotoolbox on macOS, libopenh264 on Linux). The script fails if one is missing.
+- **Demuxers, muxers, parsers:** all. **Protocols:** file, pipe, http(s), httpproxy, tcp, tls, crypto, data.
+- **TLS:** Schannel (Windows), Secure Transport (macOS), the system's OpenSSL 3 (Linux).
+- **Threads:** w32threads / pthreads. The earlier macOS build had none, and no TLS, zlib or VideoToolbox, because `--disable-autodetect` also turns those off.
+- **macOS:** deployment target 12.0.
+- **Windows:** the DLLs may import only Windows' own DLLs (checked).
+
+Each output folder gets `FFMPEG-BUILDINFO.txt` (sources, SHA-256, configure line) and `FFMPEG-LICENSES.txt` (FFmpeg's LGPL plus the license of every library inside). To upgrade, change the version and SHA-256 in `SOURCES`, check the new licence, and keep `FfmpegLibrary.AvCodecMajor` and the FFmpeg.AutoGen package in step.
+
+The FFmpeg command-line tool used to generate test media (`scripts/generate_test_media.py`) is a separate thing: any FFmpeg with libmp3lame, libvorbis and libopus works (a distribution package, or a downloaded build kept in `downloads/`).
 
 ## miniaudio shim
 
@@ -64,8 +84,8 @@ The SDK's `HostProcessData` owns the bus buffers (it frees them): audio is copie
 
 ## Rules
 
-- FFmpeg must stay an LGPL build: never `--enable-gpl` or `--enable-nonfree`.
+- FFmpeg must stay an LGPL-2.1 build: never `--enable-gpl`, `--enable-nonfree` or `--enable-version3`, and no external library under the GPL.
 - Every library and its licence must be listed in `THIRD-PARTY-NOTICES.md`.
 - Downloads are verified against a pinned SHA-256 (or, for OptimFROG, published SHA-1) checksum. When upstream changes, check the new version and its licence before updating the checksum.
 - OptimFROG: ship only the unmodified Libraries under their original names, with `license.html`. Never ship the command-line encoders (`ofr`, `ofs`, `off`); `scripts/generate_test_media.py` uses them locally for test files only.
-- Each FFmpeg folder contains `FFMPEG-BUILDINFO.txt` (source URL and SHA-256) so a build can be traced.
+- Each FFmpeg folder contains `FFMPEG-BUILDINFO.txt` (source URLs, SHA-256, configure line) so a build can be traced, and `FFMPEG-LICENSES.txt`.
