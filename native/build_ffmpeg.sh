@@ -62,7 +62,7 @@ source_line() { printf '%s\n' "$SOURCES" | grep "^$1|"; }
 fetch_source() { local line; line="$(source_line "$1")"; IFS='|' read -r f u s <<<"$line"; fetch "$f" "$u" "$s"; }
 
 if [ "${1:-}" = "sources" ]; then
-  printf '%s\n' "$SOURCES" | while IFS='|' read -r f u s; do [ -n "$f" ] && fetch "$f" "$u" "$s"; done
+  printf '%s\n' "$SOURCES" | while IFS='|' read -r f u s; do if [ -n "$f" ]; then fetch "$f" "$u" "$s"; fi; done
   echo "Sources verified in $SRC_DIR"
   exit 0
 fi
@@ -161,7 +161,10 @@ sed -i.bak 's/-force_cpusubtype_ALL//g' "$WORK/libvorbis-1.3.7/configure"
 autotools_build "$WORK/libvorbis-1.3.7" --with-ogg="$PREFIX" --disable-oggtest --disable-docs --disable-examples
 
 unpack opus-1.6.1.tar.gz
-autotools_build "$WORK/opus-1.6.1" --disable-doc --disable-extra-programs
+OPUS_EXTRA=()
+# Opus has no run-time CPU detection for Windows on ARM64; NEON is always there, so it is used unconditionally.
+if [ "$RID" = win-arm64 ]; then OPUS_EXTRA=(--disable-rtcd); fi
+autotools_build "$WORK/opus-1.6.1" --disable-doc --disable-extra-programs ${OPUS_EXTRA[@]+"${OPUS_EXTRA[@]}"}
 
 if [ "$OS" = linux ]; then
   # OpenH264 (BSD) for casting visuals (CN-09); Windows and macOS use the OS's H.264 encoder instead.
@@ -187,7 +190,8 @@ case "$OS" in
   windows)
     ENCODERS="$ENCODERS,h264_mf"
     PLATFORM=(--target-os=mingw32 --arch="$FFARCH" --enable-cross-compile --cross-prefix="$HOST-" --cc="$HOST-clang"
-              --pkg-config=pkg-config --enable-w32threads --enable-mediafoundation --enable-schannel)
+              --pkg-config=pkg-config --enable-w32threads --enable-mediafoundation --enable-schannel
+              --enable-d3d11va)  # the Media Foundation encoder (mfenc.c) uses the D3D11 device context types
     ;;
   linux)
     ENCODERS="$ENCODERS,libopenh264"
@@ -276,7 +280,7 @@ esac
   echo "FFmpeg $FFMPEG_VERSION, built by native/build_ffmpeg.sh for $RID ($TOOLCHAIN)"
   echo "variant: LGPL-2.1-or-later, shared; no --enable-gpl, --enable-nonfree or --enable-version3"
   echo "sources (SHA-256):"
-  printf '%s\n' "$SOURCES" | while IFS='|' read -r f u s; do [ -n "$f" ] && echo "  $u  $s"; done
+  printf '%s\n' "$SOURCES" | while IFS='|' read -r f u s; do if [ -n "$f" ]; then echo "  $u  $s"; fi; done
   echo "encoders: $ENCODERS"
   echo "decoders: $(echo "$AUDIO_DECODERS" | tr ',' '\n' | wc -l | tr -d ' ') native audio decoders, mjpeg, png"
   echo "configure: ${CONFIGURE[*]}"
