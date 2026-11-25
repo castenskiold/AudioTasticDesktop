@@ -930,6 +930,20 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         });
     }
 
+    /// <summary>TL-02: saves what the window state and playlists hold, so an export has the latest.</summary>
+    public void SaveForBackup()
+    {
+        SavePositions();
+        _playlists.Service.Flush();
+    }
+
+    /// <summary>TL-02: closes the player and starts it again (to apply a staged settings import).</summary>
+    public void Restart()
+    {
+        Program.RestartRequested = true;
+        Exit();
+    }
+
     private void Exit()
     {
         if (_exiting)
@@ -963,6 +977,11 @@ public sealed class PlayerShell : ISkinHost, IDisposable
         }
         _firstShownDone = true;
         var owner = _main!.IsVisible ? _main : _mini!;
+        if (Program.ImportedAtStart is not null)
+        {
+            // After the resumed track has started (a track change clears the title notice).
+            Avalonia.Threading.DispatcherTimer.RunOnce(() => Player.ShowNotice("Settings imported from the backup"), TimeSpan.FromSeconds(2));
+        }
         if (UiSettings.PlaylistWindow is null)
         {
             PlacePlaylistBelowMain();

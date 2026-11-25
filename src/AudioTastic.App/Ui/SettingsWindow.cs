@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using System.Reflection;
 using AudioTastic.App.Skins;
 using AudioTastic.Data;
 using AudioTastic.Data.Settings;
@@ -19,7 +21,7 @@ namespace AudioTastic.App.Ui;
 /// </summary>
 public sealed class SettingsWindow : Window
 {
-    private static readonly (SettingsGroup Group, string Title)[] Groups =
+    internal static readonly (SettingsGroup Group, string Title)[] Groups =
     [
         (SettingsGroup.Playback, "Playback"),
         (SettingsGroup.Output, "Output"),
@@ -811,7 +813,66 @@ public sealed class SettingsWindow : Window
         Row(panel, "Data folder", new StackPanel { Spacing = 6, Children = { new SelectableTextBlock { Text = _paths.Root }, open } },
             _paths.IsPortable
                 ? "Portable mode is on: settings are stored next to the program."
-                : "Portable mode: start with --portable, or put an empty file named 'portable' next to the program. Settings import/export arrives in phase P13.");
+                : "Portable mode: start with --portable, or put an empty file named 'portable' next to the program.");
+
+        // TL-02: settings export and import.
+        var export = new Button { Content = "Export settings…" };
+        var import = new Button { Content = "Import settings…" };
+        var status = new TextBlock { Foreground = Brushes.Gray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxWidth = 480 };
+        export.Click += async (_, _) =>
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+            {
+                Title = "Export settings",
+                SuggestedFileName = $"AudioTastic settings {DateTime.Now:yyyy-MM-dd}{AudioTastic.Data.Backup.BackupService.Extension}",
+                DefaultExtension = AudioTastic.Data.Backup.BackupService.Extension,
+                FileTypeChoices = [new Avalonia.Platform.Storage.FilePickerFileType("AudioTastic backup") { Patterns = ["*" + AudioTastic.Data.Backup.BackupService.Extension] }],
+            });
+            if (file?.TryGetLocalPath() is not { } path)
+            {
+                return;
+            }
+            _shell.SaveForBackup();
+            var version = typeof(SettingsWindow).Assembly.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "?";
+            try
+            {
+                await Task.Run(() => AudioTastic.Data.Backup.BackupService.Export(_paths, path, version.Split('+')[0]));
+                status.Text = $"Exported to {path}.";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                status.Text = $"Could not export: {ex.Message}";
+            }
+        };
+        import.Click += async (_, _) =>
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Import settings",
+                FileTypeFilter = [new Avalonia.Platform.Storage.FilePickerFileType("AudioTastic backup") { Patterns = ["*" + AudioTastic.Data.Backup.BackupService.Extension] }],
+            });
+            if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path)
+            {
+                return;
+            }
+            try
+            {
+                var info = AudioTastic.Data.Backup.BackupService.Read(path);
+                if (await ImportBackupWindow.AskAsync(this, info) is not { } selection)
+                {
+                    return;
+                }
+                AudioTastic.Data.Backup.BackupService.Stage(_paths, path, selection);
+                _shell.Restart();
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                status.Text = ex.Message;
+            }
+        };
+        Row(panel, "Settings backup", new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { export, import } }, status } },
+            "Export writes your settings, playlists, equalizer presets, DSP chain, hotkeys and installed skins to one .atbackup file. " +
+            "Import lets you choose what to bring in, then restarts AudioTastic; what it replaces is first saved to the backups folder in the data folder.");
     }
 
     private static void Note(StackPanel panel, string text) =>

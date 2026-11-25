@@ -23,6 +23,29 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        var exitCode = Run(args);
+        if (RestartRequested)
+        {
+            // TL-02: after Run, so the single-instance lock and the log file are released and the new start becomes
+            // the running player instead of handing itself to this one.
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "AudioTastic")) { UseShellExecute = false };
+            if (args.Contains(AppPaths.PortableSwitch, StringComparer.OrdinalIgnoreCase))
+            {
+                start.ArgumentList.Add(AppPaths.PortableSwitch);
+            }
+            System.Diagnostics.Process.Start(start)?.Dispose();
+        }
+        return exitCode;
+    }
+
+    /// <summary>TL-02: set by <see cref="Ui.PlayerShell.Restart"/>; Main starts the program again once this run has ended.</summary>
+    internal static bool RestartRequested { get; set; }
+
+    /// <summary>TL-02: what a staged settings import brought in at this start (null when none).</summary>
+    internal static AudioTastic.Data.Backup.BackupSelection? ImportedAtStart { get; private set; }
+
+    private static int Run(string[] args)
+    {
         var platform = PlatformServicesFactory.Create();
         // SI-08: --help, --version and mistakes are answered on the console the program was started from.
         var parsed = AudioTastic.App.CommandLine.Parse(args);
@@ -71,6 +94,8 @@ internal static class Program
 
         try
         {
+            // TL-02: a settings import staged before the restart is applied before anything reads the data folder.
+            ImportedAtStart = AudioTastic.Data.Backup.BackupService.ApplyPending(paths, logging.Factory.CreateLogger("Backup"));
             var settings = new SettingsStore(paths, logging.Factory.CreateLogger<SettingsStore>());
             logging.SetLevel(settings.Current.General.LogLevel);
             settings.Changed += (_, e) =>
