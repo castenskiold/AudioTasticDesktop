@@ -1,7 +1,7 @@
 // P1 soak test (Implementation Plan, testing strategy: "Soak tests").
 //
 //   dotnet run -c Release --project tools/AudioTastic.SoakTest -- [--minutes 60] [--buffer 20] [--volume 0]
-//              [--file long.mp3] [--ffmpeg path/to/ffmpeg] [--mix]
+//              [--file long.mp3] [--ffmpeg path/to/ffmpeg] [--mix] [--null-device]
 //
 // Plays one long file through FFmpeg → PlaybackEngine → MixerGraph → miniaudio (default device). Volume 0 keeps it
 // silent while still exercising the whole path. Without --file, a sine MP3 of the right length is generated into
@@ -29,6 +29,9 @@ var volume = Arg("--volume", 0);
 var file = ArgString("--file");
 var ffmpegExe = ArgString("--ffmpeg") ?? "ffmpeg";
 var mix = args.Contains("--mix");
+// --null-device: miniaudio's null backend, which takes audio at real-time pace without a sound card (a PC reached over
+// Remote Desktop has no device while the session is disconnected). Exercises everything except the driver.
+var nullDevice = args.Contains("--null-device");
 var repo = FindRepoRoot();
 
 var mixTracks = mix ? GenerateMix() : [];
@@ -54,7 +57,7 @@ if (mix)
     });
 }
 
-using var device = new MiniaudioOutput(loggerFactory.CreateLogger<MiniaudioOutput>());
+using var device = new MiniaudioOutput(loggerFactory.CreateLogger<MiniaudioOutput>(), useNullBackend: nullDevice);
 using var timed = new TimingOutput(device);
 using var engine = new PlaybackEngine([new FfmpegSourceFactory()], timed, settings, loggerFactory.CreateLogger<PlaybackEngine>());
 
