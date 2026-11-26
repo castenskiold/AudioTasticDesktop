@@ -22,8 +22,9 @@ public sealed class Deck : IDisposable
     /// <summary>PB-01: loaded and buffered, waiting for the mixer to start it the moment the other deck ends.</summary>
     private const int StateArmed = 4;
 
-    /// <summary>Decoded audio kept ahead of playback.</summary>
-    private const double BufferSeconds = 0.5;
+    /// <summary>Decoded audio kept ahead of playback. P14: 1 s (was 0.5 s) so a busy system (installers, restore points
+    /// on a throttled CPU) does not empty it; costs about half a second more delay on speed changes.</summary>
+    private const double BufferSeconds = 1.0;
     /// <summary>Audio decoded before a load/seek completes, so playback starts without an underrun.</summary>
     private const double PrefillSeconds = 0.2;
     private const int ChunkFrames = 2048;
@@ -46,6 +47,7 @@ public sealed class Deck : IDisposable
     private long _consumedFrames; // written by the audio thread (or the decoder thread while stalled)
     private long _positionBase;
     private long _underruns;
+    private long _totalUnderruns;
     private Exception? _fault;
 
     // The source chain built by LoadAsync: source -> LoopSource (PB-08) -> TimeStretchSource (PB-06).
@@ -191,6 +193,9 @@ public sealed class Deck : IDisposable
     /// <summary>Number of audio callbacks that found the buffer empty before the end of the source.</summary>
     public long Underruns => Interlocked.Read(ref _underruns);
 
+    /// <summary>Underruns over the deck's whole life: unlike <see cref="Underruns"/>, a new load does not reset it.</summary>
+    public long TotalUnderruns => Interlocked.Read(ref _totalUnderruns);
+
     /// <summary>Error raised while decoding (playback of this deck stops); cleared on the next load.</summary>
     public Exception? Fault => Volatile.Read(ref _fault);
 
@@ -291,6 +296,7 @@ public sealed class Deck : IDisposable
             else
             {
                 Interlocked.Increment(ref _underruns);
+                Interlocked.Increment(ref _totalUnderruns);
             }
         }
         if (n == 0)

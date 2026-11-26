@@ -166,6 +166,26 @@ public sealed class MixerGraphTests
     }
 
     [Fact]
+    public async Task Total_underruns_survive_a_new_load()
+    {
+        // P14: the soak tool read the per-track count, which a crossfade resets, and so missed underruns.
+        using var graph = new MixerGraph(new AudioFormat(44_100, 2));
+        await graph.DeckA.LoadAsync(new SyntheticSource(44_100, 2, 44_100 * 60) { ReadDelayMilliseconds = 200 });
+        var block = new float[441 * 2];
+        for (var i = 0; i < 2_000 && graph.DeckA.Underruns == 0; i++)
+        {
+            graph.Render(block); // far faster than the slow decoder fills the ring
+        }
+        var total = graph.DeckA.TotalUnderruns;
+        Assert.True(total > 0);
+        Assert.Equal(total, graph.DeckA.Underruns);
+
+        await graph.DeckA.LoadAsync(new SyntheticSource(44_100, 2, 44_100));
+        Assert.Equal(0, graph.DeckA.Underruns);
+        Assert.Equal(total, graph.DeckA.TotalUnderruns);
+    }
+
+    [Fact]
     public async Task Render_does_not_allocate()
     {
         using var graph = new MixerGraph(new AudioFormat(48_000, 2));

@@ -19,8 +19,15 @@ internal sealed class SyntheticSource(int sampleRate, int channels, long lengthF
     public bool Disposed { get; private set; }
     public long FailAfterFrames { get; init; } = long.MaxValue;
 
+    /// <summary>Sleeps this long in every read (a decoder slower than real time).</summary>
+    public int ReadDelayMilliseconds { get; init; }
+
     public int Read(Span<float> buffer)
     {
+        if (ReadDelayMilliseconds > 0)
+        {
+            Thread.Sleep(ReadDelayMilliseconds);
+        }
         if (_position >= FailAfterFrames)
         {
             throw new AudioSourceException("Synthetic decode error.");

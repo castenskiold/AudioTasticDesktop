@@ -265,6 +265,9 @@ public sealed class PlaybackEngine : IPlayerController, IDisposable
     /// <summary>Total underruns on the active deck since the current track was loaded.</summary>
     public long Underruns => _deck.Underruns;
 
+    /// <summary>Underruns on both decks since the engine was created (crossfades and new tracks do not reset it).</summary>
+    public long TotalUnderruns => _graph.DeckA.TotalUnderruns + _graph.DeckB.TotalUnderruns;
+
     public int Volume
     {
         get => _volume;

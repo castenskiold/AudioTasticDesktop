@@ -111,7 +111,7 @@ for (var minute = 1; minute <= minutes; minute++)
         lateAtWarmUp = late;
     }
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-        $"[{minute,3} min] state {engine.State}, pos {engine.Position:hh\\:mm\\:ss}, underruns {engine.Underruns}, " +
+        $"[{minute,3} min] state {engine.State}, pos {engine.Position:hh\\:mm\\:ss}, underruns {engine.TotalUnderruns}, " +
         $"callbacks {timed.Renders}, slowest {timed.MaxRender.TotalMilliseconds:0.000} ms, late {late}, " +
         $"heap {heap / 1048576.0:0.0} MB, ws {ws / 1048576.0:0.0} MB, handles {handles}, gen2 {GC.CollectionCount(2)}" +
         $"{(mix ? $", tracks {trackChanges}" : string.Empty)}"));
@@ -147,7 +147,9 @@ for (var minute = 1; minute <= minutes; minute++)
 }
 
 var drift = mix ? 0 : Math.Abs((engine.Position - clock.Elapsed).TotalSeconds); // a playlist has no single position
-if (engine.Underruns > 0) failures.Add($"{engine.Underruns} underrun(s)");
+// P14: TotalUnderruns, not Underruns: the per-track count starts again at every track change, so a 24-hour mix run
+// reported 0 while the engine had logged thousands.
+if (engine.TotalUnderruns > 0) failures.Add($"{engine.TotalUnderruns} underrun(s)");
 var lateAfterWarmUp = timed.LateRenders(period) - lateAtWarmUp;
 if (lateAfterWarmUp > 0) failures.Add($"{lateAfterWarmUp} audio callback(s) slower than the period after the warm-up");
 if (lateAtWarmUp > 0) Console.WriteLine($"Warm-up: {lateAtWarmUp} late callback(s) in the first {warmUpMinutes} min (first use of code paths), no underrun from them.");
