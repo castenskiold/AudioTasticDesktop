@@ -174,7 +174,8 @@ public sealed partial class PlayerShell
             // Settings backup: export this portable copy's settings, then show the import choices.
             var backup = Path.Combine(Path.GetTempPath(), $"audiotastic-manual-{Environment.ProcessId}.atbackup");
             SaveForBackup();
-            await Task.Run(() => AudioTastic.Data.Backup.BackupService.Export(_paths, backup, "0.10.0"));
+            await Task.Run(() => AudioTastic.Data.Backup.BackupService.Export(_paths, backup,
+                typeof(PlayerShell).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "?"));
             var info = AudioTastic.Data.Backup.BackupService.Read(backup);
             await Dialog(() => _ = ImportBackupWindow.AskAsync(_main!, info), "29-import-backup");
             File.Delete(backup);

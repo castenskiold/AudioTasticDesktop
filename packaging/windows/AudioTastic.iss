@@ -1,5 +1,5 @@
 ; P10: the Windows installer (Inno Setup 6.3+ or 7). Built in CI from a published folder:
-;   ISCC /DAppVersion=0.10.0 /DSourceDir=..\..\publish\win-x64 /DRid=win-x64 /O..\..\packages packaging\windows\AudioTastic.iss
+;   ISCC /DAppVersion=0.10.1 /DSourceDir=..\..\publish\win-x64 /DRid=win-x64 /O..\..\packages packaging\windows\AudioTastic.iss
 ; Installs for the current user (no administrator rights), adds the Start menu shortcut with AudioTastic's
 ; AppUserModelID (media controls and notifications name the app through it, SI-02/SI-07) and an uninstall entry.
 ; File types and the Explorer context menu are set up by AudioTastic itself (first-start question, Settings ›
