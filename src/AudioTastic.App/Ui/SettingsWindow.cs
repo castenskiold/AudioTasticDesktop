@@ -76,6 +76,12 @@ public sealed class SettingsWindow : Window
 
     private SettingsGroup CurrentGroup => Groups[Math.Max(0, _groups.SelectedIndex)].Group;
 
+    /// <summary>User manual screenshots (Debug builds): shows a group's page.</summary>
+    internal void SelectGroup(int index) => _groups.SelectedIndex = index;
+
+    /// <summary>User manual screenshots: the current page's content, rendered whole (not just the visible part).</summary>
+    internal Control? PageContent => _page.Content as Control;
+
     private void ShowPage()
     {
         var (group, title) = Groups[Math.Max(0, _groups.SelectedIndex)];
@@ -213,7 +219,7 @@ public sealed class SettingsWindow : Window
         }
         else
         {
-            Note(panel, "The file manager's context menu entries for this system come in a later step of phase P10.");
+            Note(panel, "The file manager's context menu entries (Open / Enqueue in AudioTastic) are available on Windows only for now.");
         }
 
         if (_platform.Shell.SupportsFileAssociations)
@@ -274,7 +280,7 @@ public sealed class SettingsWindow : Window
         Check(trayOptions, "Minimise to the tray", si.MinimiseToTray, v => Update(s => s.MinimiseToTray = v));
         Check(trayOptions, "Close to the tray (exit from the tray menu or Main menu › Exit)", si.CloseToTray, v => Update(s => s.CloseToTray = v));
         panel.Children.Add(trayOptions);
-        Note(panel, "Notifications arrive later in phase P10. On macOS and Linux, file types and the context menu come later too.");
+        Note(panel, "Track-change notifications are switched on the Interface page.");
     }
 
     /// <summary>

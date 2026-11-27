@@ -66,6 +66,7 @@ Type: filesandordirs; Name: "{app}\plugins"
 ; The same path and AppUserModelID as the shortcut AudioTastic keeps itself, so the app sees it as its own.
 Name: "{autoprograms}\AudioTastic"; Filename: "{app}\AudioTastic.exe"; WorkingDir: "{app}"; Comment: "Winamp-style audio player"; AppUserModelID: "BigApps.AudioTastic"
 Name: "{autodesktop}\AudioTastic"; Filename: "{app}\AudioTastic.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\AudioTastic User Manual"; Filename: "{app}\AudioTastic User Manual.pdf"; Comment: "How to use AudioTastic"
 
 [Run]
 Filename: "{app}\AudioTastic.exe"; Description: "{cm:LaunchProgram,AudioTastic}"; Flags: nowait postinstall skipifsilent

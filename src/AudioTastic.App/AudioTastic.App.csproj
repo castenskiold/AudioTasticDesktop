@@ -78,6 +78,8 @@
     <!-- SI-02 / SI-07: the icon Windows shows for the app identity (media controls, notifications). -->
     <None Include="$(RepoRoot)assets\branding\png\audiotastic-256.png" Link="audiotastic.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     <None Include="$(RepoRoot)THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <!-- The user manual (docs/manual, PDF from docs/pdf-src/manual.py) ships next to the program; the Windows setup adds a Start menu entry. -->
+    <None Include="$(RepoRoot)AudioTastic_User_Manual.pdf" Link="AudioTastic User Manual.pdf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <!-- Native libraries (FFmpeg, miniaudio, ...) are copied by Directory.Build.targets. -->

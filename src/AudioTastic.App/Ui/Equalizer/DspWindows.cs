@@ -20,8 +20,7 @@ public sealed class ParametricBandsWindow : Window
     {
         _controller = controller;
         Title = "Parametric bands";
-        Width = 560;
-        SizeToContent = SizeToContent.Height;
+        SizeToContent = SizeToContent.WidthAndHeight; // EQ-04: wide enough for 5-digit frequencies and the delete buttons
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var add = new Button { Content = "Add band" };
@@ -52,12 +51,14 @@ public sealed class ParametricBandsWindow : Window
     private void Rebuild()
     {
         _rows.Children.Clear();
+        _rows.Children.Add(Columns(new TextBlock(), new TextBlock { Text = "On" }, Heading("Type", 110), Heading("Frequency (Hz)", NumberWidth),
+            Heading("Gain (dB)", NumberWidth), Heading("Q", NumberWidth)));
         var bands = _controller.Current.Parametric;
         for (var i = 0; i < bands.Count; i++)
         {
             var index = i;
             var band = bands[i];
-            var on = new CheckBox { IsChecked = band.Enabled, VerticalAlignment = VerticalAlignment.Center };
+            var on = new CheckBox { IsChecked = band.Enabled, VerticalAlignment = VerticalAlignment.Center, Width = 32 };
             var type = new ComboBox { ItemsSource = Enum.GetValues<FilterType>().Select(ParametricEditor.TypeName).ToList(), SelectedIndex = (int)band.Type, Width = 110 };
             var frequency = Number(band.Frequency, 20, 20000, 10, "0");
             var gain = Number(band.GainDb, -24, 24, 0.5m, "+0.0;-0.0;0.0");
@@ -85,12 +86,8 @@ public sealed class ParametricBandsWindow : Window
                 _controller.Change(eq => eq.Parametric.RemoveAt(index));
                 Rebuild();
             };
-            _rows.Children.Add(new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children = { new TextBlock { Text = (i + 1).ToString(CultureInfo.InvariantCulture), Width = 16, VerticalAlignment = VerticalAlignment.Center }, on, type, frequency, gain, q, delete },
-            });
+            _rows.Children.Add(Columns(new TextBlock { Text = (i + 1).ToString(CultureInfo.InvariantCulture), VerticalAlignment = VerticalAlignment.Center },
+                on, type, frequency, gain, q, delete));
         }
     }
 
@@ -102,6 +99,27 @@ public sealed class ParametricBandsWindow : Window
         }
     }
 
+    private const double NumberWidth = 140;
+
+    private static TextBlock Heading(string text, double width) => new() { Text = text, Width = width, FontSize = 12, Foreground = Brushes.Gray };
+
+    /// <summary>One row of the table: number, on, type, frequency, gain, Q (and delete), in fixed-width columns.</summary>
+    private static StackPanel Columns(TextBlock number, Control on, params Control[] rest)
+    {
+        number.Width = 16;
+        on.Width = 32;
+        if (on is TextBlock label)
+        {
+            label.FontSize = 12;
+            label.Foreground = Brushes.Gray;
+        }
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        row.Children.Add(number);
+        row.Children.Add(on);
+        row.Children.AddRange(rest);
+        return row;
+    }
+
     private static NumericUpDown Number(double value, double min, double max, decimal step, string format) => new()
     {
         Minimum = (decimal)min,
@@ -109,7 +127,7 @@ public sealed class ParametricBandsWindow : Window
         Increment = step,
         Value = (decimal)Math.Clamp(value, min, max),
         FormatString = format,
-        Width = 110,
+        Width = NumberWidth,
     };
 }
 

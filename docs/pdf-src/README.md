@@ -8,6 +8,7 @@ These Python scripts generate the project's PDF documents in the dark AudioTasti
 | `plan.py` + `plan_data.py` | `AudioTastic_Implementation_Plan.pdf`: build order (phases P0–P14), prerequisites, exit criteria |
 | `required.py` | `AudioTastic_Required_Features.pdf`: the list of required features |
 | `suggestions.py` | `AudioTastic_Feature_Suggestions.pdf`: the original brainstorm, kept for history only (v1.2) |
+| `manual.py` | `AudioTastic_User_Manual.pdf`: the User Manual, made from `docs/manual/README.md` and its screenshots (light pages for printing; needs Pillow too). Make new screenshots first with `scripts/make_manual_screenshots.py` |
 | `theme.py` | Shared design: colours, Inter font, cover page, header and footer, tables, feature cards |
 
 ## Regenerate
@@ -17,6 +18,9 @@ pip install "reportlab>=4"
 python docs/pdf-src/spec.py
 python docs/pdf-src/required.py
 python docs/pdf-src/plan.py
+pip install pillow
+python scripts/make_manual_screenshots.py   # only when the UI changed (Debug build, silent, renders windows, not the screen)
+python docs/pdf-src/manual.py
 ```
 
 - **Output folder:** set `AUDIOTASTIC_PDF_OUT` to write the PDFs somewhere other than the repository root.

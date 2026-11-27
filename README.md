@@ -2,7 +2,7 @@
 
 A Winamp replacement with extra features: a Winamp-style desktop audio player for Windows, macOS and Linux, built with .NET 10 and Avalonia.
 
-- **Using AudioTastic:** the [user guide](docs/guide/README.md).
+- **Using AudioTastic:** the [User Manual](docs/manual/README.md), with screenshots of every window and setting, also as a [PDF](AudioTastic_User_Manual.pdf) (installed with the Windows setup, Start menu › *AudioTastic User Manual*). Downloads are on the [Releases page](https://github.com/castenskiold/AudioTasticDesktop/releases).
 - **Specification and plan:** the PDFs in this folder (Required Features, Feature Specification, Implementation Plan). Their sources are in `docs/pdf-src/`.
 - **Skins and plugins:** `docs/skins/` (skin format) and `docs/plugins/` ([plugin guide](docs/plugins/plugin-guide.md) and the generated [SDK reference](docs/plugins/sdk-reference.md); the SDK is `src/AudioTastic.Sdk`, version 1.0.0).
 
@@ -102,7 +102,7 @@ Runtime identifiers: `win-x64`, `win-arm64`, `osx-arm64`, `osx-x64`, `linux-x64`
 | `native/` | Scripts that fetch or build the native libraries |
 | `scripts/` | Developer scripts (test media, sample skin, plugin template check) |
 | `assets/branding/` | Logo and app icons |
-| `docs/guide/` | User guide and its screenshots |
+| `docs/manual/` | User Manual and its screenshots (`scripts/make_manual_screenshots.py` makes them; `docs/pdf-src/manual.py` makes the PDF) |
 | `docs/skins/`, `docs/plugins/` | Skin format and schema; plugin author guide and SDK reference |
 | `docs/pdf-src/` | Sources of the PDF documents |
 | `.vscode/` | VS Code tasks, launch configurations and recommended extensions |

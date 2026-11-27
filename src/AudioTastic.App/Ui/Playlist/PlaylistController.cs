@@ -307,7 +307,7 @@ public sealed class PlaylistController : IDisposable
     public void ShowAddMenu(Control source) => Open(source,
         Item("Add files…", () => _ = AddFilesAsync(source)),
         Item("Add folder…", () => _ = AddFolderAsync(source)),
-        Item("Add URL…", null)); // FM-10 (P4)
+        Item("Add URL…", () => _ = OpenUrlAsync(source, play: false))); // FM-10
 
     public void ShowRemoveMenu(Control source) => Open(source,
         Item("Remove selected (Del)", RemoveSelected, Selection.Count > 0),
@@ -628,14 +628,40 @@ public sealed class PlaylistController : IDisposable
         await AddAsync(files.Select(f => f.TryGetLocalPath()).OfType<string>());
     }
 
-    private async Task AddFolderAsync(Control source)
+    /// <summary>PL-04: ADD › Add folder… (adds), Main menu › Open folder… (adds and plays).</summary>
+    public async Task AddFolderAsync(Control source, bool play = false)
     {
         if (TopLevel.GetTopLevel(source) is not { } top)
         {
             return;
         }
-        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Add folder", AllowMultiple = true });
-        await AddAsync(folders.Select(f => f.TryGetLocalPath()).OfType<string>());
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = play ? "Open folder" : "Add folder", AllowMultiple = true });
+        await AddAsync(folders.Select(f => f.TryGetLocalPath()).OfType<string>(), play: play);
+    }
+
+    /// <summary>FM-10: Main menu › Open URL… (Ctrl+L; adds and plays) and ADD › Add URL… (adds): a stream or a remote playlist.</summary>
+    public async Task OpenUrlAsync(Control source, bool play)
+    {
+        if (TopLevel.GetTopLevel(source) is not Window owner)
+        {
+            return;
+        }
+        var url = await InputWindow.ShowAsync(owner, play ? "Open URL" : "Add URL", "Internet radio or stream URL (http, https; .m3u and .pls links work too):",
+            watermark: "https://");
+        if (url is null)
+        {
+            return;
+        }
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            await MessageWindow.ShowAsync(owner, "Open URL", "Only http:// and https:// addresses can be opened.", [url]);
+            return;
+        }
+        var error = await AddUrlAsync(uri, play);
+        if (error is not null)
+        {
+            await MessageWindow.ShowAsync(owner, "Open URL", "The address could not be opened:", [error]);
+        }
     }
 
     private async Task LoadPlaylistAsync(Control source)
