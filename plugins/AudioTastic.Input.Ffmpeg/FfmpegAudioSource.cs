@@ -393,6 +393,12 @@ public sealed unsafe class FfmpegAudioSource : IAudioSource
                     throw Error(r, "read");
                 }
                 _demuxEnded = true;
+                if (_isStream)
+                {
+                    // FM-10: the poll runs at most twice a second; a connection that ends sooner (or the last block
+                    // before a drop) would otherwise lose its title. Seen as a flaky reconnect test on CI.
+                    PollIcy(force: true);
+                }
                 ffmpeg.avcodec_send_packet(_codec, null); // enter draining mode
                 continue;
             }
