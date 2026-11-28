@@ -1086,6 +1086,11 @@ public sealed partial class PlayerShell : ISkinHost, IDisposable
             {
                 if (batch.Play.Count > 0)
                 {
+                    // SI-06: optionally the played files replace the active playlist (one undoable step).
+                    if (_settings.Current.SystemIntegration.ReplacePlaylistOnOpen && _playlists.Active.Count > 0)
+                    {
+                        _playlists.Active.Clear();
+                    }
                     await _playlists.AddAsync(batch.Play, play: true);
                 }
                 if (batch.Enqueue.Count > 0)

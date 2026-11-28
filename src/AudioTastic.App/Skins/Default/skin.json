@@ -157,13 +157,13 @@
         { "type": "playlistTabs", "x": 8, "y": 20, "width": 314, "height": 11, "anchor": "left right top", "font": "badge", "spacing": 3,
           "strokeWidth": 0.8, "strokes": { "normal": "@dim", "active": "@text" }, "fills": { "active": "@text" },
           "colors": { "normal": "@muted", "active": "@bg" } },
-        { "type": "playlistSearch", "x": 8, "y": 34, "width": 314, "height": 12, "anchor": "left right top", "font": "body", "fontSize": 6.5,
+        { "type": "playlistSearch", "x": 8, "y": 34, "width": 314, "height": 12, "anchor": "left right top", "font": "body", "fontSize": 7.4,
           "stroke": "@line", "strokeWidth": 0.8, "color": "@text", "text": "J   Search playlist…" },
 
         { "type": "rect", "x": 6, "y": 49, "width": 318, "height": 163, "anchor": "left right top bottom",
           "fill": "@bg", "stroke": "@line", "strokeWidth": 1, "cornerRadius": 4 },
         { "type": "playlistList", "x": 8, "y": 51, "width": 314, "height": 159, "anchor": "left right top bottom",
-          "font": "body", "fontSize": 6.8, "rowHeight": 13, "color": "#C4C4C9", "mutedColor": "@muted",
+          "font": "body", "fontSize": 8.4, "rowHeight": 16, "color": "#C4C4C9", "mutedColor": "@muted",
           "playingColor": "#FFFFFF", "selectionColor": "#2C2C31" },
 
         { "type": "button", "bind": "plAdd", "x": 8, "y": 216, "width": 21, "height": 11, "anchor": "left bottom", "text": "ADD", "font": "badge",
@@ -182,7 +182,7 @@
           "cornerRadius": 5.5, "strokeWidth": 0.8, "strokes": { "normal": "@dim", "hover": "@text" }, "fills": { "pressed": "@text" },
           "colors": { "normal": "@muted", "hover": "@text", "pressed": "@bg" }, "tooltip": "New, load, save playlists" },
 
-        { "type": "playlistInfo", "x": 150, "y": 216, "width": 156, "height": 11, "anchor": "right bottom", "font": "medium", "fontSize": 6.5,
+        { "type": "playlistInfo", "x": 150, "y": 216, "width": 156, "height": 11, "anchor": "right bottom", "font": "medium", "fontSize": 7.4,
           "color": "@muted", "align": "right" },
         { "type": "resizeGrip", "x": 314, "y": 216, "width": 16, "height": 16, "anchor": "right bottom" }
       ]

@@ -208,6 +208,15 @@ public sealed class SettingsWindow : Window
         open.SelectionChanged += (_, _) => Update(s => s.OpenFiles = (OpenFilesAction)Math.Max(0, open.SelectedIndex));
         Row(panel, "Files opened from the file manager or the command line", open,
             "AudioTastic runs once: files opened while it is running go to the running player, into the active playlist.");
+        var replace = new ComboBox
+        {
+            ItemsSource = new[] { "Add them to the playlist", "Replace the playlist" },
+            SelectedIndex = si.ReplacePlaylistOnOpen ? 1 : 0,
+            Width = 320,
+        };
+        replace.SelectionChanged += (_, _) => Update(s => s.ReplacePlaylistOnOpen = replace.SelectedIndex == 1);
+        Row(panel, "When opened files are played", replace,
+            "Also for 'Open in AudioTastic' and --open. Replace empties the active playlist first (Ctrl+Z in the playlist brings it back); enqueued files are always added.");
 
         if (_platform.Shell.SupportsContextMenu)
         {

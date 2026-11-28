@@ -16,6 +16,17 @@ public sealed class SettingsStoreTests
     }
 
     [Fact]
+    public void Opened_files_are_added_by_default_and_replace_the_playlist_when_chosen()
+    {
+        using var dir = new TempDir();
+        var file = dir.Combine("settings.json");
+        var store = new SettingsStore(file);
+        Assert.False(store.Current.SystemIntegration.ReplacePlaylistOnOpen); // SI-06: today's behaviour stays the default
+        store.Update(SettingsGroup.SystemIntegration, s => s.SystemIntegration.ReplacePlaylistOnOpen = true);
+        Assert.True(new SettingsStore(file).Current.SystemIntegration.ReplacePlaylistOnOpen);
+    }
+
+    [Fact]
     public void Update_persists_and_survives_restart()
     {
         using var dir = new TempDir();

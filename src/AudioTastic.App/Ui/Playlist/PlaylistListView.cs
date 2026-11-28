@@ -68,8 +68,10 @@ internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController contro
         {
             context.FillRectangle(style.Playing, new Rect(1, 2, 1.5, h - 4));
         }
+        // PL-01: the numbers sit just right of the playing bar, right-aligned in a column only as wide as the longest
+        // number of this playlist (Anders: a fixed column for 100,000 entries left a gap before short lists' titles).
         var number = Text(row.Number.ToString(CultureInfo.InvariantCulture) + ".", style.Typeface, style.Muted);
-        const double numberColumn = 28;
+        var numberColumn = BarSpace + NumberWidth(controller.Active.Count);
         context.DrawText(number, new Point(numberColumn - number.WidthIncludingTrailingWhitespace, (h - number.Height) / 2));
 
         var duration = entry.Duration is { } d ? Text(DisplayText.Time(d), style.Typeface, style.Muted) : null;
@@ -96,10 +98,30 @@ internal sealed class PlaylistRow(PlaylistStyle style, PlaylistController contro
 
         var title = Text(entry.DisplayName, playing ? style.PlayingTypeface : style.Typeface,
             missing ? style.Muted : playing ? style.Playing : style.Text);
-        title.MaxTextWidth = Math.Max(1, w - numberColumn - 6 - durationWidth - 10);
+        title.MaxTextWidth = Math.Max(1, w - numberColumn - TitleGap - durationWidth - 10);
         title.Trimming = TextTrimming.CharacterEllipsis;
         title.MaxLineCount = 1;
-        context.DrawText(title, new Point(numberColumn + 6, (h - title.Height) / 2));
+        context.DrawText(title, new Point(numberColumn + TitleGap, (h - title.Height) / 2));
+    }
+
+    /// <summary>Room for the playing bar (x 1–2.5) before the numbers.</summary>
+    private const double BarSpace = 5;
+
+    private const double TitleGap = 5;
+
+    private int _widthDigits = -1;
+    private double _width;
+
+    /// <summary>Width of the widest number with <paramref name="count"/>'s digit count ("88." for 10–99 entries).</summary>
+    private double NumberWidth(int count)
+    {
+        var digits = Math.Max(1, count).ToString(CultureInfo.InvariantCulture).Length;
+        if (digits != _widthDigits)
+        {
+            _widthDigits = digits;
+            _width = Text(new string('8', digits) + ".", style.Typeface, style.Muted).WidthIncludingTrailingWhitespace;
+        }
+        return _width;
     }
 
     protected override void OnDataContextChanged(EventArgs e)

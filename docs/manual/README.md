@@ -41,7 +41,7 @@ Download AudioTastic from the [Releases page](https://github.com/castenskiold/Au
 
 **Linux.** Make the `.AppImage` executable (`chmod +x AudioTastic-*.AppImage`) and run it. AudioTastic needs a desktop with X11 or XWayland.
 
-**The first start (Windows).** AudioTastic asks whether to use it for audio files. *Yes, set up* registers it for every audio and playlist type it plays and opens Windows *Settings › Default apps*, where you choose it as the default. You can do this later in *Settings › System integration*. Only one AudioTastic runs at a time: files you open while it runs go to the running player.
+**The first start (Windows).** AudioTastic asks whether to use it for audio files. *Yes, set up* registers it for every audio and playlist type it plays and opens Windows *Settings › Default apps*, where you choose it as the default. You can do this later in *Settings › System integration*. Only one AudioTastic runs at a time: files you open while it runs go to the running player, which adds them to the playlist and plays them (or, if you choose, replaces the playlist with them).
 
 ## The player at a glance
 
@@ -291,7 +291,7 @@ The tags and the cover come along. Tracks from a CUE sheet become separate files
 - **Taskbar:** Previous, Play/Pause and Next buttons under the taskbar preview, and the playing position on the taskbar button (green while playing, yellow while paused).
 - **Tray icon:** hover over it for the title; click it to hide or show the player; right-click for Play/Pause, Stop, Previous, Next, the sleep timer, Show/Hide and Exit. Optionally, minimizing or closing the player hides it in the tray.
 - **Explorer:** right-click audio files or playlists › *Open in AudioTastic* (adds and plays them) or *Enqueue in AudioTastic* (adds them to the end of the playlist). On Windows 11 they are under *Show more options*.
-- **File types:** *Choose default apps…* registers AudioTastic and opens Windows' *Default apps* page, where you make it the default player. Double-clicked files go to the running player and are played or added, as you choose in *Settings › System integration*.
+- **File types:** *Choose default apps…* registers AudioTastic and opens Windows' *Default apps* page, where you make it the default player. Double-clicked files go to the running player and are played or only added, as you choose in *Settings › System integration*. Files that are played are added to the active playlist, or replace it if you choose *When opened files are played › Replace the playlist* (**Ctrl+Z** in the playlist brings the old list back).
 - **Notifications:** a notification with the title, artist and cover when the track changes, skipped while AudioTastic is in front (off by default).
 
 ## Keyboard and screen readers
@@ -388,7 +388,7 @@ The skin, player size, double size, always on top (main window and mini player),
 
 ### System integration
 
-What happens to files opened from the file manager or command line (play or add), the Explorer context menu, file types, the Start menu shortcut, media controls, global hotkeys, taskbar progress and the tray icon (*Windows only*).
+What happens to files opened from the file manager or command line (play or only add, and whether played files are added to the playlist or replace it), the Explorer context menu, file types, the Start menu shortcut, media controls, global hotkeys, taskbar progress and the tray icon (*Windows only*).
 
 <img src="images/37-settings-system-integration.png" width="562" alt="Settings › System integration">
 

@@ -378,6 +378,12 @@ public sealed class SystemIntegrationSettings
 
     /// <summary>SI-06: what files opened from the OS (double-click, file association, command line) do.</summary>
     public OpenFilesAction OpenFiles { get; set; } = OpenFilesAction.Play;
+
+    /// <summary>
+    /// SI-06 (Anders, 28 Nov 2026): files played from the OS (double-click, Open in AudioTastic, --open) replace the
+    /// active playlist instead of being added to it. Enqueued files are always added. Ctrl+Z in the playlist undoes it.
+    /// </summary>
+    public bool ReplacePlaylistOnOpen { get; set; }
 }
 
 /// <summary>SI-06: files opened from the OS are added and played, or only added (enqueued).</summary>
